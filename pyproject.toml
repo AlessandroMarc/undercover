@@ -1,0 +1,11 @@
+[project]
+name = "undercover"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.15.0",
+    "ipykernel>=7.3.0",
+    "openai>=3.19.2",
+    "python-dotenv>=1.2.3",
+    "requests>=2.34.2",
+]
