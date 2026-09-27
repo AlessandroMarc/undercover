@@ -9,7 +9,7 @@ This repo is built out during Ed Donner's 3-week course, "AI Forward Deployed En
 - `data/`: UnderCover's business data
 - `labs/`: the Jupyter notebooks covered in the course
 - `guides/`: guides to the command line, git, Python and other foundations
-- `setup/`: the setup notebook
+- `setup/`: the setup notebook and the installation steps
 - `assets/`: images used in the notebooks
 - `community_contributions/`: students' contributions
 
