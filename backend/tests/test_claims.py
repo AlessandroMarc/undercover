@@ -19,6 +19,8 @@ def test_list_claims(client):
         "amount_claimed": 420.0,
         "submitted_on": "2026-06-24",
         "status": "waiting",
+        "decision": None,
+        "payout": None,
     }
 
 
@@ -29,6 +31,8 @@ def test_get_claim(client):
     assert len(claim["items"]) == 3
     assert len(claim["documents"]) == 4
     assert claim["status"] == "waiting"
+    assert claim["decision"] is None
+    assert claim["payment"] is None
 
 
 def test_get_policy(client):

@@ -37,9 +37,39 @@ CREATE TABLE claims (
     status TEXT NOT NULL,
     thread_id TEXT
 );
+CREATE TABLE decisions (
+    claim_id TEXT PRIMARY KEY REFERENCES claims,
+    decision TEXT NOT NULL,
+    payout REAL NOT NULL,
+    section TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    decided_at TEXT NOT NULL
+);
+CREATE TABLE payments (
+    claim_id TEXT PRIMARY KEY REFERENCES claims,
+    amount REAL NOT NULL,
+    paid_at TEXT NOT NULL,
+    signed_off_by TEXT
+);
+CREATE TABLE steps (
+    step_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    claim_id TEXT NOT NULL REFERENCES claims,
+    thread_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 CREATE VIEW claim_view AS
-SELECT claims.claim_id, claims.record, claims.status, customers.name AS customer_name
-FROM claims JOIN customers USING (customer_id);
+SELECT
+    claims.claim_id, claims.record, claims.status, claims.thread_id,
+    customers.name AS customer_name,
+    decisions.decision, decisions.payout, decisions.section, decisions.reason,
+    decisions.decided_at,
+    payments.amount, payments.paid_at, payments.signed_off_by
+FROM claims
+JOIN customers USING (customer_id)
+LEFT JOIN decisions USING (claim_id)
+LEFT JOIN payments USING (claim_id);
 """
 
 
