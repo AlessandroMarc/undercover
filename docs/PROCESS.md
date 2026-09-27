@@ -4,11 +4,11 @@
 
 `npm run check` runs every check:
 
-- Python: ruff (lint and format), complexipy, pyright, and pytest with 80% coverage
-- TypeScript: ESLint, Prettier, tsc, vitest with 80% coverage, and knip
+- Python: ruff (lint and format), pyright, and pytest with 80% coverage
+- TypeScript: ESLint, Prettier, tsc, and vitest with 80% coverage
 - Playwright end-to-end tests
 
-The pre-commit hook runs the format, lint, type and unit test checks on every commit, and CI runs `npm run check` on every push.
+The pre-commit hook runs the format, lint, type and unit test checks on every commit.
 
 ## Rules
 

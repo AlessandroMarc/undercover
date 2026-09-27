@@ -4,6 +4,8 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.15.0",
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
     "ipykernel>=7.3.0",
     "langchain>=1.4.2",
     "langchain-openai>=1.6.2",
@@ -15,4 +17,43 @@ dependencies = [
     "plotly>=7.1.0",
     "python-dotenv>=1.2.3",
     "requests>=2.34.2",
+    "uvicorn>=0.54.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.9",
+]
+
+[tool.ruff]
+include = ["backend/**/*.py", "agent/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "SIM", "UP", "PL", "S", "PT", "FAST", "C90", "PLR1702"]
+preview = true
+explicit-preview-rules = true
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"*/tests/*" = ["S101", "PLR2004"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend", "agent"]
+pythonpath = ["."]
+addopts = "--import-mode=importlib --cov --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["backend", "agent"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 80
+
+[tool.pyright]
+include = ["backend", "agent"]
+venvPath = "."
+venv = ".venv"

@@ -30,6 +30,9 @@ node_modules/
 *.tsbuildinfo
 npm-debug.log*
 yarn-error.log*
+coverage/
+test-results/
+playwright-report/
 
 # AWS and AgentCore
 cdk.out/
