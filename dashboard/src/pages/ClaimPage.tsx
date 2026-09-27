@@ -2,15 +2,17 @@ import { useCallback } from "react";
 import { useParams } from "react-router";
 import { ApiError, api, type Claim } from "../api";
 import { StatusChip } from "../components/Chips";
+import { DecisionPanel } from "../components/DecisionPanel";
 import { Message } from "../components/Message";
 import { HistoryPanel, PolicyPanel } from "../components/PolicyPanels";
+import { StepList } from "../components/StepList";
 import { date, label, money } from "../format";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
 export function ClaimPage() {
   const { claimId = "" } = useParams();
   const load = useCallback(() => api.getClaim(claimId), [claimId]);
-  const { data: claim, error } = useLoad(load, REFRESH_MS);
+  const { data: claim, error, reload } = useLoad(load, REFRESH_MS);
 
   if (!claim) {
     if (error instanceof ApiError && error.status === 404)
@@ -32,6 +34,8 @@ export function ClaimPage() {
           <DocumentsPanel claim={claim} />
         </div>
         <div className="column">
+          <DecisionPanel claim={claim} onSignedOff={reload} />
+          <StepList claimId={claim.claim_id} />
           <PolicyPanel policyId={claim.policy_id} />
           <HistoryPanel customerId={claim.customer_id} />
         </div>

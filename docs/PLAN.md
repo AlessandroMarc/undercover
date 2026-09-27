@@ -146,13 +146,13 @@ Replace the health page with the three pages, the header and the brand styling. 
 
 Add the agent's steps to the claim page, the decision panel with payment status, the sign-off form, and the two-second refresh.
 
-- [ ] vitest covers the step list, the refresh while a claim is in progress (with fake timers), the decision panel in each state, and the sign-off form, including an error from the backend
-- [ ] e2e, agent at work: the test starts `CLM-1003` and records steps through the API. Without a reload, the page shows In progress and each step. After the test records an approval and a payment, the page shows Decided, Approved and "Paid $X", again without a reload
-- [ ] e2e, sign-off: the test starts `CLM-1020` and approves it for 1,350.00 through the API, and a payment attempt returns 403. The page shows Waiting for sign-off. Choosing Dana Whitfield and pressing "Sign off" shows Decided and "Paid $1,350.00, signed off by Dana Whitfield"
-- [ ] Browser: tool calls show the tool name and its inputs, tool results are folded and open on click, and the agent's messages show in full
-- [ ] Browser, with `browser_evaluate`: each state and decision label has the background color from the design
-- [ ] Live, in the browser: on a fresh database, open `/claims/CLM-1001` and run `uv run -m agent CLM-1001`. Snapshots taken during the run show steps appearing while the claim is In progress, and the page ends on Decided with the decision, payout, section and reason
-- [ ] `npm run check` passes
+- [x] vitest covers the step list, the refresh while a claim is in progress (with fake timers), the decision panel in each state, and the sign-off form, including an error from the backend
+- [x] e2e, agent at work: the test starts `CLM-1003` and records steps through the API. Without a reload, the page shows In progress and each step. After the test records an approval and a payment, the page shows Decided, Approved and "Paid $X", again without a reload
+- [x] e2e, sign-off: the test starts `CLM-1020` and approves it for 1,350.00 through the API, and a payment attempt returns 403. The page shows Waiting for sign-off. Choosing Dana Whitfield and pressing "Sign off" shows Decided and "Paid $1,350.00, signed off by Dana Whitfield"
+- [x] Browser: tool calls show the tool name and its inputs, tool results are folded and open on click, and the agent's messages show in full
+- [x] Browser, with `browser_evaluate`: each state and decision label has the background color from the design
+- [x] Live, in the browser: on a fresh database, open `/claims/CLM-1001` and run `uv run -m agent CLM-1001`. Snapshots taken during the run show steps appearing while the claim is In progress, and the page ends on Decided with the decision, payout, section and reason
+- [x] `npm run check` passes
 
 ## Phase 6: Working the queue
 
