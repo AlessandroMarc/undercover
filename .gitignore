@@ -33,6 +33,7 @@ yarn-error.log*
 coverage/
 test-results/
 playwright-report/
+.playwright-mcp/
 
 # AWS and AgentCore
 cdk.out/

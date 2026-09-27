@@ -62,7 +62,7 @@ Rules the backend enforces:
 ### Dashboard
 
 - React Router with three pages: the queue (`/`), a claim (`/claims/:claimId`) and the instructions (`/instructions`), plus a header linking to the queue and the instructions.
-- It fetches through a typed client in `dashboard/src/api.ts`. The queue refreshes every two seconds. A claim page refreshes every two seconds while the claim is in progress or waiting for sign-off.
+- It fetches through a typed client in `dashboard/src/api.ts`. The queue and a claim page refresh every two seconds, so a page opened before the agent starts still shows its work. Refreshing stops if the claim doesn't exist.
 - Brand from `BRAND.md`: Instrument Sans, Instrument Serif for the tagline, and JetBrains Mono for ids and amounts. Light and dark mode follow the system setting. Panels are rounded with no outline. Money is shown like $1,250.00.
 - State colors: Decided in Sea Green, In progress in Marigold, Waiting for sign-off in Coral, Waiting in Cerulean. Decision colors: Approved in Sea Green, Referred in Marigold, Declined in Coral.
 
@@ -131,16 +131,16 @@ Write `backend/instructions.md` and add `get_instructions`. Replace the hello-wo
 
 Replace the health page with the three pages, the header and the brand styling. `e2e/health.spec.ts` gives way to tests of the new pages.
 
-- [ ] vitest covers the queue, the claim page, the instructions page and money formatting (`1150` shows as `$1,150.00`) against a stubbed `fetch`
-- [ ] e2e: the queue lists 25 claims. Clicking `CLM-1001` opens `/claims/CLM-1001` with its story. The header link opens the instructions
-- [ ] Browser, `/`: 25 rows with id, customer, type, summary, amount claimed, submitted date and status. Status counts show Waiting 25. Rows are in id order
-- [ ] Browser, `/claims/CLM-1002`: the story, 6 items totalling $1,150.00, 3 documents with their text, the policy (plan, add-ons, purchase date, trip dates, trip cost, travelers) and the customer's earlier claims
-- [ ] Browser, `/instructions`: the instructions and the policy wording, with no text box, input or edit button in the snapshot
-- [ ] Browser, `/claims/CLM-9999` shows "Claim not found"
-- [ ] Browser, with `browser_evaluate`: body text uses Instrument Sans, ids and amounts use JetBrains Mono, and the page background is `#F0F4F5` in light mode and `#04232E` after `browser_emulate_media` switches to dark
-- [ ] Browser: screenshots of the queue and a claim in light and dark mode show rounded panels with no outlines, no one-edge borders and no gradients
-- [ ] Browser: `browser_console_messages` shows no errors on any page
-- [ ] `npm run check` passes
+- [x] vitest covers the queue, the claim page, the instructions page and money formatting (`1150` shows as `$1,150.00`) against a stubbed `fetch`
+- [x] e2e: the queue lists 25 claims. Clicking `CLM-1001` opens `/claims/CLM-1001` with its story. The header link opens the instructions
+- [x] Browser, `/`: 25 rows with id, customer, type, summary, amount claimed, submitted date and status. Status counts show Waiting 25. Rows are in id order
+- [x] Browser, `/claims/CLM-1002`: the story, 6 items totalling $1,150.00, 3 documents with their text, the policy (plan, add-ons, purchase date, trip dates, trip cost, travelers) and the customer's earlier claims
+- [x] Browser, `/instructions`: the instructions and the policy wording, with no text box, input or edit button in the snapshot
+- [x] Browser, `/claims/CLM-9999` shows "Claim not found"
+- [x] Browser, with `browser_evaluate`: body text uses Instrument Sans, ids and amounts use JetBrains Mono, and the page background is `#F0F4F5` in light mode and `#04232E` after `browser_emulate_media` switches to dark
+- [x] Browser: screenshots of the queue and a claim in light and dark mode show rounded panels with no outlines, no one-edge borders and no gradients
+- [x] Browser: `browser_console_messages` shows no errors on any page, apart from the 404 for the missing claim on the not-found page
+- [x] `npm run check` passes
 
 ## Phase 5: Dashboard: the agent at work, and sign-off
 
