@@ -22,7 +22,7 @@ The seed data marks every claim `open`, which loads as `waiting`. A claim moves 
 - SQLite through Python's built-in `sqlite3`, with no ORM. The file path comes from the environment variable `UNDERCOVER_DB`, and defaults to `undercover.db` at the repo root, which git already ignores.
 - Tables: claims, policies, customers, handlers, settings, decisions, payments and steps. Claim items and documents are stored as JSON text.
 - The backend creates and seeds the database from `data/` when it starts and the file is missing. `uv run -m backend.seed` rebuilds it from scratch.
-- Seeding reads `company.json`, `plans.json`, `policies.json`, `customers.json`, `handlers.json`, `claims.json` and `policy_wording.md`. It never reads `data/evals/`.
+- Seeding reads `company.json`, `policies.json`, `customers.json`, `handlers.json`, `claims.json` and `policy_wording.md`. It never reads `data/evals/`.
 - The $1,000 limit is read from `payout_approval_limit` in `company.json`, not written into the code.
 
 ### API
@@ -78,18 +78,18 @@ API calls run against `npm run dev` on a freshly seeded database (`uv run -m bac
 
 Build the database, the seeding, and the read operations `list_claims`, `get_claim`, `get_policy` and `get_claim_history`. Add a pytest check that the OpenAPI schema follows the API rules. Set up the separate end-to-end servers.
 
-- [ ] `uv run -m backend.seed` prints `Seeded 25 claims, 50 policies, 49 customers and 3 handlers into undercover.db`
-- [ ] `curl -s localhost:8000/api/claims` returns 25 claims in id order, all `waiting`. The first is `CLM-1001` for Maya Patel, `trip_delay`, with an amount claimed of 420.0
-- [ ] `curl -s localhost:8000/api/claims/CLM-1001` returns the story, 3 items, 4 documents, status `waiting` and no decision
-- [ ] `curl -s localhost:8000/api/policies/POL-2001` returns plan `premium`, no add-ons, and a trip to Rome returning on 2026-06-18
-- [ ] `curl -s localhost:8000/api/customers/CUS-3001/claims` returns one earlier claim, `CLM-0412`, and no `email`, `phone`, `address` or `date_of_birth`
-- [ ] `curl -s -o /dev/null -w '%{http_code}' localhost:8000/api/claims/CLM-9999` prints `404`, and the same holds for an unknown policy and customer
-- [ ] A pytest test reads `/openapi.json` and passes: every operation has an `operation_id` and a one-line description, every parameter is required, and every request body property is required
-- [ ] After deleting `undercover.db` and starting the backend, `curl -s localhost:8000/api/claims` again returns 25 claims
-- [ ] pytest uses a temporary database: the modified time of `undercover.db` is the same before and after `uv run pytest`
-- [ ] `grep -rn evals backend agent dashboard/src` finds nothing
-- [ ] `npm run e2e` passes while `npm run dev` is running
-- [ ] `npm run check` passes
+- [x] `uv run -m backend.seed` prints `Seeded 25 claims, 50 policies, 49 customers and 3 handlers into undercover.db`
+- [x] `curl -s localhost:8000/api/claims` returns 25 claims in id order, all `waiting`. The first is `CLM-1001` for Maya Patel, `trip_delay`, with an amount claimed of 420.0
+- [x] `curl -s localhost:8000/api/claims/CLM-1001` returns the story, 3 items, 4 documents, status `waiting` and no decision
+- [x] `curl -s localhost:8000/api/policies/POL-2001` returns plan `premium`, no add-ons, and a trip to Rome returning on 2026-06-18
+- [x] `curl -s localhost:8000/api/customers/CUS-3001/claims` returns one earlier claim, `CLM-0412`, and no `email`, `phone`, `address` or `date_of_birth`
+- [x] `curl -s -o /dev/null -w '%{http_code}' localhost:8000/api/claims/CLM-9999` prints `404`, and the same holds for an unknown policy and customer
+- [x] A pytest test reads `/openapi.json` and passes: every operation has an `operation_id` and a one-line description, every parameter is required, and every request body property is required
+- [x] After deleting `undercover.db` and starting the backend, `curl -s localhost:8000/api/claims` again returns 25 claims
+- [x] pytest uses a temporary database: the modified time of `undercover.db` is the same before and after `uv run pytest`
+- [x] `grep -rn evals backend agent dashboard/src` finds nothing
+- [x] `npm run e2e` passes while `npm run dev` is running
+- [x] `npm run check` passes
 
 ## Phase 2: Deciding, paying and signing off
 
