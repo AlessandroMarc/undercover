@@ -35,10 +35,12 @@ def check_backend() -> str:
 
 def model() -> ChatOpenAI:
     """Return the model named in MODEL_NAME, or GPT-6 Luna by default."""
+    name = os.getenv("MODEL_NAME")
     return ChatOpenAI(
-        model=os.getenv("MODEL_NAME", DEFAULT_MODEL),
+        model=name or DEFAULT_MODEL,
         base_url=OPENROUTER_BASE_URL,
         api_key=SecretStr(os.environ["OPENROUTER_API_KEY"]),
+        reasoning_effort=None if name else "low",
     )
 
 

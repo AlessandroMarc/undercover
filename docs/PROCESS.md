@@ -38,4 +38,5 @@ When the last phase is done, run `npm run check` and report the results.
 - Never lower a threshold, turn off a rule or exclude a file to get a green run. If a rule looks wrong, stop and ask.
 - Keep `docs/STATUS.md` up to date.
 - Never push.
-- Write `package.json` scripts as `uv run` commands or `.mjs` files so they work on Windows.
+- Don't open `data/evals/` unless you're asked to.
+- Everything must work on Windows: write `package.json` scripts as `uv run` commands or `.mjs` files.
