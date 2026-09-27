@@ -2,7 +2,7 @@ import js from "@eslint/js";
 import vitest from "@vitest/eslint-plugin";
 import prettier from "eslint-config-prettier";
 import { defineConfig } from "eslint/config";
-import jsxA11y from "eslint-plugin-jsx-a11y";
+import jsxA11y from "eslint-plugin-jsx-a11y-x";
 import playwright from "eslint-plugin-playwright";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
@@ -47,7 +47,7 @@ export default defineConfig(
     files: ["dashboard/src/**/*.tsx"],
     extends: [
       reactHooks.configs.flat["recommended-latest"],
-      jsxA11y.flatConfigs.recommended,
+      jsxA11y.configs.recommended,
       reactRefresh.configs.vite,
     ],
     languageOptions: { globals: globals.browser },
