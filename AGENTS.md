@@ -13,4 +13,4 @@ This repo is built out during Ed Donner's 3-week course, "AI Forward Deployed En
 - `assets/`: images used in the notebooks
 - `community_contributions/`: students' contributions
 
-Before working on the product, read everything in `docs/`: `SPEC.md` for what the business needs, `TECH_STACK.md` for the tech choices, `PROCESS.md` for how to work, `BRAND.md` for the look and `STATUS.md` for status.
+Before working on the product, read everything in `docs/`: `SPEC.md` for what the business needs, `TECH_STACK.md` for the tech choices, `CODE_STANDARDS.md` for how to write the code, `PROCESS.md` for how to work, `BRAND.md` for the look and `STATUS.md` for status.
