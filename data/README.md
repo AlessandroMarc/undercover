@@ -25,6 +25,6 @@ The queue is the development set and the held-out claims are the test set. Nothi
 
 Every decision also carries a few tags. `difficulty` is `routine`, `hard` (the wording settles it and it stretches a small model) or `manual` (it needs something the prompt does not hold, listed in `needs`: the claims manual, the customer's history or both). `failure_class` groups the hard claims that one rule should fix. `tone` is `plain`, `amusing` or `nod`. `tiny` marks a subset of five claims in each set, one of each kind, which fits inside a free model's daily allowance.
 
-`get_sample_data(tiny=False, held_out=False)` in `poc/sample_data.py` returns the claims of either set with their decisions.
+The labs define `get_sample_data(tiny=False, held_out=False)`, which returns the claims of either set with their decisions.
 
 A decision is scored on two things: the decision itself and the payout. A valid claim that pays more than $1,000 is still an approve. The payment waits for a handler's sign-off, and `over_approval_limit` marks those claims.
