@@ -1,14 +1,17 @@
-"""Work one claim with the UnderCover Agent: uv run -m agent CLM-1001"""
+"""Work the queue with the UnderCover Agent: uv run -m agent [CLM-1001]"""
 
 import sys
 import uuid
 
-from agent.main import run
+from agent.main import run, work_queue
 
 
 def main(args: list[str]) -> None:
-    """Work the claim named on the command line and print the agent's reply."""
-    print(run(args[0], str(uuid.uuid4())))
+    """Work the claim named on the command line, or every waiting claim."""
+    if args:
+        print(run(args[0], str(uuid.uuid4())))
+    else:
+        work_queue()
 
 
 if __name__ == "__main__":

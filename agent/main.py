@@ -2,6 +2,8 @@
 
 import json
 import os
+import uuid
+from collections import Counter
 from typing import Any
 
 from dotenv import load_dotenv
@@ -83,3 +85,28 @@ def run(claim_id: str, thread_id: str, llm: BaseChatModel | None = None) -> str:
                 )
         messages = state["messages"]
     return messages[-1].text
+
+
+def work_queue() -> None:
+    """Work every waiting claim in queue order, printing each decision and a count."""
+    outcomes: Counter[str] = Counter()
+    for claim in call_backend("GET", "/api/claims"):
+        if claim["status"] != "waiting":
+            continue
+        claim_id = claim["claim_id"]
+        try:
+            run(claim_id, str(uuid.uuid4()))
+        except Exception as error:  # one failed claim shouldn't stop the queue
+            print(f"{claim_id}  failed: {error}", flush=True)
+            outcomes["failed"] += 1
+            continue
+        decision = call_backend("GET", f"/api/claims/{claim_id}")["decision"]
+        if decision is None:
+            print(f"{claim_id}  undecided", flush=True)
+            outcomes["undecided"] += 1
+        else:
+            outcome = decision["decision"]
+            print(f"{claim_id}  {outcome}  ${decision['payout']:,.2f}", flush=True)
+            outcomes[outcome] += 1
+    counts = ", ".join(f"{outcomes[name]} {name}" for name in sorted(outcomes))
+    print(f"Worked {outcomes.total()} claims: {counts or 'none waiting'}")
