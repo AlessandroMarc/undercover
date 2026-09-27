@@ -1,36 +1,23 @@
 """The UnderCover Agent."""
 
+import json
 import os
+from typing import Any
 
-import httpx
 from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
-from langchain_core.tools import tool
+from langchain_core.messages import AIMessage, AnyMessage, ToolMessage
 from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import SecretStr
+
+from agent.tools import TOOLS, request
 
 load_dotenv(override=True)
 
-BACKEND_URL = "http://localhost:8000"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "openai/gpt-6-luna"
-SYSTEM_PROMPT = """You are the UnderCover Agent.
-Check that the backend is running, then say hello."""
-
-
-def backend() -> httpx.Client:
-    """Return a client for the UnderCover backend."""
-    return httpx.Client(base_url=BACKEND_URL, timeout=10)
-
-
-@tool
-def check_backend() -> str:
-    """Check whether the UnderCover backend is running."""
-    with backend() as client:
-        response = client.get("/api/health")
-    response.raise_for_status()
-    return response.json()["status"]
 
 
 def model() -> ChatOpenAI:
@@ -44,13 +31,55 @@ def model() -> ChatOpenAI:
     )
 
 
+class BackendError(Exception):
+    """The backend refused a request the agent's run depends on."""
+
+
+def call_backend(method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+    """Call the backend and return its JSON, raising if it refuses."""
+    response = request(method, path, body)
+    if response.is_error:
+        raise BackendError(f"{response.status_code}: {response.json()['detail']}")
+    return response.json()
+
+
+def steps(message: AnyMessage) -> list[tuple[str, str]]:
+    """Turn one message from the agent's run into steps for the dashboard."""
+    if isinstance(message, ToolMessage):
+        return [("tool_result", f"{message.name}: {message.text}")]
+    found = []
+    if message.text:
+        found.append(("message", message.text))
+    if isinstance(message, AIMessage):
+        for call in message.tool_calls:
+            args = ", ".join(f"{k}={json.dumps(v)}" for k, v in call["args"].items())
+            found.append(("tool_call", f"{call['name']}({args})"))
+    return found
+
+
 def run(claim_id: str, thread_id: str, llm: BaseChatModel | None = None) -> str:
-    """Run the agent on one claim and return its final reply."""
+    """Work one claim, recording each step with the backend, and return the reply."""
+    call_backend("POST", f"/api/claims/{claim_id}/start", {"thread_id": thread_id})
+    instructions = call_backend("GET", "/api/instructions")["text"]
     agent = create_agent(
-        llm or model(), tools=[check_backend], system_prompt=SYSTEM_PROMPT
+        llm or model(),
+        tools=TOOLS,
+        system_prompt=instructions,
+        checkpointer=InMemorySaver(),
     )
-    result = agent.invoke(
+    states = agent.stream(
         {"messages": [{"role": "user", "content": f"Claim {claim_id}"}]},
         config={"configurable": {"thread_id": thread_id}},
+        stream_mode="values",
     )
-    return result["messages"][-1].text
+    messages = next(states)["messages"]
+    for state in states:
+        for message in state["messages"][len(messages) :]:
+            for kind, content in steps(message):
+                call_backend(
+                    "POST",
+                    f"/api/claims/{claim_id}/steps",
+                    {"kind": kind, "content": content},
+                )
+        messages = state["messages"]
+    return messages[-1].text

@@ -115,17 +115,17 @@ Add `start_claim`, `record_step`, `list_steps`, `record_decision`, `pay_claim`, 
 
 Write `backend/instructions.md` and add `get_instructions`. Replace the hello-world tool with the five claim tools. Build `run()` so it records steps as they happen. Add `uv run -m agent <claim_id>`.
 
-- [ ] `curl -s localhost:8000/api/instructions` returns the instructions followed by the policy wording, including `## 10. How we work out your payment`
-- [ ] A pytest test checks that the agent's tools are exactly `get_claim`, `get_policy`, `get_claim_history`, `record_decision` and `pay_claim`, each named after a backend operation
-- [ ] A stub model test checks that the system prompt the model receives is the text from `get_instructions`
-- [ ] Stub model test, within the limit: the stub calls `get_claim`, `get_policy`, `get_claim_history`, `record_decision` (approve, 420.00) and `pay_claim` (420.00), then replies. The claim is `decided`, paid 420.00, carries the thread id, and has its steps recorded in order: tool calls, tool results and the final message
-- [ ] Stub model test, over the limit: the stub approves 1,350.00 and calls `pay_claim`. The refusal reaches the model as a tool message that mentions sign-off, the run finishes, and the claim is `waiting_for_sign_off` with no payment
-- [ ] Stub model tests for a decline and a referral: both claims are `decided` with no payment
-- [ ] `grep -rn "data/" agent` finds nothing: the agent reads nothing from disk
-- [ ] Live: on a fresh database with `npm run dev` running, `uv run -m agent CLM-1001` prints a reply of two or three sentences
-- [ ] Live: `curl -s localhost:8000/api/claims/CLM-1001` then shows `approve`, payout 420.0, a section naming section 3 (Trip Delay), a reason of two or three sentences, and a payment of 420.0
-- [ ] Live: `curl -s localhost:8000/api/claims/CLM-1001/steps` lists the calls to `get_claim`, `get_policy`, `get_claim_history`, `record_decision` and `pay_claim`, with their results
-- [ ] `npm run check` passes
+- [x] `curl -s localhost:8000/api/instructions` returns the instructions followed by the policy wording, including `## 10. How we work out your payment`
+- [x] A pytest test checks that the agent's tools are exactly `get_claim`, `get_policy`, `get_claim_history`, `record_decision` and `pay_claim`, each named after a backend operation
+- [x] A stub model test checks that the system prompt the model receives is the text from `get_instructions`
+- [x] Stub model test, within the limit: the stub calls `get_claim`, `get_policy`, `get_claim_history`, `record_decision` (approve, 420.00) and `pay_claim` (420.00), then replies. The claim is `decided`, paid 420.00, carries the thread id, and has its steps recorded in order: tool calls, tool results and the final message
+- [x] Stub model test, over the limit: the stub approves 1,350.00 and calls `pay_claim`. The refusal reaches the model as a tool message that mentions sign-off, the run finishes, and the claim is `waiting_for_sign_off` with no payment
+- [x] Stub model tests for a decline and a referral: both claims are `decided` with no payment
+- [x] `grep -rn "data/" agent` finds nothing: the agent reads nothing from disk
+- [x] Live: on a fresh database with `npm run dev` running, `uv run -m agent CLM-1001` prints a reply of two or three sentences
+- [x] Live: `curl -s localhost:8000/api/claims/CLM-1001` then shows `approve`, payout 420.0, a section naming section 3 (Trip Delay), a reason of two or three sentences, and a payment of 420.0
+- [x] Live: `curl -s localhost:8000/api/claims/CLM-1001/steps` lists the calls to `get_claim`, `get_policy`, `get_claim_history`, `record_decision` and `pay_claim`, with their results
+- [x] `npm run check` passes
 
 ## Phase 4: Dashboard: the queue, a claim and the instructions
 

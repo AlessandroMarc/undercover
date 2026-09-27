@@ -111,6 +111,10 @@ class Step(BaseModel):
     created_at: str
 
 
+class Instructions(BaseModel):
+    text: str
+
+
 class StartRequest(BaseModel):
     thread_id: str = Field(min_length=1)
 

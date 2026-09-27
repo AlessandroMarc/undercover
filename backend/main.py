@@ -5,6 +5,7 @@ import sqlite3
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, closing
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -16,6 +17,7 @@ from backend.models import (
     Decision,
     DecisionRequest,
     Handler,
+    Instructions,
     Payment,
     PaymentRequest,
     Policy,
@@ -25,6 +27,8 @@ from backend.models import (
     Step,
     StepRequest,
 )
+
+INSTRUCTIONS = Path(__file__).parent / "instructions.md"
 
 
 @asynccontextmanager
@@ -158,6 +162,13 @@ def get_claim_history(customer_id: str, db: Database) -> list[PreviousClaim]:
     return [
         PreviousClaim(**claim) for claim in json.loads(row["record"])["previous_claims"]
     ]
+
+
+@app.get("/api/instructions", operation_id="get_instructions")
+def get_instructions(db: Database) -> Instructions:
+    """Get the agent's instructions, followed by the policy wording."""
+    wording = db.execute("SELECT policy_wording FROM settings").fetchone()[0]
+    return Instructions(text=f"{INSTRUCTIONS.read_text(encoding='utf-8')}\n{wording}")
 
 
 @app.get("/api/handlers", operation_id="list_handlers")
