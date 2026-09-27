@@ -57,3 +57,4 @@ fail_under = 80
 include = ["backend", "agent"]
 venvPath = "."
 venv = ".venv"
+pythonVersion = "3.12"
