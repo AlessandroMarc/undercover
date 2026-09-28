@@ -1,0 +1,337 @@
+- generic [ref=f8e2]:
+  - banner [ref=f8e3]:
+    - link "UnderCover claims pilot" [ref=f8e4] [cursor=pointer]:
+      - /url: /
+    - navigation "Main" [ref=f8e5]:
+      - link "Queue" [ref=f8e6] [cursor=pointer]:
+        - /url: /
+      - link "Instructions" [ref=f8e7] [cursor=pointer]:
+        - /url: /instructions
+  - main [ref=f8e8]:
+    - heading "Claims queue" [level=1] [ref=f8e9]
+    - region "Claims by state" [ref=f8e10]:
+      - 'generic "Waiting: 25" [ref=f8e11]':
+        - generic [ref=f8e12]: Waiting
+        - generic [ref=f8e13]: "25"
+      - 'generic "In progress: 0" [ref=f8e14]':
+        - generic [ref=f8e15]: In progress
+        - generic [ref=f8e16]: "0"
+      - 'generic "Waiting for sign-off: 0" [ref=f8e17]':
+        - generic [ref=f8e18]: Waiting for sign-off
+        - generic [ref=f8e19]: "0"
+      - 'generic "Decided: 0" [ref=f8e20]':
+        - generic [ref=f8e21]: Decided
+        - generic [ref=f8e22]: "0"
+    - table [ref=f8e24]:
+      - rowgroup [ref=f8e25]:
+        - row [ref=f8e26]:
+          - columnheader "Claim" [ref=f8e27]
+          - columnheader "Customer" [ref=f8e28]
+          - columnheader "Type" [ref=f8e29]
+          - columnheader "Summary" [ref=f8e30]
+          - columnheader "Claimed" [ref=f8e31]
+          - columnheader "Submitted" [ref=f8e32]
+          - columnheader "State" [ref=f8e33]
+          - columnheader "Decision" [ref=f8e34]
+          - columnheader "Payout" [ref=f8e35]
+      - rowgroup [ref=f8e36]:
+        - row [ref=f8e37]:
+          - cell [ref=f8e38]:
+            - link "CLM-1001" [ref=f8e39] [cursor=pointer]:
+              - /url: /claims/CLM-1001
+          - cell "Maya Patel" [ref=f8e40]
+          - cell "Trip delay" [ref=f8e41]
+          - cell "Flight home canceled by the airline, rebooked the next morning" [ref=f8e42]
+          - cell "$420.00" [ref=f8e43]
+          - cell "Jun 24, 2026" [ref=f8e44]
+          - cell "Waiting" [ref=f8e45]
+          - cell [ref=f8e47]
+          - cell [ref=f8e48]
+        - row [ref=f8e49]:
+          - cell [ref=f8e50]:
+            - link "CLM-1002" [ref=f8e51] [cursor=pointer]:
+              - /url: /claims/CLM-1002
+          - cell "Tom Becker" [ref=f8e52]
+          - cell "Baggage" [ref=f8e53]
+          - cell "Suitcase lost on a connecting flight" [ref=f8e54]
+          - cell "$1,150.00" [ref=f8e55]
+          - cell "Jul 20, 2026" [ref=f8e56]
+          - cell "Waiting" [ref=f8e57]
+          - cell [ref=f8e59]
+          - cell [ref=f8e60]
+        - row [ref=f8e61]:
+          - cell [ref=f8e62]:
+            - link "CLM-1003" [ref=f8e63] [cursor=pointer]:
+              - /url: /claims/CLM-1003
+          - cell "Aiko Tanaka" [ref=f8e64]
+          - cell "Emergency medical" [ref=f8e65]
+          - cell "Hospital visit abroad after a fall, fractured wrist" [ref=f8e66]
+          - cell "$3,800.00" [ref=f8e67]
+          - cell "Jul 6, 2026" [ref=f8e68]
+          - cell "Waiting" [ref=f8e69]
+          - cell [ref=f8e71]
+          - cell [ref=f8e72]
+        - row [ref=f8e73]:
+          - cell [ref=f8e74]:
+            - link "CLM-1004" [ref=f8e75] [cursor=pointer]:
+              - /url: /claims/CLM-1004
+          - cell "Danielle Okafor" [ref=f8e76]
+          - cell "Baggage delay" [ref=f8e77]
+          - cell "Checked bag arrived 31 hours late" [ref=f8e78]
+          - cell "$186.00" [ref=f8e79]
+          - cell "Jul 10, 2026" [ref=f8e80]
+          - cell "Waiting" [ref=f8e81]
+          - cell [ref=f8e83]
+          - cell [ref=f8e84]
+        - row [ref=f8e85]:
+          - cell [ref=f8e86]:
+            - link "CLM-1005" [ref=f8e87] [cursor=pointer]:
+              - /url: /claims/CLM-1005
+          - cell "Oliver Grant" [ref=f8e88]
+          - cell "Passport" [ref=f8e89]
+          - cell "Passport eaten by a giraffe at breakfast" [ref=f8e90]
+          - cell "$243.00" [ref=f8e91]
+          - cell "Jul 14, 2026" [ref=f8e92]
+          - cell "Waiting" [ref=f8e93]
+          - cell [ref=f8e95]
+          - cell [ref=f8e96]
+        - row [ref=f8e97]:
+          - cell [ref=f8e98]:
+            - link "CLM-1006" [ref=f8e99] [cursor=pointer]:
+              - /url: /claims/CLM-1006
+          - cell "Oliver Grant" [ref=f8e100]
+          - cell "Emergency medical" [ref=f8e101]
+          - cell "Hit by a falling coconut while reading under a palm tree" [ref=f8e102]
+          - cell "$425.00" [ref=f8e103]
+          - cell "Aug 25, 2026" [ref=f8e104]
+          - cell "Waiting" [ref=f8e105]
+          - cell [ref=f8e107]
+          - cell [ref=f8e108]
+        - row [ref=f8e109]:
+          - cell [ref=f8e110]:
+            - link "CLM-1007" [ref=f8e111] [cursor=pointer]:
+              - /url: /claims/CLM-1007
+          - cell "Greg Kowalski" [ref=f8e112]
+          - cell "Baggage" [ref=f8e113]
+          - cell "Phone dropped in the hotel shower" [ref=f8e114]
+          - cell "$1,099.00" [ref=f8e115]
+          - cell "Jul 22, 2026" [ref=f8e116]
+          - cell "Waiting" [ref=f8e117]
+          - cell [ref=f8e119]
+          - cell [ref=f8e120]
+        - row [ref=f8e121]:
+          - cell [ref=f8e122]:
+            - link "CLM-1008" [ref=f8e123] [cursor=pointer]:
+              - /url: /claims/CLM-1008
+          - cell "Dorothy Gale" [ref=f8e124]
+          - cell "Trip cancellation" [ref=f8e125]
+          - cell "Trip to Seattle canceled after a tornado carried off her farmhouse" [ref=f8e126]
+          - cell "$2,440.00" [ref=f8e127]
+          - cell "Jun 29, 2026" [ref=f8e128]
+          - cell "Waiting" [ref=f8e129]
+          - cell [ref=f8e131]
+          - cell [ref=f8e132]
+        - row [ref=f8e133]:
+          - cell [ref=f8e134]:
+            - link "CLM-1009" [ref=f8e135] [cursor=pointer]:
+              - /url: /claims/CLM-1009
+          - cell "Sofia Reyes" [ref=f8e136]
+          - cell "Baggage" [ref=f8e137]
+          - cell "Camera snatched on the Barcelona metro" [ref=f8e138]
+          - cell "$980.00" [ref=f8e139]
+          - cell "Jul 30, 2026" [ref=f8e140]
+          - cell "Waiting" [ref=f8e141]
+          - cell [ref=f8e143]
+          - cell [ref=f8e144]
+        - row [ref=f8e145]:
+          - cell [ref=f8e146]:
+            - link "CLM-1010" [ref=f8e147] [cursor=pointer]:
+              - /url: /claims/CLM-1010
+          - cell "Stuart Price" [ref=f8e148]
+          - cell "Emergency medical" [ref=f8e149]
+          - cell "Emergency dental treatment in Las Vegas for a missing front tooth" [ref=f8e150]
+          - cell "$1,350.00" [ref=f8e151]
+          - cell "Jul 2, 2026" [ref=f8e152]
+          - cell "Waiting" [ref=f8e153]
+          - cell [ref=f8e155]
+          - cell [ref=f8e156]
+        - row [ref=f8e157]:
+          - cell [ref=f8e158]:
+            - link "CLM-1011" [ref=f8e159] [cursor=pointer]:
+              - /url: /claims/CLM-1011
+          - cell "Owen Gallagher" [ref=f8e160]
+          - cell "Baggage" [ref=f8e161]
+          - cell "Best man's suitcase lost on the way to a wedding on Lake Como" [ref=f8e162]
+          - cell "$1,950.00" [ref=f8e163]
+          - cell "Jun 29, 2026" [ref=f8e164]
+          - cell "Waiting" [ref=f8e165]
+          - cell [ref=f8e167]
+          - cell [ref=f8e168]
+        - row [ref=f8e169]:
+          - cell [ref=f8e170]:
+            - link "CLM-1012" [ref=f8e171] [cursor=pointer]:
+              - /url: /claims/CLM-1012
+          - cell "Hadley Richards" [ref=f8e172]
+          - cell "Baggage" [ref=f8e173]
+          - cell "Valise stolen from a train at the Gare de Lyon" [ref=f8e174]
+          - cell "$2,900.00" [ref=f8e175]
+          - cell "Jul 9, 2026" [ref=f8e176]
+          - cell "Waiting" [ref=f8e177]
+          - cell [ref=f8e179]
+          - cell [ref=f8e180]
+        - row [ref=f8e181]:
+          - cell [ref=f8e182]:
+            - link "CLM-1013" [ref=f8e183] [cursor=pointer]:
+              - /url: /claims/CLM-1013
+          - cell "Brian O'Connell" [ref=f8e184]
+          - cell "Trip delay" [ref=f8e185]
+          - cell "Seven hour delay leaving Chicago for Cancun" [ref=f8e186]
+          - cell "$123.00" [ref=f8e187]
+          - cell "Jul 27, 2026" [ref=f8e188]
+          - cell "Waiting" [ref=f8e189]
+          - cell [ref=f8e191]
+          - cell [ref=f8e192]
+        - row [ref=f8e193]:
+          - cell [ref=f8e194]:
+            - link "CLM-1014" [ref=f8e195] [cursor=pointer]:
+              - /url: /claims/CLM-1014
+          - cell "Jordan Ellis-Wright" [ref=f8e196]
+          - cell "Baggage" [ref=f8e197]
+          - cell "Duffel bag lost on the way to Cancun" [ref=f8e198]
+          - cell "$805.00" [ref=f8e199]
+          - cell "Jul 27, 2026" [ref=f8e200]
+          - cell "Waiting" [ref=f8e201]
+          - cell [ref=f8e203]
+          - cell [ref=f8e204]
+        - row [ref=f8e205]:
+          - cell [ref=f8e206]:
+            - link "CLM-1015" [ref=f8e207] [cursor=pointer]:
+              - /url: /claims/CLM-1015
+          - cell "Kate Callister" [ref=f8e208]
+          - cell "Trip interruption" [ref=f8e209]
+          - cell "Flew home from Paris on arrival after leaving a child at home" [ref=f8e210]
+          - cell "$2,340.00" [ref=f8e211]
+          - cell "Jul 3, 2026" [ref=f8e212]
+          - cell "Waiting" [ref=f8e213]
+          - cell [ref=f8e215]
+          - cell [ref=f8e216]
+        - row [ref=f8e217]:
+          - cell [ref=f8e218]:
+            - link "CLM-1016" [ref=f8e219] [cursor=pointer]:
+              - /url: /claims/CLM-1016
+          - cell "Robert Haines" [ref=f8e220]
+          - cell "Emergency medical" [ref=f8e221]
+          - cell "Hospital admission in Mexico City with a kidney stone" [ref=f8e222]
+          - cell "$6,200.00" [ref=f8e223]
+          - cell "Aug 3, 2026" [ref=f8e224]
+          - cell "Waiting" [ref=f8e225]
+          - cell [ref=f8e227]
+          - cell [ref=f8e228]
+        - row [ref=f8e229]:
+          - cell [ref=f8e230]:
+            - link "CLM-1017" [ref=f8e231] [cursor=pointer]:
+              - /url: /claims/CLM-1017
+          - cell "Emily Nguyen" [ref=f8e232]
+          - cell "Baggage" [ref=f8e233]
+          - cell "Backpack snatched by a scooter rider in Naples" [ref=f8e234]
+          - cell "$830.00" [ref=f8e235]
+          - cell "Jul 23, 2026" [ref=f8e236]
+          - cell "Waiting" [ref=f8e237]
+          - cell [ref=f8e239]
+          - cell [ref=f8e240]
+        - row [ref=f8e241]:
+          - cell [ref=f8e242]:
+            - link "CLM-1018" [ref=f8e243] [cursor=pointer]:
+              - /url: /claims/CLM-1018
+          - cell "Hector Villanueva" [ref=f8e244]
+          - cell "Baggage" [ref=f8e245]
+          - cell "Shopping bag with a new leather jacket snatched by a man on a scooter in Florence" [ref=f8e246]
+          - cell "$500.00" [ref=f8e247]
+          - cell "Jul 1, 2026" [ref=f8e248]
+          - cell "Waiting" [ref=f8e249]
+          - cell [ref=f8e251]
+          - cell [ref=f8e252]
+        - row [ref=f8e253]:
+          - cell [ref=f8e254]:
+            - link "CLM-1019" [ref=f8e255] [cursor=pointer]:
+              - /url: /claims/CLM-1019
+          - cell "Victor Salazar" [ref=f8e256]
+          - cell "Trip delay" [ref=f8e257]
+          - cell "Nine hour delay leaving Miami for Bogota" [ref=f8e258]
+          - cell "$210.00" [ref=f8e259]
+          - cell "Aug 20, 2026" [ref=f8e260]
+          - cell "Waiting" [ref=f8e261]
+          - cell [ref=f8e263]
+          - cell [ref=f8e264]
+        - row [ref=f8e265]:
+          - cell [ref=f8e266]:
+            - link "CLM-1020" [ref=f8e267] [cursor=pointer]:
+              - /url: /claims/CLM-1020
+          - cell "Nadia Rahman" [ref=f8e268]
+          - cell "Baggage" [ref=f8e269]
+          - cell "Prescription sunglasses stolen by a monkey at Uluwatu Temple" [ref=f8e270]
+          - cell "$240.00" [ref=f8e271]
+          - cell "Sep 1, 2026" [ref=f8e272]
+          - cell "Waiting" [ref=f8e273]
+          - cell [ref=f8e275]
+          - cell [ref=f8e276]
+        - row [ref=f8e277]:
+          - cell [ref=f8e278]:
+            - link "CLM-1021" [ref=f8e279] [cursor=pointer]:
+              - /url: /claims/CLM-1021
+          - cell "Camille Fontaine" [ref=f8e280]
+          - cell "Baggage" [ref=f8e281]
+          - cell "Tote bag snatched from her shoulder in Buenos Aires" [ref=f8e282]
+          - cell "$1,103.00" [ref=f8e283]
+          - cell "Jul 15, 2026" [ref=f8e284]
+          - cell "Waiting" [ref=f8e285]
+          - cell [ref=f8e287]
+          - cell [ref=f8e288]
+        - row [ref=f8e289]:
+          - cell [ref=f8e290]:
+            - link "CLM-1022" [ref=f8e291] [cursor=pointer]:
+              - /url: /claims/CLM-1022
+          - cell "Caroline Hubbard" [ref=f8e292]
+          - cell "Trip delay" [ref=f8e293]
+          - cell "Thirty hour delay on the sleeper train from Istanbul to Paris" [ref=f8e294]
+          - cell "$225.00" [ref=f8e295]
+          - cell "Aug 5, 2026" [ref=f8e296]
+          - cell "Waiting" [ref=f8e297]
+          - cell [ref=f8e299]
+          - cell [ref=f8e300]
+        - row [ref=f8e301]:
+          - cell [ref=f8e302]:
+            - link "CLM-1023" [ref=f8e303] [cursor=pointer]:
+              - /url: /claims/CLM-1023
+          - cell "Stephanie Marsh" [ref=f8e304]
+          - cell "Trip delay" [ref=f8e305]
+          - cell "Nine hour delay leaving Dallas for Vancouver" [ref=f8e306]
+          - cell "$61.00" [ref=f8e307]
+          - cell "Jul 13, 2026" [ref=f8e308]
+          - cell "Waiting" [ref=f8e309]
+          - cell [ref=f8e311]
+          - cell [ref=f8e312]
+        - row [ref=f8e313]:
+          - cell [ref=f8e314]:
+            - link "CLM-1024" [ref=f8e315] [cursor=pointer]:
+              - /url: /claims/CLM-1024
+          - cell "Isabel Moreno" [ref=f8e316]
+          - cell "Baggage" [ref=f8e317]
+          - cell "Phone snatched from her hand in La Candelaria" [ref=f8e318]
+          - cell "$899.00" [ref=f8e319]
+          - cell "Aug 20, 2026" [ref=f8e320]
+          - cell "Waiting" [ref=f8e321]
+          - cell [ref=f8e323]
+          - cell [ref=f8e324]
+        - row [ref=f8e325]:
+          - cell [ref=f8e326]:
+            - link "CLM-1025" [ref=f8e327] [cursor=pointer]:
+              - /url: /claims/CLM-1025
+          - cell "Curtis Ballard" [ref=f8e328]
+          - cell "Trip delay" [ref=f8e329]
+          - cell "Fourteen hour delay leaving Anchorage for Las Vegas" [ref=f8e330]
+          - cell "$71.00" [ref=f8e331]
+          - cell "Aug 14, 2026" [ref=f8e332]
+          - cell "Waiting" [ref=f8e333]
+          - cell [ref=f8e335]
+          - cell [ref=f8e336]

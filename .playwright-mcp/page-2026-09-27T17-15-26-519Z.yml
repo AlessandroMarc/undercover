@@ -1,0 +1,94 @@
+- generic [ref=f8e2]:
+  - banner [ref=f8e3]:
+    - link "UnderCover claims pilot" [ref=f8e4] [cursor=pointer]:
+      - /url: /
+    - navigation "Main" [ref=f8e5]:
+      - link "Queue" [ref=f8e6] [cursor=pointer]:
+        - /url: /
+      - link "Instructions" [ref=f8e7] [cursor=pointer]:
+        - /url: /instructions
+  - main [ref=f8e8]:
+    - generic [ref=f8e337]:
+      - paragraph [ref=f8e338]: CLM-1007
+      - heading "Phone dropped in the hotel shower" [level=1] [ref=f8e339]
+      - generic [ref=f8e340]: Waiting
+    - generic [ref=f8e341]:
+      - generic [ref=f8e342]:
+        - region [ref=f8e343]:
+          - heading "Claim" [level=2] [ref=f8e344]
+          - generic [ref=f8e345]:
+            - generic [ref=f8e346]:
+              - term [ref=f8e347]: Customer
+              - definition [ref=f8e348]: Greg Kowalski
+            - generic [ref=f8e349]:
+              - term [ref=f8e350]: Type
+              - definition [ref=f8e351]: Baggage
+            - generic [ref=f8e352]:
+              - term [ref=f8e353]: Incident
+              - definition [ref=f8e354]: Jul 13, 2026, Stockholm, Sweden
+            - generic [ref=f8e355]:
+              - term [ref=f8e356]: Submitted
+              - definition [ref=f8e357]: Jul 22, 2026
+            - generic [ref=f8e358]:
+              - term [ref=f8e359]: Amount claimed
+              - definition [ref=f8e360]: $1,099.00
+          - heading "The customer's story" [level=3] [ref=f8e361]
+          - paragraph [ref=f8e362]: I dropped my phone in the shower at my hotel in Stockholm on July 13. I know how that sounds. It was on the soap shelf playing music, I was singing along, and during the key change I knocked it off the shelf. It landed screen down in about an inch of water and stayed there longer than it should have, because I had shampoo in my eyes. A repair shop looked at it the next day and said the liquid damage was too extensive to repair. I am claiming the cost of the replacement phone, which was $1,099.
+        - region [ref=f8e363]:
+          - heading "Items claimed" [level=2] [ref=f8e364]
+          - table [ref=f8e366]:
+            - rowgroup [ref=f8e367]:
+              - row [ref=f8e368]:
+                - columnheader "Item" [ref=f8e369]
+                - columnheader "Category" [ref=f8e370]
+                - columnheader "Amount" [ref=f8e371]
+            - rowgroup [ref=f8e372]:
+              - row [ref=f8e373]:
+                - cell "Smartphone, 256 GB, replacement cost" [ref=f8e374]
+                - cell "Electronics" [ref=f8e375]
+                - cell "$1,099.00" [ref=f8e376]
+            - rowgroup [ref=f8e377]:
+              - row [ref=f8e378]:
+                - rowheader "Total" [ref=f8e379]
+                - cell "$1,099.00" [ref=f8e380]
+        - region [ref=f8e381]:
+          - heading "Documents" [level=2] [ref=f8e382]
+          - article [ref=f8e383]:
+            - heading "Repair shop report" [level=3] [ref=f8e384]
+            - paragraph [ref=f8e385]: Repair report
+            - paragraph [ref=f8e386]: "Mobilkliniken, Drottninggatan, Stockholm, July 14, 2026. Customer: Greg Kowalski. Smartphone inspected. Liquid damage indicators triggered, corrosion on the logic board, display not responding. Beyond economical repair."
+          - article [ref=f8e387]:
+            - heading "Replacement receipt" [level=3] [ref=f8e388]
+            - paragraph [ref=f8e389]: Receipt
+            - paragraph [ref=f8e390]: "Elektronikhuset, Stockholm, July 14, 2026. Smartphone, 256 GB: $1,099.00. Paid by card, G. Kowalski."
+      - generic [ref=f8e391]:
+        - region [ref=f8e392]:
+          - heading "Policy" [level=2] [ref=f8e393]
+          - generic [ref=f8e394]:
+            - generic [ref=f8e395]:
+              - term [ref=f8e396]: Policy
+              - definition [ref=f8e397]: POL-2007
+            - generic [ref=f8e398]:
+              - term [ref=f8e399]: Plan
+              - definition [ref=f8e400]: Economy
+            - generic [ref=f8e401]:
+              - term [ref=f8e402]: Add-ons
+              - definition [ref=f8e403]: None
+            - generic [ref=f8e404]:
+              - term [ref=f8e405]: Purchased
+              - definition [ref=f8e406]: Jun 2, 2026
+            - generic [ref=f8e407]:
+              - term [ref=f8e408]: Sold through
+              - definition [ref=f8e409]: Northwind Airlines checkout
+            - generic [ref=f8e410]:
+              - term [ref=f8e411]: Trip
+              - definition [ref=f8e412]: Stockholm, Sweden, Jul 10, 2026 to Jul 17, 2026
+            - generic [ref=f8e413]:
+              - term [ref=f8e414]: Trip cost
+              - definition [ref=f8e415]: $2,200.00
+            - generic [ref=f8e416]:
+              - term [ref=f8e417]: Travelers
+              - definition [ref=f8e418]: Greg Kowalski
+        - region [ref=f8e419]:
+          - heading "Earlier claims" [level=2] [ref=f8e420]
+          - paragraph [ref=f8e421]: No earlier claims

@@ -1,0 +1,203 @@
+- generic [ref=f2e2]:
+  - banner [ref=f2e3]:
+    - link "UnderCover claims pilot" [ref=f2e4] [cursor=pointer]:
+      - /url: /
+    - navigation "Main" [ref=f2e5]:
+      - link "Queue" [ref=f2e6] [cursor=pointer]:
+        - /url: /
+      - link "Instructions" [ref=f2e7] [cursor=pointer]:
+        - /url: /instructions
+  - main [ref=f2e8]:
+    - generic [ref=f2e466]:
+      - paragraph [ref=f2e467]: CLM-1011
+      - heading "Best man's suitcase lost on the way to a wedding on Lake Como" [level=1] [ref=f2e468]
+      - generic [ref=f2e469]: Waiting for sign-off
+    - generic [ref=f2e470]:
+      - generic [ref=f2e471]:
+        - region [ref=f2e472]:
+          - heading "Claim" [level=2] [ref=f2e473]
+          - generic [ref=f2e474]:
+            - generic [ref=f2e475]:
+              - term [ref=f2e476]: Customer
+              - definition [ref=f2e477]: Owen Gallagher
+            - generic [ref=f2e478]:
+              - term [ref=f2e479]: Type
+              - definition [ref=f2e480]: Baggage
+            - generic [ref=f2e481]:
+              - term [ref=f2e482]: Incident
+              - definition [ref=f2e483]: Jun 3, 2026, Milan, Italy
+            - generic [ref=f2e484]:
+              - term [ref=f2e485]: Submitted
+              - definition [ref=f2e486]: Jun 29, 2026
+            - generic [ref=f2e487]:
+              - term [ref=f2e488]: Amount claimed
+              - definition [ref=f2e489]: $1,950.00
+          - heading "The customer's story" [level=3] [ref=f2e490]
+          - paragraph [ref=f2e491]: I flew to Milan on June 3 for my brother's wedding on Lake Como, where I was the best man. My checked suitcase never arrived. Meridian Air searched for three weeks and declared it lost on June 24, and they have paid me $350 under their own rules. I have listed everything that was in the bag with what I paid for it. The formalwear and the camera gear were bought this spring for the wedding, and the receipts are attached along with my card statement for the suitcase and the cufflinks. I gave the best man's speech in a jacket borrowed from the head waiter, which got a bigger laugh than the speech did.
+        - region [ref=f2e492]:
+          - heading "Items claimed" [level=2] [ref=f2e493]
+          - table [ref=f2e495]:
+            - rowgroup [ref=f2e496]:
+              - row [ref=f2e497]:
+                - columnheader "Item" [ref=f2e498]
+                - columnheader "Category" [ref=f2e499]
+                - columnheader "Amount" [ref=f2e500]
+            - rowgroup [ref=f2e501]:
+              - row [ref=f2e502]:
+                - cell "Hard-shell suitcase" [ref=f2e503]
+                - cell "Luggage" [ref=f2e504]
+                - cell "$260.00" [ref=f2e505]
+              - row [ref=f2e506]:
+                - cell "Dinner jacket, black" [ref=f2e507]
+                - cell "Clothing" [ref=f2e508]
+                - cell "$290.00" [ref=f2e509]
+              - row [ref=f2e510]:
+                - cell "Mirrorless camera body" [ref=f2e511]
+                - cell "Electronics" [ref=f2e512]
+                - cell "$280.00" [ref=f2e513]
+              - row [ref=f2e514]:
+                - cell "Black oxford dress shoes" [ref=f2e515]
+                - cell "Clothing" [ref=f2e516]
+                - cell "$230.00" [ref=f2e517]
+              - row [ref=f2e518]:
+                - cell "Four dress shirts" [ref=f2e519]
+                - cell "Clothing" [ref=f2e520]
+                - cell "$340.00" [ref=f2e521]
+              - row [ref=f2e522]:
+                - cell "Dress trousers, black" [ref=f2e523]
+                - cell "Clothing" [ref=f2e524]
+                - cell "$190.00" [ref=f2e525]
+              - row [ref=f2e526]:
+                - cell "Silver cufflinks" [ref=f2e527]
+                - cell "Personal item" [ref=f2e528]
+                - cell "$120.00" [ref=f2e529]
+              - row [ref=f2e530]:
+                - cell "35mm lens" [ref=f2e531]
+                - cell "Electronics" [ref=f2e532]
+                - cell "$240.00" [ref=f2e533]
+            - rowgroup [ref=f2e534]:
+              - row [ref=f2e535]:
+                - rowheader "Total" [ref=f2e536]
+                - cell "$1,950.00" [ref=f2e537]
+        - region [ref=f2e538]:
+          - heading "Documents" [level=2] [ref=f2e539]
+          - article [ref=f2e540]:
+            - heading "Meridian Air property irregularity report" [level=3] [ref=f2e541]
+            - paragraph [ref=f2e542]: Carrier report
+            - paragraph [ref=f2e543]: Meridian Air property irregularity report MXP-MA-30418. Passenger Owen Gallagher arrived Milan MXP June 3, 2026 on MA 402 from Boston. One checked bag, tag MA 771204, not delivered.
+          - article [ref=f2e544]:
+            - heading "Meridian Air settlement letter" [level=3] [ref=f2e545]
+            - paragraph [ref=f2e546]: Letter
+            - paragraph [ref=f2e547]: Meridian Air, June 24, 2026. Dear Mr. Gallagher, after a search of 21 days we have been unable to find your bag, tag MA 771204, and we now treat it as lost. We have paid $350.00 to your card in full settlement of our liability.
+          - article [ref=f2e548]:
+            - heading "Formalwear receipt" [level=3] [ref=f2e549]
+            - paragraph [ref=f2e550]: Receipt
+            - paragraph [ref=f2e551]: "Harborview Formalwear, Boston, April 11, 2026. Two piece tuxedo, black: jacket $290.00, trousers $190.00. Black oxford dress shoes: $230.00. Four dress shirts at $85.00 each: $340.00. Total: $1,050.00."
+          - article [ref=f2e552]:
+            - heading "Camera receipt" [level=3] [ref=f2e553]
+            - paragraph [ref=f2e554]: Receipt
+            - paragraph [ref=f2e555]: "Back Bay Camera Exchange, Boston, April 18, 2026. Mirrorless camera body, used: $280.00. 35mm f/2 lens for the same mount, used: $240.00. Total: $520.00."
+          - article [ref=f2e556]:
+            - heading "Card statement extract" [level=3] [ref=f2e557]
+            - paragraph [ref=f2e558]: Other
+            - paragraph [ref=f2e559]: "Card ending 2290, Owen Gallagher. March 7, 2026, Tremont Luggage, Boston: $260.00. May 2, 2026, Beacon Hill Jewelers, Boston: $120.00."
+      - generic [ref=f2e560]:
+        - region [ref=f2e561]:
+          - heading "Decision" [level=2] [ref=f2e562]
+          - generic [ref=f2e563]:
+            - generic [ref=f2e564]: Approved
+            - generic [ref=f2e565]: $1,150.00
+          - paragraph [ref=f2e566]: Section 5, Baggage and Personal Effects; Section 10, How we work out your payment
+          - paragraph [ref=f2e567]: The checked bag was lost by the carrier during the covered trip, and the carrier report and loss settlement are attached. Eligible belongings total $1,550 after applying the $300 per-item cap to the tuxedo set and camera with lens; after the carrier's $350 payment and the $50 Premium deductible, the payout is $1,150.
+          - paragraph [ref=f2e568]: Decided at 1:23:23 PM
+          - generic [ref=f2e569]:
+            - paragraph [ref=f2e570]: The payment of $1,150.00 is over the approval limit and waits for a handler's sign-off.
+            - generic [ref=f2e571]:
+              - generic [ref=f2e572]:
+                - text: Handler
+                - combobox "Handler" [ref=f2e573]:
+                  - option "Choose a handler" [disabled]
+                  - option "Dana Whitfield"
+                  - option "Marcus Oyelaran"
+                  - option "Priya Raman" [selected]
+              - button "Sign off" [ref=f2e574] [cursor=pointer]
+        - region [ref=f2e575]:
+          - heading "Agent at work" [level=2] [ref=f2e576]
+          - list [ref=f2e577]:
+            - listitem [ref=f2e578]:
+              - generic [ref=f2e579]: 1:23:17 PM
+              - paragraph [ref=f2e580]:
+                - text: Called
+                - code [ref=f2e581]: get_claim(claim_id="CLM-1011")
+            - listitem [ref=f2e582]:
+              - generic [ref=f2e583]: 1:23:17 PM
+              - group [ref=f2e584]:
+                - generic [ref=f2e585] [cursor=pointer]:
+                  - text: Result
+                  - code [ref=f2e586]: "get_claim: {\"claim_id\":\"CLM-1011\",\"policy_id\":\"POL-2011\",\"customer_id\":\"CUS-3011\",\"custome..."
+            - listitem [ref=f2e587]:
+              - generic [ref=f2e588]: 1:23:18 PM
+              - paragraph [ref=f2e589]:
+                - text: Called
+                - code [ref=f2e590]: get_policy(policy_id="POL-2011")
+            - listitem [ref=f2e591]:
+              - generic [ref=f2e592]: 1:23:18 PM
+              - paragraph [ref=f2e593]:
+                - text: Called
+                - code [ref=f2e594]: get_claim_history(customer_id="CUS-3011")
+            - listitem [ref=f2e595]:
+              - generic [ref=f2e596]: 1:23:18 PM
+              - group [ref=f2e597]:
+                - generic [ref=f2e598] [cursor=pointer]:
+                  - text: Result
+                  - code [ref=f2e599]: "get_policy: {\"policy_id\":\"POL-2011\",\"customer_id\":\"CUS-3011\",\"plan\":\"premium\",\"add_ons\":[]..."
+            - listitem [ref=f2e600]:
+              - generic [ref=f2e601]: 1:23:18 PM
+              - group [ref=f2e602]:
+                - generic [ref=f2e603] [cursor=pointer]:
+                  - text: Result
+                  - code [ref=f2e604]: "get_claim_history: []"
+            - listitem [ref=f2e605]:
+              - generic [ref=f2e606]: 1:23:23 PM
+              - paragraph [ref=f2e607]:
+                - text: Called
+                - code [ref=f2e608]: record_decision(claim_id="CLM-1011", decision="approve", payout=1150, section="Section 5, Baggage and Personal Effects; Section 10, How we work out your payment", reason="The checked bag was lost by the carrier during the covered trip, and the carrier report and loss settlement are attached. Eligible belongings total $1,550 after applying the $300 per-item cap to the tuxedo set and camera with lens; after the carrier's $350 payment and the $50 Premium deductible, the payout is $1,150.")
+            - listitem [ref=f2e609]:
+              - generic [ref=f2e610]: 1:23:23 PM
+              - group [ref=f2e611]:
+                - generic [ref=f2e612] [cursor=pointer]:
+                  - text: Result
+                  - code [ref=f2e613]: "record_decision: {\"claim_id\":\"CLM-1011\",\"policy_id\":\"POL-2011\",\"customer_id\":\"CUS-3011\",\"c..."
+            - listitem [ref=f2e614]:
+              - generic [ref=f2e615]: 1:23:24 PM
+              - paragraph [ref=f2e616]: "Agent Approved: $1,150. The carrier confirmed the checked bag was lost during the covered trip. The payout applies the Premium per-item limits, subtracts the carrier’s $350 settlement, and deducts the $50 baggage deductible. Payment is awaiting handler sign-off."
+        - region [ref=f2e617]:
+          - heading "Policy" [level=2] [ref=f2e618]
+          - generic [ref=f2e619]:
+            - generic [ref=f2e620]:
+              - term [ref=f2e621]: Policy
+              - definition [ref=f2e622]: POL-2011
+            - generic [ref=f2e623]:
+              - term [ref=f2e624]: Plan
+              - definition [ref=f2e625]: Premium
+            - generic [ref=f2e626]:
+              - term [ref=f2e627]: Add-ons
+              - definition [ref=f2e628]: None
+            - generic [ref=f2e629]:
+              - term [ref=f2e630]: Purchased
+              - definition [ref=f2e631]: Apr 30, 2026
+            - generic [ref=f2e632]:
+              - term [ref=f2e633]: Sold through
+              - definition [ref=f2e634]: Meridian Air checkout
+            - generic [ref=f2e635]:
+              - term [ref=f2e636]: Trip
+              - definition [ref=f2e637]: Lake Como, Italy, Jun 2, 2026 to Jun 10, 2026
+            - generic [ref=f2e638]:
+              - term [ref=f2e639]: Trip cost
+              - definition [ref=f2e640]: $3,400.00
+            - generic [ref=f2e641]:
+              - term [ref=f2e642]: Travelers
+              - definition [ref=f2e643]: Owen Gallagher
+        - region [ref=f2e644]:
+          - heading "Earlier claims" [level=2] [ref=f2e645]
+          - paragraph [ref=f2e646]: No earlier claims

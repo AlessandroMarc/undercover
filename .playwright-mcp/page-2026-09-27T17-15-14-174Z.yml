@@ -1,0 +1,11 @@
+- generic [ref=f7e2]:
+  - banner [ref=f7e3]:
+    - link "UnderCover claims pilot" [ref=f7e4] [cursor=pointer]:
+      - /url: /
+    - navigation "Main" [ref=f7e5]:
+      - link "Queue" [ref=f7e6] [cursor=pointer]:
+        - /url: /
+      - link "Instructions" [ref=f7e7] [cursor=pointer]:
+        - /url: /instructions
+  - main [ref=f7e8]:
+    - status [ref=f7e9]: Loading...

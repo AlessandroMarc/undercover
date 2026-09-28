@@ -1,0 +1,70 @@
+- generic [ref=f9e2]:
+  - banner [ref=f9e3]:
+    - link "UnderCover claims pilot" [ref=f9e4] [cursor=pointer]:
+      - /url: /
+    - navigation "Main" [ref=f9e5]:
+      - link "Queue" [ref=f9e6] [cursor=pointer]:
+        - /url: /
+      - link "Instructions" [ref=f9e7] [cursor=pointer]:
+        - /url: /instructions
+  - main [ref=f9e8]:
+    - generic [ref=f9e9]:
+      - paragraph [ref=f9e10]: CLM-1007
+      - heading "Phone dropped in the hotel shower" [level=1] [ref=f9e11]
+      - generic [ref=f9e12]: Waiting
+    - generic [ref=f9e13]:
+      - generic [ref=f9e14]:
+        - region [ref=f9e15]:
+          - heading "Claim" [level=2] [ref=f9e16]
+          - generic [ref=f9e17]:
+            - generic [ref=f9e18]:
+              - term [ref=f9e19]: Customer
+              - definition [ref=f9e20]: Greg Kowalski
+            - generic [ref=f9e21]:
+              - term [ref=f9e22]: Type
+              - definition [ref=f9e23]: Baggage
+            - generic [ref=f9e24]:
+              - term [ref=f9e25]: Incident
+              - definition [ref=f9e26]: Jul 13, 2026, Stockholm, Sweden
+            - generic [ref=f9e27]:
+              - term [ref=f9e28]: Submitted
+              - definition [ref=f9e29]: Jul 22, 2026
+            - generic [ref=f9e30]:
+              - term [ref=f9e31]: Amount claimed
+              - definition [ref=f9e32]: $1,099.00
+          - heading "The customer's story" [level=3] [ref=f9e33]
+          - paragraph [ref=f9e34]: I dropped my phone in the shower at my hotel in Stockholm on July 13. I know how that sounds. It was on the soap shelf playing music, I was singing along, and during the key change I knocked it off the shelf. It landed screen down in about an inch of water and stayed there longer than it should have, because I had shampoo in my eyes. A repair shop looked at it the next day and said the liquid damage was too extensive to repair. I am claiming the cost of the replacement phone, which was $1,099.
+        - region [ref=f9e35]:
+          - heading "Items claimed" [level=2] [ref=f9e36]
+          - table [ref=f9e38]:
+            - rowgroup [ref=f9e39]:
+              - row [ref=f9e40]:
+                - columnheader "Item" [ref=f9e41]
+                - columnheader "Category" [ref=f9e42]
+                - columnheader "Amount" [ref=f9e43]
+            - rowgroup [ref=f9e44]:
+              - row [ref=f9e45]:
+                - cell "Smartphone, 256 GB, replacement cost" [ref=f9e46]
+                - cell "Electronics" [ref=f9e47]
+                - cell "$1,099.00" [ref=f9e48]
+            - rowgroup [ref=f9e49]:
+              - row [ref=f9e50]:
+                - rowheader "Total" [ref=f9e51]
+                - cell "$1,099.00" [ref=f9e52]
+        - region [ref=f9e53]:
+          - heading "Documents" [level=2] [ref=f9e54]
+          - article [ref=f9e55]:
+            - heading "Repair shop report" [level=3] [ref=f9e56]
+            - paragraph [ref=f9e57]: Repair report
+            - paragraph [ref=f9e58]: "Mobilkliniken, Drottninggatan, Stockholm, July 14, 2026. Customer: Greg Kowalski. Smartphone inspected. Liquid damage indicators triggered, corrosion on the logic board, display not responding. Beyond economical repair."
+          - article [ref=f9e59]:
+            - heading "Replacement receipt" [level=3] [ref=f9e60]
+            - paragraph [ref=f9e61]: Receipt
+            - paragraph [ref=f9e62]: "Elektronikhuset, Stockholm, July 14, 2026. Smartphone, 256 GB: $1,099.00. Paid by card, G. Kowalski."
+      - generic [ref=f9e63]:
+        - region [ref=f9e64]:
+          - heading "Policy" [level=2] [ref=f9e65]
+          - status [ref=f9e66]: Loading...
+        - region [ref=f9e67]:
+          - heading "Earlier claims" [level=2] [ref=f9e68]
+          - status [ref=f9e69]: Loading...
