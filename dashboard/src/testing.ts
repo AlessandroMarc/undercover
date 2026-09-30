@@ -54,6 +54,7 @@ export const claim: Claim = {
   ],
   status: "waiting",
   thread_id: null,
+  attempts: 0,
   decision: null,
   payment: null,
 };

@@ -138,17 +138,17 @@ Seed the manual, add `search_documents` and `read_section`, and write the two se
 
 Add `attempts`, the `left_for_handler` state and `fail_claim`, then the runs and their to-do lists: `start_run`, `get_latest_run`, `write_todos` and `finish_run`. The dashboard learns the new state.
 
-- [ ] pytest covers every new rule in the design, including each 404, 409 and 422
-- [ ] Walked through with curl: `start_claim` on `CLM-1004` gives attempts 1. `fail_claim` with "The model timed out" puts it back to `waiting` with attempts 1, and its last step is an `error` step with that reason
-- [ ] Starting and failing it again leaves it `left_for_handler` with attempts 2. `start_claim` then returns 409, and `list_claims` shows it as `left_for_handler`
-- [ ] `fail_claim` on a waiting claim, a decided claim and a claim waiting for sign-off each return 409 and change nothing
-- [ ] On a fresh database, `curl -s localhost:8000/api/runs/latest` prints `null`
-- [ ] `start_run` with cap 5 returns a running run with cap 5, a start time, no summary and an empty to-do list, and `get_latest_run` then returns it. A cap of 0 returns 422
-- [ ] `write_todos` with two items, then with three, leaves exactly the three, in order. A status of `blocked` returns 422, an item with empty text returns 422, and an unknown run returns 404
-- [ ] `finish_run` with a summary gives `finished`, a finish time and the summary. `write_todos` and `finish_run` on it then return 409. A second `start_run` becomes the latest run
-- [ ] The OpenAPI test from the pilot passes with the new operations
-- [ ] vitest: the queue shows a Left for a handler tile and chip
-- [ ] `npm run check` passes
+- [x] pytest covers every new rule in the design, including each 404, 409 and 422
+- [x] Walked through with curl: `start_claim` on `CLM-1004` gives attempts 1. `fail_claim` with "The model timed out" puts it back to `waiting` with attempts 1, and its last step is an `error` step with that reason
+- [x] Starting and failing it again leaves it `left_for_handler` with attempts 2. `start_claim` then returns 409, and `list_claims` shows it as `left_for_handler`
+- [x] `fail_claim` on a waiting claim, a decided claim and a claim waiting for sign-off each return 409 and change nothing
+- [x] On a fresh database, `curl -s localhost:8000/api/runs/latest` prints `null`
+- [x] `start_run` with cap 5 returns a running run with cap 5, a start time, no summary and an empty to-do list, and `get_latest_run` then returns it. A cap of 0 returns 422
+- [x] `write_todos` with two items, then with three, leaves exactly the three, in order. A status of `blocked` returns 422, an item with empty text returns 422, and an unknown run returns 404
+- [x] `finish_run` with a summary gives `finished`, a finish time and the summary. `write_todos` and `finish_run` on it then return 409. A second `start_run` becomes the latest run
+- [x] The OpenAPI test from the pilot passes with the new operations
+- [x] vitest: the queue shows a Left for a handler tile and chip
+- [x] `npm run check` passes
 
 ## Phase 3: A fresh claim agent for each claim
 
