@@ -109,6 +109,23 @@ export interface Step {
   created_at: string;
 }
 
+export type TodoStatus = "to_do" | "in_progress" | "done" | "left_for_handler";
+
+export interface Todo {
+  content: string;
+  status: TodoStatus;
+}
+
+export interface Run {
+  run_id: string;
+  cap: number;
+  status: "running" | "finished";
+  started_at: string;
+  finished_at: string | null;
+  summary: string | null;
+  todos: Todo[];
+}
+
 export interface Instructions {
   queue: string;
   claim: string;
@@ -158,6 +175,7 @@ export const api = {
     ),
   getInstructions: () => request<Instructions>("/api/instructions"),
   listHandlers: () => request<Handler[]>("/api/handlers"),
+  getLatestRun: () => request<Run | null>("/api/runs/latest"),
   signOff: (claimId: string, handlerId: string) =>
     post<Claim>(`${claimPath(claimId)}/sign-off`, { handler_id: handlerId }),
 };

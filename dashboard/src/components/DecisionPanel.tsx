@@ -3,6 +3,15 @@ import { money, time } from "../format";
 import { DecisionChip } from "./Chips";
 import { SignOffForm } from "./SignOffForm";
 
+function progress(claim: Claim): string {
+  if (claim.status === "in_progress")
+    return "The agent is working on this claim.";
+  if (claim.status === "left_for_handler")
+    return `The agent couldn't finish this claim in ${String(claim.attempts)} attempts, so it's left for a handler.`;
+  if (claim.attempts > 0) return "Back in the queue after a failed attempt.";
+  return "The agent hasn't started on this claim.";
+}
+
 export function DecisionPanel({
   claim,
   onSignedOff,
@@ -12,13 +21,7 @@ export function DecisionPanel({
   return (
     <section className="panel" aria-labelledby="decision-title">
       <h2 id="decision-title">Decision</h2>
-      {!decision && (
-        <p className="muted">
-          {claim.status === "in_progress"
-            ? "The agent is working on this claim."
-            : "The agent hasn't started on this claim."}
-        </p>
-      )}
+      {!decision && <p className="muted">{progress(claim)}</p>}
       {decision && (
         <>
           <div className="decision-line">

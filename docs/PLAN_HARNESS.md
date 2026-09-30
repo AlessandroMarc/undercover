@@ -191,14 +191,14 @@ Replace `work_queue()` with `run_queue(cap)`: the recovery at the start, the run
 
 Add the run panel to the queue page, the new messages to the decision panel, and the sections read, reading steps and failed steps to the claim page.
 
-- [ ] vitest covers the run panel before the first run, while running (each item's status label) and finished (with the summary); a claim id in an item linking to the claim; the run panel refreshing, with fake timers; the decision panel for a claim back in the queue and for one left for a handler; reading and failed steps; and the sections read, each listed once
-- [ ] e2e, the to-do list: the test starts a run capped at 2 and writes two items To do, naming `CLM-1013` and `CLM-1014`. Without a reload, the queue page shows both To do. The test marks the first In progress, then marks it Done and the second In progress, and the page follows each change. After the test finishes the run with a summary, the page shows Finished and the summary, and the `CLM-1013` link in the first item opens that claim
-- [ ] e2e, a claim left for a handler: the test starts `CLM-1016`, records a reading step and fails the claim, and the claim page says it's back in the queue. After the test starts and fails it again, the page shows Left for a handler, the section under the sections read, and two Failed steps with their reasons, all without a reload
-- [ ] Browser, with a run driven by curl, and `browser_evaluate`: each to-do status and the Left for a handler state have the background color from the design
-- [ ] Browser: screenshots of the queue with a run and of a claim left for a handler, in light and dark mode, show rounded panels with no outlines, no one-edge borders and no gradients
-- [ ] Browser, on a claim with steps recorded by curl: a reading step shows "Read" and the section, and a failed step shows "Failed" and its reason in Raspberry
-- [ ] Browser: `browser_console_messages` shows no errors on any page
-- [ ] `npm run check` passes
+- [x] vitest covers the run panel before the first run, while running (each item's status label) and finished (with the summary); a claim id in an item linking to the claim; the run panel refreshing, with fake timers; the decision panel for a claim back in the queue and for one left for a handler; reading and failed steps; and the sections read, each listed once
+- [x] e2e, the to-do list: the test starts a run capped at 2 and writes two items To do, naming `CLM-1013` and `CLM-1014`. Without a reload, the queue page shows both To do. The test marks the first In progress, then marks it Done and the second In progress, and the page follows each change. After the test finishes the run with a summary, the page shows Finished and the summary, and the `CLM-1013` link in the first item opens that claim
+- [x] e2e, a claim left for a handler: the test starts `CLM-1016`, records a reading step and fails the claim, and the claim page says it's back in the queue. After the test starts and fails it again, the page shows Left for a handler, the section under the sections read, and two Failed steps with their reasons, all without a reload
+- [x] Browser, with a run driven by curl, and `browser_evaluate`: each to-do status and the Left for a handler state have the background color from the design
+- [x] Browser: screenshots of the queue with a run and of a claim left for a handler, in light and dark mode, show rounded panels with no outlines, no one-edge borders and no gradients
+- [x] Browser, on a claim with steps recorded by curl: a reading step shows "Read" and the section, and a failed step shows "Failed" and its reason in Raspberry
+- [x] Browser: `browser_console_messages` shows no errors on any page
+- [x] `npm run check` passes
 
 ## Phase 6: A trial on five claims
 

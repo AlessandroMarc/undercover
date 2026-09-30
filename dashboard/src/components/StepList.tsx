@@ -19,6 +19,7 @@ export function StepList({ claimId }: Readonly<{ claimId: string }>) {
           No steps yet. They appear here as the agent works.
         </p>
       )}
+      {steps && steps.length > 0 && <SectionsRead steps={steps} />}
       {steps && steps.length > 0 && (
         <ol className="steps">
           {steps.map((step) => (
@@ -32,6 +33,23 @@ export function StepList({ claimId }: Readonly<{ claimId: string }>) {
         </ol>
       )}
     </section>
+  );
+}
+
+function SectionsRead({ steps }: Readonly<{ steps: Step[] }>) {
+  const read = [
+    ...new Set(steps.filter((s) => s.kind === "reading").map((s) => s.content)),
+  ];
+  if (read.length === 0) return null;
+  return (
+    <div className="sections-read">
+      <h3>Sections read</h3>
+      <ul>
+        {read.map((section) => (
+          <li key={section}>{section}</li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -58,6 +76,18 @@ function StepBody({ step }: Readonly<{ step: Step }>) {
       </details>
     );
   }
+  if (step.kind === "reading")
+    return (
+      <p>
+        <span className="step-label">Read</span> {step.content}
+      </p>
+    );
+  if (step.kind === "error")
+    return (
+      <p>
+        <span className="step-failed">Failed</span> {step.content}
+      </p>
+    );
   return (
     <p>
       <span className="step-label">Agent</span> {step.content}

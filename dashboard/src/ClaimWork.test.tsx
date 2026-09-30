@@ -115,6 +115,69 @@ it("says when the agent hasn't started", async () => {
   expect(await screen.findByText(/No steps yet/)).toBeDefined();
 });
 
+it("says when a claim is back in the queue after a failed attempt", async () => {
+  showClaim({ ...claim, attempts: 1 });
+  const panel = await decisionPanel();
+  expect(
+    panel.getByText("Back in the queue after a failed attempt."),
+  ).toBeDefined();
+});
+
+it("says when a claim is left for a handler", async () => {
+  showClaim({ ...claim, status: "left_for_handler", attempts: 2 });
+  const panel = await decisionPanel();
+  expect(
+    panel.getByText(
+      "The agent couldn't finish this claim in 2 attempts, so it's left for a handler.",
+    ),
+  ).toBeDefined();
+});
+
+it("shows the sections read once each, and failed attempts", async () => {
+  const read = (step_id: number, content: string): Step => ({
+    step_id,
+    thread_id: "t-1",
+    kind: "reading",
+    content,
+    created_at: decidedAt,
+  });
+  showClaim({ ...claim, attempts: 1 }, [
+    read(1, "Policy wording, section 3: Trip Delay"),
+    read(2, "Claims manual, section 10: Meals without receipts"),
+    read(3, "Policy wording, section 3: Trip Delay"),
+    {
+      step_id: 4,
+      thread_id: "t-1",
+      kind: "error",
+      content: "RuntimeError: The model timed out",
+      created_at: decidedAt,
+    },
+  ]);
+  const heading = await screen.findByRole("heading", { name: "Sections read" });
+  const list = within(heading.parentElement ?? document.body).getAllByRole(
+    "listitem",
+  );
+  expect(list.map((item) => item.textContent)).toEqual([
+    "Policy wording, section 3: Trip Delay",
+    "Claims manual, section 10: Meals without receipts",
+  ]);
+  const reading = screen.getAllByText("Read");
+  expect(reading).toHaveLength(3);
+  const failed = screen.getByText("Failed");
+  expect(failed.className).toBe("step-failed");
+  expect(failed.parentElement?.textContent).toBe(
+    "Failed RuntimeError: The model timed out",
+  );
+});
+
+it("lists no sections when the agent has read none", async () => {
+  showClaim(approved, steps);
+  expect(
+    await screen.findByText('get_claim(claim_id="CLM-1002")'),
+  ).toBeDefined();
+  expect(screen.queryByText("Sections read")).toBeNull();
+});
+
 it("says when the agent is working", async () => {
   showClaim({ ...claim, status: "in_progress", thread_id: "t-1" });
   const panel = await decisionPanel();
