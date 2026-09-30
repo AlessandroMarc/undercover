@@ -3,31 +3,7 @@ from contextlib import closing
 
 import pytest
 
-
-def start(client, claim_id):
-    return client.post(f"/api/claims/{claim_id}/start", json={"thread_id": "t-1"})
-
-
-def decide(client, claim_id, decision, payout):
-    return client.post(
-        f"/api/claims/{claim_id}/decision",
-        json={
-            "decision": decision,
-            "payout": payout,
-            "section": "Section 3, Trip Delay",
-            "reason": "The delay was covered.",
-        },
-    )
-
-
-def pay(client, claim_id, amount):
-    return client.post(f"/api/claims/{claim_id}/payment", json={"amount": amount})
-
-
-def sign_off(client, claim_id, handler_id):
-    return client.post(
-        f"/api/claims/{claim_id}/sign-off", json={"handler_id": handler_id}
-    )
+from backend.tests.claim_requests import decide, pay, sign_off, start
 
 
 def test_start_claim(client):

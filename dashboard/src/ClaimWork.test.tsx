@@ -2,15 +2,22 @@ import {
   act,
   cleanup,
   fireEvent,
-  render,
   screen,
   within,
 } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
-import { App } from "./App";
 import type { Claim, Decision, Handler, Step } from "./api";
-import { Refusal, claim, history, policy, stubApi } from "./testing";
+import {
+  Refusal,
+  type Routes,
+  claim,
+  history,
+  panel,
+  policy,
+  renderAt,
+  stubApi,
+} from "./testing";
+import { REFRESH_MS } from "./useLoad";
 
 afterEach(() => {
   cleanup();
@@ -60,7 +67,7 @@ const steps: Step[] = [
 ];
 
 function showClaim(shown: Claim, stepsShown: Step[] = []) {
-  const routes: Record<string, unknown> = {
+  const routes: Routes = {
     "GET /api/claims/CLM-1002": shown,
     "GET /api/claims/CLM-1002/steps": stepsShown,
     "GET /api/policies/POL-2002": policy,
@@ -68,20 +75,11 @@ function showClaim(shown: Claim, stepsShown: Step[] = []) {
     "GET /api/handlers": handlers,
   };
   const fetchMock = stubApi(routes);
-  render(
-    <MemoryRouter initialEntries={["/claims/CLM-1002"]}>
-      <App />
-    </MemoryRouter>,
-  );
+  renderAt("/claims/CLM-1002");
   return { routes, fetchMock };
 }
 
-async function decisionPanel() {
-  const heading = await screen.findByRole("heading", { name: "Decision" });
-  const panel = heading.closest("section");
-  if (!panel) throw new Error("The decision heading has no panel");
-  return within(panel);
-}
+const decisionPanel = () => panel("Decision");
 
 const approval: Decision = {
   decision: "approve",
@@ -164,7 +162,7 @@ it("shows the sections read once each, and failed attempts", async () => {
   const reading = screen.getAllByText("Read");
   expect(reading).toHaveLength(3);
   const failed = screen.getByText("Failed");
-  expect(failed.className).toBe("step-failed");
+  expect(failed.className).toBe("chip step-failed");
   expect(failed.parentElement?.textContent).toBe(
     "Failed RuntimeError: The model timed out",
   );
@@ -234,12 +232,12 @@ it("shows new steps and the decision as the agent works", async () => {
   expect(await screen.findByText(/No steps yet/)).toBeDefined();
 
   routes["GET /api/claims/CLM-1002/steps"] = steps.slice(0, 1);
-  await act(() => vi.advanceTimersByTimeAsync(2000));
+  await act(() => vi.advanceTimersByTimeAsync(REFRESH_MS));
   expect(screen.getByText('get_claim(claim_id="CLM-1002")')).toBeDefined();
 
   routes["GET /api/claims/CLM-1002"] = approved;
   routes["GET /api/claims/CLM-1002/steps"] = steps;
-  await act(() => vi.advanceTimersByTimeAsync(2000));
+  await act(() => vi.advanceTimersByTimeAsync(REFRESH_MS));
   expect(screen.getByText("Approved and paid.")).toBeDefined();
   expect(screen.getAllByText("Decided").length).toBeGreaterThan(0);
 });

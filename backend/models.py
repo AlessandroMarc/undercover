@@ -123,6 +123,7 @@ class Instructions(BaseModel):
 
 class Section(BaseModel):
     document: DocumentName
+    document_title: str
     number: int
     title: str
     text: str
@@ -150,7 +151,7 @@ class DecisionRequest(BaseModel):
         ge=0, description="In US dollars, 0 for a decline or referral"
     )
     section: str = Field(
-        min_length=1, description="The section of the policy wording relied on"
+        min_length=1, description="The sections of the wording and the manual relied on"
     )
     reason: str = Field(
         min_length=1, description="Two or three sentences explaining the decision"

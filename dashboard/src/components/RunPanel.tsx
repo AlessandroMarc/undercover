@@ -1,8 +1,10 @@
 import { Fragment } from "react";
 import { Link } from "react-router";
 import { api, type Run } from "../api";
-import { time, todoLabels } from "../format";
+import { time } from "../format";
+import { claimPage } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
+import { RunChip, TodoChip } from "./Chips";
 import { Message } from "./Message";
 
 const CLAIM_ID = /(CLM-\d+)/;
@@ -14,11 +16,7 @@ export function RunPanel() {
     <section className="panel run" aria-labelledby="run-title">
       <div className="run-heading">
         <h2 id="run-title">Current run</h2>
-        {run && (
-          <span className={`chip run-${run.status}`}>
-            {run.status === "running" ? "Running" : "Finished"}
-          </span>
-        )}
+        {run && <RunChip status={run.status} />}
       </div>
       {run === undefined && <Message error={error} />}
       {run === null && <p className="muted">No run yet.</p>}
@@ -42,9 +40,7 @@ function RunDetails({ run }: Readonly<{ run: Run }>) {
         <ol className="todos">
           {run.todos.map((todo, index) => (
             <li className="todo" key={`${String(index)}-${todo.content}`}>
-              <span className={`chip todo-${todo.status}`}>
-                {todoLabels[todo.status]}
-              </span>
+              <TodoChip status={todo.status} />
               <span>
                 <LinkedClaims text={todo.content} />
               </span>
@@ -65,7 +61,7 @@ function RunDetails({ run }: Readonly<{ run: Run }>) {
 function LinkedClaims({ text }: Readonly<{ text: string }>) {
   return text.split(CLAIM_ID).map((part, index) =>
     CLAIM_ID.test(part) ? (
-      <Link className="mono" key={index} to={`/claims/${part}`}>
+      <Link className="mono" key={index} to={claimPage(part)}>
         {part}
       </Link>
     ) : (

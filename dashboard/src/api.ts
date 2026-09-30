@@ -1,9 +1,11 @@
-export type Status =
-  | "waiting"
-  | "in_progress"
-  | "waiting_for_sign_off"
-  | "decided"
-  | "left_for_handler";
+export const statuses = [
+  "waiting",
+  "in_progress",
+  "waiting_for_sign_off",
+  "decided",
+  "left_for_handler",
+] as const;
+export type Status = (typeof statuses)[number];
 export type DecisionKind = "approve" | "decline" | "refer";
 export type StepKind =
   "tool_call" | "tool_result" | "message" | "reading" | "error";
@@ -110,6 +112,7 @@ export interface Step {
 }
 
 export type TodoStatus = "to_do" | "in_progress" | "done" | "left_for_handler";
+export type RunStatus = "running" | "finished";
 
 export interface Todo {
   content: string;
@@ -119,7 +122,7 @@ export interface Todo {
 export interface Run {
   run_id: string;
   cap: number;
-  status: "running" | "finished";
+  status: RunStatus;
   started_at: string;
   finished_at: string | null;
   summary: string | null;

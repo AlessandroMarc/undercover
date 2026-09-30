@@ -1,4 +1,3 @@
-import sqlite3
 from contextlib import closing
 
 import pytest
@@ -24,6 +23,7 @@ def test_documents_split_into_numbered_sections(document, count, first, last):
 def test_read_a_section_of_the_manual(client):
     section = client.get("/api/documents/claims_manual/sections/9").json()
     assert (section["document"], section["number"]) == ("claims_manual", 9)
+    assert section["document_title"] == "Claims manual"
     assert section["title"] == "Repeat claims"
     assert section["text"].startswith(
         "Before deciding any claim, check the customer's claim history"
@@ -95,7 +95,11 @@ def test_instructions_for_the_queue_and_a_claim(client):
     assert "Monkeys, gulls, bears, giraffes" not in claim
 
 
-def test_manual_is_seeded(database):
-    with closing(sqlite3.connect(database)) as db:
-        manual = db.execute("SELECT claims_manual FROM settings").fetchone()[0]
-    assert manual.startswith("# UnderCover Claims Handling Manual")
+def test_both_documents_are_seeded():
+    with closing(connect()) as db:
+        rows = db.execute("SELECT * FROM documents ORDER BY rowid").fetchall()
+    assert [(row["name"], row["title"]) for row in rows] == [
+        ("policy_wording", "Policy wording"),
+        ("claims_manual", "Claims manual"),
+    ]
+    assert rows[1]["text"].startswith("# UnderCover Claims Handling Manual")

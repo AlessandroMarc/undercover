@@ -1,3 +1,5 @@
+"""Fixtures for the backend's and the agent's tests."""
+
 import pytest
 from fastapi.testclient import TestClient
 

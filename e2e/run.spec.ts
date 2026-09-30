@@ -1,14 +1,9 @@
-import { type APIRequestContext, expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { post, put } from "./api";
 
 // These tests stand in for the queue agent and a claim agent by calling the
 // API through the dashboard's proxy, and watch the pages update without a
 // reload. Only this file starts runs, and it uses claims no other test touches.
-
-async function send(request: APIRequestContext, path: string, data: object) {
-  const response = await request.post(path, { data });
-  expect(response.ok()).toBe(true);
-  return response;
-}
 
 test("the queue shows the agent's to-do list as it works", async ({
   page,
@@ -20,22 +15,15 @@ test("the queue shows the agent's to-do list as it works", async ({
   });
   await expect(panel).toBeVisible();
 
-  const response = await send(request, "/api/runs", { cap: 2 });
+  const response = await post(request, "/api/runs", { cap: 2 });
   const { run_id } = (await response.json()) as { run_id: string };
-  const write = async (first: string, second: string) => {
-    const written = await request.put(`/api/runs/${run_id}/todos`, {
-      data: {
-        todos: [
-          {
-            content: "CLM-1013 Seven hour delay leaving Chicago",
-            status: first,
-          },
-          { content: "CLM-1014 Duffel bag lost", status: second },
-        ],
-      },
+  const write = (first: string, second: string) =>
+    put(request, `/api/runs/${run_id}/todos`, {
+      todos: [
+        { content: "CLM-1013 Seven hour delay leaving Chicago", status: first },
+        { content: "CLM-1014 Duffel bag lost", status: second },
+      ],
     });
-    expect(written.ok()).toBe(true);
-  };
   const items = panel.getByRole("listitem");
 
   await write("to_do", "to_do");
@@ -51,7 +39,7 @@ test("the queue shows the agent's to-do list as it works", async ({
   await write("done", "in_progress");
   await expect(items).toHaveText([/^Done.*CLM-1013/, /^In progress.*CLM-1014/]);
 
-  await send(request, `/api/runs/${run_id}/finish`, {
+  await post(request, `/api/runs/${run_id}/finish`, {
     summary: "Worked 2 claims: 2 approved.",
   });
   await expect(panel.getByText("Finished", { exact: true })).toBeVisible();
@@ -70,20 +58,20 @@ test("a claim that fails twice is left for a handler", async ({
   const heading = page.locator(".claim-heading");
   await expect(heading.getByText("Waiting")).toBeVisible();
 
-  await send(request, "/api/claims/CLM-1016/start", { thread_id: "e2e-3" });
-  await send(request, "/api/claims/CLM-1016/steps", {
+  await post(request, "/api/claims/CLM-1016/start", { thread_id: "e2e-3" });
+  await post(request, "/api/claims/CLM-1016/steps", {
     kind: "reading",
     content: "Policy wording, section 7: Emergency Medical",
   });
-  await send(request, "/api/claims/CLM-1016/failure", {
+  await post(request, "/api/claims/CLM-1016/failure", {
     reason: "RuntimeError: The model timed out",
   });
   await expect(
     page.getByText("Back in the queue after a failed attempt."),
   ).toBeVisible();
 
-  await send(request, "/api/claims/CLM-1016/start", { thread_id: "e2e-4" });
-  await send(request, "/api/claims/CLM-1016/failure", {
+  await post(request, "/api/claims/CLM-1016/start", { thread_id: "e2e-4" });
+  await post(request, "/api/claims/CLM-1016/failure", {
     reason: "RuntimeError: The model timed out again",
   });
   await expect(heading.getByText("Left for a handler")).toBeVisible();

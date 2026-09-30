@@ -23,7 +23,7 @@ export function StepList({ claimId }: Readonly<{ claimId: string }>) {
       {steps && steps.length > 0 && (
         <ol className="steps">
           {steps.map((step) => (
-            <li key={step.step_id} className={`step step-${step.kind}`}>
+            <li key={step.step_id} className="step">
               <span className="step-time small muted">
                 {time(step.created_at)}
               </span>
@@ -85,7 +85,7 @@ function StepBody({ step }: Readonly<{ step: Step }>) {
   if (step.kind === "error")
     return (
       <p>
-        <span className="step-failed">Failed</span> {step.content}
+        <span className="chip step-failed">Failed</span> {step.content}
       </p>
     );
   return (

@@ -1,95 +1,111 @@
-"""The agent's tools, each named after the backend operation it calls."""
+"""The agents' tools. The claim agent's tools, list_claims and write_todos call the
+backend operations they are named after, and work_claim hands a claim to a claim agent.
+"""
 
-from typing import Any, Literal
-from urllib.parse import urlencode
+import json
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Annotated
 
-import httpx
-from langchain_core.tools import tool
+from langchain.tools import ToolException, ToolRuntime, tool
 
-BACKEND_URL = "http://localhost:8000"
-REFUSED = "Refused with status"
-
-
-def backend() -> httpx.Client:
-    """Return a client for the UnderCover backend."""
-    return httpx.Client(base_url=BACKEND_URL, timeout=30)
+from agent import api
 
 
-def request(
-    method: str, path: str, body: dict[str, Any] | None = None
-) -> httpx.Response:
-    """Send one request to the backend."""
-    with backend() as client:
-        return client.request(method, path, json=body)
+@dataclass
+class ClaimContext:
+    """The claim a claim agent is working on."""
+
+    claim_id: str
 
 
-def reply(response: httpx.Response) -> str:
-    """Give the model the backend's answer, or its reason for refusing."""
-    if response.is_success:
-        return response.text
-    return f"{REFUSED} {response.status_code}: {response.text}"
+@dataclass
+class RunContext:
+    """A queue agent's run: its cap, how to work a claim, and the claims started."""
 
-
-@tool
-def list_claims() -> str:
-    """List every claim in the queue, in id order, with its status and decision."""
-    return reply(request("GET", "/api/claims"))
+    run_id: str
+    cap: int
+    work_claim: Callable[[str], str]
+    started: set[str] = field(default_factory=set)
 
 
 @tool
-def get_claim(claim_id: str) -> str:
-    """Get one claim in full: the story, the items claimed and the documents."""
-    return reply(request("GET", f"/api/claims/{claim_id}"))
+def get_claim(runtime: ToolRuntime[ClaimContext]) -> str:
+    """Get your claim in full: the story, the items claimed and the documents."""
+    return json.dumps(api.get_claim(runtime.context.claim_id))
 
 
 @tool
 def get_policy(policy_id: str) -> str:
     """Get a policy: the plan, add-ons, purchase date, trip and travelers."""
-    return reply(request("GET", f"/api/policies/{policy_id}"))
+    return json.dumps(api.get_policy(policy_id))
 
 
 @tool
 def get_claim_history(customer_id: str) -> str:
     """Get a customer's earlier claims, with the outcome and the amount paid."""
-    return reply(request("GET", f"/api/customers/{customer_id}/claims"))
+    return json.dumps(api.get_claim_history(customer_id))
 
 
 @tool
 def search_documents(query: str) -> str:
-    """Search the wording and the manual for one word or a short phrase at a time."""
-    return reply(request("GET", f"/api/documents/search?{urlencode({'query': query})}"))
+    """Find the sections of the wording and the manual containing one word or phrase."""
+    return json.dumps(api.search_documents(query))
 
 
-@tool
+@tool(response_format="content_and_artifact")
 def read_section(
-    document: Literal["policy_wording", "claims_manual"], number: int
-) -> str:
+    document: api.DocumentName, number: int
+) -> tuple[str, tuple[api.StepKind, str]]:
     """Read one section of the policy wording or the claims manual in full."""
-    return reply(request("GET", f"/api/documents/{document}/sections/{number}"))
+    section = api.read_section(document, number)
+    read = f"{section['document_title']}, section {number}: {section['title']}"
+    return json.dumps(section), ("reading", read)
 
 
 @tool
 def record_decision(
-    claim_id: str,
-    decision: Literal["approve", "decline", "refer"],
-    payout: float,
-    section: str,
-    reason: str,
+    decision: api.DecisionKind,
+    payout: Annotated[float, "In US dollars, and 0 for a decline or a referral"],
+    section: Annotated[str, "The sections of the wording and the manual relied on"],
+    reason: Annotated[str, "Two or three plain sentences for a colleague"],
+    runtime: ToolRuntime[ClaimContext],
 ) -> str:
-    """Record the decision on a claim; an approval over the limit waits for sign-off."""
-    body = {
-        "decision": decision,
-        "payout": payout,
-        "section": section,
-        "reason": reason,
-    }
-    return reply(request("POST", f"/api/claims/{claim_id}/decision", body))
+    """Record the decision on your claim, once; an approval over the limit waits."""
+    claim_id = runtime.context.claim_id
+    return json.dumps(api.record_decision(claim_id, decision, payout, section, reason))
 
 
 @tool
-def pay_claim(claim_id: str, amount: float) -> str:
-    """Pay an approved claim its payout, unless it needs a handler's sign-off."""
-    return reply(request("POST", f"/api/claims/{claim_id}/payment", {"amount": amount}))
+def pay_claim(amount: float, runtime: ToolRuntime[ClaimContext]) -> str:
+    """Pay your approved claim its payout, unless it needs a handler's sign-off."""
+    return json.dumps(api.pay_claim(runtime.context.claim_id, amount))
+
+
+@tool
+def list_claims() -> str:
+    """List every claim in the queue, in id order, with its status and decision."""
+    return json.dumps(api.list_claims())
+
+
+@tool
+def write_todos(todos: list[api.Todo], runtime: ToolRuntime[RunContext]) -> str:
+    """Replace the run's to-do list, sending every item with its current status."""
+    return json.dumps(api.write_todos(runtime.context.run_id, todos))
+
+
+@tool
+def work_claim(claim_id: str, runtime: ToolRuntime[RunContext]) -> str:
+    """Hand one claim to a new claim agent, which reports back in one line."""
+    run = runtime.context
+    if claim_id not in run.started and len(run.started) >= run.cap:
+        started = ", ".join(sorted(run.started))
+        raise ToolException(
+            f"this run can work {run.cap} claims, and has started {started}"
+        )
+    report = run.work_claim(claim_id)
+    run.started.add(claim_id)
+    return report
 
 
 CLAIM_TOOLS = [
@@ -101,3 +117,4 @@ CLAIM_TOOLS = [
     record_decision,
     pay_claim,
 ]
+QUEUE_TOOLS = [list_claims, write_todos, work_claim]

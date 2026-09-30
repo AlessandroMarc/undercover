@@ -1,4 +1,7 @@
+import { render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
+import { App } from "./App";
 import type { Claim, ClaimSummary, Policy, PreviousClaim } from "./api";
 
 // Stands in for the backend: answers "METHOD /path" with the JSON given, or
@@ -27,6 +30,19 @@ export function stubApi(routes: Routes) {
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
+}
+
+export function renderAt(path: string) {
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <App />
+    </MemoryRouter>,
+  );
+}
+
+// Finds the panel headed by the given heading, to look inside it.
+export async function panel(heading: string) {
+  return within(await screen.findByRole("region", { name: heading }));
 }
 
 export const claim: Claim = {

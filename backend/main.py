@@ -12,7 +12,7 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Query
 
 from backend.database import connect, database_path, seed
-from backend.documents import TITLES, contents, search, sections
+from backend.documents import contents, search, sections, titles
 from backend.models import (
     Claim,
     ClaimSummary,
@@ -231,9 +231,8 @@ def read_section(document: DocumentName, number: int, db: Database) -> Section:
     for section in sections(db, document):
         if section.number == number:
             return section
-    raise HTTPException(
-        404, f"Section {number} of the {TITLES[document].lower()} not found"
-    )
+    title = titles(db)[document].lower()
+    raise HTTPException(404, f"Section {number} of the {title} not found")
 
 
 @app.get("/api/handlers", operation_id="list_handlers")

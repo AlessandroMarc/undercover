@@ -9,12 +9,16 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
+DOCUMENTS = {"policy_wording": "Policy wording", "claims_manual": "Claims manual"}
 
 SCHEMA = """
 CREATE TABLE settings (
-    payout_approval_limit REAL NOT NULL,
-    policy_wording TEXT NOT NULL,
-    claims_manual TEXT NOT NULL
+    payout_approval_limit REAL NOT NULL
+);
+CREATE TABLE documents (
+    name TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    text TEXT NOT NULL
 );
 CREATE TABLE handlers (
     handler_id TEXT PRIMARY KEY,
@@ -115,14 +119,18 @@ def seed(path: Path) -> dict[str, int]:
     customers = load("customers.json")
     policies = load("policies.json")
     claims = load("claims.json")
-    wording = (DATA / "policy_wording.md").read_text(encoding="utf-8")
-    manual = (DATA / "claims_manual.md").read_text(encoding="utf-8")
     path.unlink(missing_ok=True)
     with closing(sqlite3.connect(path)) as connection, connection:
         connection.executescript(SCHEMA)
         connection.execute(
-            "INSERT INTO settings VALUES (?, ?, ?)",
-            (company["payout_approval_limit"], wording, manual),
+            "INSERT INTO settings VALUES (?)", (company["payout_approval_limit"],)
+        )
+        connection.executemany(
+            "INSERT INTO documents VALUES (?, ?, ?)",
+            [
+                (name, title, (DATA / f"{name}.md").read_text(encoding="utf-8"))
+                for name, title in DOCUMENTS.items()
+            ],
         )
         connection.executemany(
             "INSERT INTO handlers VALUES (?, ?, ?, ?)",

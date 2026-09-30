@@ -1,9 +1,14 @@
-import { act, cleanup, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { act, cleanup, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { App } from "./App";
 import type { Run } from "./api";
-import { summary as claimSummary, stubApi } from "./testing";
+import {
+  type Routes,
+  summary as claimSummary,
+  panel,
+  renderAt,
+  stubApi,
+} from "./testing";
+import { REFRESH_MS } from "./useLoad";
 
 afterEach(() => {
   cleanup();
@@ -31,25 +36,16 @@ const running: Run = {
 };
 
 function showQueue(run: Run | null) {
-  const routes: Record<string, unknown> = {
+  const routes: Routes = {
     "GET /api/claims": [claimSummary],
     "GET /api/runs/latest": run,
   };
   stubApi(routes);
-  render(
-    <MemoryRouter initialEntries={["/"]}>
-      <App />
-    </MemoryRouter>,
-  );
+  renderAt("/");
   return routes;
 }
 
-async function runPanel() {
-  const heading = await screen.findByRole("heading", { name: "Current run" });
-  const panel = heading.closest("section");
-  if (!panel) throw new Error("The run heading has no panel");
-  return within(panel);
-}
+const runPanel = () => panel("Current run");
 
 it("says when there's no run yet", async () => {
   showQueue(null);
@@ -112,14 +108,14 @@ it("ticks off the to-do list as the agent works", async () => {
     ...running,
     todos: [{ content: "CLM-1001", status: "to_do" }],
   };
-  await act(() => vi.advanceTimersByTimeAsync(2000));
+  await act(() => vi.advanceTimersByTimeAsync(REFRESH_MS));
   expect(panel.getByText("To do")).toBeDefined();
 
   routes["GET /api/runs/latest"] = {
     ...running,
     todos: [{ content: "CLM-1001", status: "done" }],
   };
-  await act(() => vi.advanceTimersByTimeAsync(2000));
+  await act(() => vi.advanceTimersByTimeAsync(REFRESH_MS));
   expect(panel.getByText("Done")).toBeDefined();
   expect(panel.queryByText("To do")).toBeNull();
 });

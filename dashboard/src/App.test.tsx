@@ -1,21 +1,19 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { App } from "./App";
-import { Refusal, claim, history, policy, stubApi, summary } from "./testing";
+import {
+  Refusal,
+  claim,
+  history,
+  policy,
+  renderAt,
+  stubApi,
+  summary,
+} from "./testing";
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
-
-function renderAt(path: string) {
-  render(
-    <MemoryRouter initialEntries={[path]}>
-      <App />
-    </MemoryRouter>,
-  );
-}
 
 it("shows the queue with counts by state", async () => {
   stubApi({

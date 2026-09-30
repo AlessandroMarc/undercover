@@ -14,6 +14,7 @@
   --muted: #4b6f7b;
   --link: #0b6e8f;
   --green-text: #037a5b;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
 
   color-scheme: light;
   font-family: "Instrument Sans", system-ui, sans-serif;
@@ -80,7 +81,7 @@ p {
 }
 
 .mono {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--mono);
   font-size: 0.9em;
 }
 
@@ -398,7 +399,7 @@ p {
 .instructions {
   margin: 0;
   white-space: pre-wrap;
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--mono);
   font-size: 0.82rem;
   line-height: 1.6;
 }
@@ -511,13 +512,6 @@ p {
   font-weight: 600;
 }
 
-.step-failed {
-  display: inline-block;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-weight: 600;
-}
-
 .sections-read {
   background: var(--inset);
   border-radius: 12px;
@@ -542,7 +536,7 @@ p {
   margin: 8px 0 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--mono);
   font-size: 0.8rem;
 }
 
