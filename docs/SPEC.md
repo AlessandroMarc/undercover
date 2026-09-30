@@ -17,12 +17,23 @@ We want an AI agent, the UnderCover Agent, to work the queue the way a handler d
 
 Our goal is to handle claims straight through, as accurately as our handlers do.
 
+## Working the queue on its own
+
+The agent works the queue in runs, organizing its own work:
+
+- One run works the whole queue. The agent chooses the order, then finishes with a short summary for the handlers. A run can be capped at a number of claims for a trial, with the rest left waiting, and the agent can also work one named claim.
+- The agent plans each run as a to-do list and keeps it up to date, with each item to do, in progress, done or left for a handler.
+- Each claim goes to a fresh helper that works that one claim from a clean start and reports back in a line: the decision and payout, or what went wrong. Every step on a claim is recorded on that claim.
+- For each claim the agent looks up the sections of the policy wording and the claims manual it needs, the way a handler would, rather than being handed whole documents.
+- Problems are put right automatically. One bad claim never stops the run or leaves a claim stuck in progress. A claim that fails before it is decided goes back in the queue to be tried again, and a claim that fails twice is left for a handler. No claim is ever decided or paid twice. Before it finishes, the agent checks that it hasn't missed a waiting claim within its cap.
+
 ## What the team needs to see
 
-- The queue, with where each claim stands: waiting, in progress, waiting for sign-off or decided.
+- The queue, with where each claim stands: waiting, in progress, waiting for sign-off, decided or left for a handler.
+- The to-do list for the current run, so we can see what the agent means to do and how far it has got, and its summary when it finishes.
 - Each claim in full, with the agent's decision and its reasons.
-- What the agent is doing on a claim while it works, step by step.
-- The agent's instructions, read only.
+- What the agent is doing on a claim while it works, step by step, including the sections it read and any attempt that failed.
+- The agent's instructions for running the queue and for working a claim, read only.
 
 ## Rules
 

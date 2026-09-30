@@ -204,13 +204,13 @@ Add the run panel to the queue page, the new messages to the decision panel, and
 
 Watch a capped run on the dashboard from start to finish, and bring `docs/SPEC.md`, `docs/TECH_STACK.md` and `docs/STATUS.md` up to date.
 
-- [ ] Live, in the browser: after reseeding, with `/` open, start `uv run -m agent --cap 5`. Snapshots taken during the run show the to-do list appearing, items moving from To do to In progress to Done, and claims moving from In progress to Decided or Waiting for sign-off, all without a reload. The page ends with the run Finished and its summary
-- [ ] Live, in the browser: a claim page opened during the run shows its steps appearing and its sections read, including at least one section of the manual
-- [ ] Live: afterwards the queue shows Waiting 20 and In progress 0
-- [ ] `docs/SPEC.md` describes the run, the to-do list, a fresh claim agent for each claim, the retries, claims left for a handler, and the sections read
-- [ ] `docs/TECH_STACK.md` names the new default model and the agent's two entry points, `run_queue(cap)` and `work_claim(claim_id)`
-- [ ] `docs/STATUS.md` describes what's built, how to work the whole queue, a capped run and one claim, and the time and decisions of the live run
-- [ ] `npm run check` passes
+- [x] Live, in the browser: after reseeding, with `/` open, start `uv run -m agent --cap 5`. Snapshots taken during the run show the to-do list appearing, items moving from To do to In progress to Done, and claims moving from In progress to Decided or Waiting for sign-off, all without a reload. The page ends with the run Finished and its summary
+- [x] Live, in the browser: a claim page opened during the run shows its steps appearing and its sections read, including at least one section of the manual
+- [x] Live: afterwards the queue shows Waiting 20 and In progress 0
+- [x] `docs/SPEC.md` describes the run, the to-do list, a fresh claim agent for each claim, the retries, claims left for a handler, and the sections read
+- [x] `docs/TECH_STACK.md` names the new default model and the agent's two entry points, `run_queue(cap)` and `work_claim(claim_id)`
+- [x] `docs/STATUS.md` describes what's built, how to work the whole queue, a capped run and one claim, and the time and decisions of the live run
+- [x] `npm run check` passes
 
 ## Not in this plan
 
