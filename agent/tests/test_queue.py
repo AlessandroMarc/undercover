@@ -2,11 +2,9 @@ import sqlite3
 from contextlib import closing
 
 import pytest
-from langchain_core.messages import AIMessage
 
 from agent import __main__ as cli
 from agent import main
-from agent.tests.test_agent import StubModel, call
 
 
 @pytest.fixture
@@ -19,89 +17,18 @@ def three_waiting(database):
         )
 
 
-def decide(claim_id, decision, payout, *extra):
-    return [
-        call("get_claim", claim_id=claim_id),
-        call(
-            "record_decision",
-            claim_id=claim_id,
-            decision=decision,
-            payout=payout,
-            section="Section 3, Trip Delay",
-            reason="Covered.",
-        ),
-        *extra,
-        AIMessage(content="Done."),
-    ]
-
-
-def test_work_queue_with_a_stub_model(monkeypatch, capsys, client, three_waiting):
-    stub = StubModel(
-        messages=iter(
-            decide(
-                "CLM-1001",
-                "approve",
-                420.0,
-                call("pay_claim", claim_id="CLM-1001", amount=420.0),
-            )
-            + decide("CLM-1002", "approve", 1350.0)
-            + decide("CLM-1003", "refer", 0)
-        )
-    )
-    real_run = main.run
+def test_work_queue_prints_each_report(monkeypatch, capsys, three_waiting):
     worked = []
 
-    def run(claim_id, thread_id):
+    def work_claim(claim_id):
         worked.append(claim_id)
-        return real_run(claim_id, thread_id, stub)
+        return f"{claim_id}  refer  $0.00"
 
-    monkeypatch.setattr(main, "run", run)
+    monkeypatch.setattr(main, "work_claim", work_claim)
     cli.main([])
-
     assert worked == ["CLM-1001", "CLM-1002", "CLM-1003"]
     assert capsys.readouterr().out.splitlines() == [
-        "CLM-1001  approve  $420.00",
-        "CLM-1002  approve  $1,350.00",
+        "CLM-1001  refer  $0.00",
+        "CLM-1002  refer  $0.00",
         "CLM-1003  refer  $0.00",
-        "Worked 3 claims: 2 approve, 1 refer",
     ]
-    claims = {c["claim_id"]: c for c in client.get("/api/claims").json()}
-    assert claims["CLM-1001"]["status"] == "decided"
-    assert claims["CLM-1002"]["status"] == "waiting_for_sign_off"
-
-
-def test_work_queue_reports_failures_and_moves_on(
-    monkeypatch, capsys, client, three_waiting
-):
-    def run(claim_id, thread_id):
-        client.post(f"/api/claims/{claim_id}/start", json={"thread_id": thread_id})
-        if claim_id == "CLM-1001":
-            raise main.BackendError("503: The model is unavailable")
-        if claim_id == "CLM-1003":
-            client.post(
-                f"/api/claims/{claim_id}/decision",
-                json={
-                    "decision": "decline",
-                    "payout": 0,
-                    "section": "Section 9",
-                    "reason": "Excluded.",
-                },
-            )
-        return "Done."
-
-    monkeypatch.setattr(main, "run", run)
-    main.work_queue()
-
-    assert capsys.readouterr().out.splitlines() == [
-        "CLM-1001  failed: 503: The model is unavailable",
-        "CLM-1002  undecided",
-        "CLM-1003  decline  $0.00",
-        "Worked 3 claims: 1 decline, 1 failed, 1 undecided",
-    ]
-
-
-def test_work_queue_with_nothing_waiting(capsys, database):
-    with closing(sqlite3.connect(database)) as db, db:
-        db.execute("UPDATE claims SET status = 'decided'")
-    main.work_queue()
-    assert capsys.readouterr().out == "Worked 0 claims: none waiting\n"

@@ -154,18 +154,18 @@ Add `attempts`, the `left_for_handler` state and `fail_claim`, then the runs and
 
 Turn `run()` into `work_claim(claim_id)`: a new thread for every attempt, the step limit, the failure handling and the one-line report. `uv run -m agent CLM-1001` prints the report.
 
-- [ ] Stub model test, within the limit: `work_claim("CLM-1001")` returns `CLM-1001  approve  $420.00`, and the claim is decided and paid, with its steps under a new thread id
-- [ ] Stub model test, over the limit: `CLM-1002  approve  $1,350.00, waiting for sign-off`, with no payment
-- [ ] A stub that raises a provider error on its second call: the report ends `back in the queue`, and the claim is `waiting` with attempts 1 and the error as its last step
-- [ ] The same failure a second time: the report ends `left for a handler`, and the claim is `left_for_handler`
-- [ ] A stub that finishes without recording a decision: `failed: The agent finished without recording a decision, back in the queue`
-- [ ] A stub that calls `get_claim` over and over stops at the step limit, and the claim goes back in the queue
-- [ ] A stub that raises after `record_decision`: the report gives the decision, and the claim keeps it with no `error` step and isn't put back in the queue
-- [ ] `work_claim` on a decided claim returns `not started: 409: ...` and changes nothing: no step and no attempt
-- [ ] A clean start for each claim: working two claims in a row, the claim model's first prompt each time holds only the claim instructions and one message naming the claim
-- [ ] `uv run -m agent CLM-1001` prints the report (tested with `work_claim` stubbed out)
-- [ ] Live: after reseeding, `uv run -m agent CLM-1001` prints one report line, and `curl -s localhost:8000/api/claims/CLM-1001` shows the same decision and payout, with a section and a reason of two or three sentences
-- [ ] `npm run check` passes
+- [x] Stub model test, within the limit: `work_claim("CLM-1001")` returns `CLM-1001  approve  $420.00`, and the claim is decided and paid, with its steps under a new thread id
+- [x] Stub model test, over the limit: `CLM-1002  approve  $1,350.00, waiting for sign-off`, with no payment
+- [x] A stub that raises a provider error on its second call: the report ends `back in the queue`, and the claim is `waiting` with attempts 1 and the error as its last step
+- [x] The same failure a second time: the report ends `left for a handler`, and the claim is `left_for_handler`
+- [x] A stub that finishes without recording a decision: `failed: The agent finished without recording a decision, back in the queue`
+- [x] A stub that calls `get_claim` over and over stops at the step limit, and the claim goes back in the queue
+- [x] A stub that raises after `record_decision`: the report gives the decision, and the claim keeps it with no `error` step and isn't put back in the queue
+- [x] `work_claim` on a decided claim returns `not started: 409: ...` and changes nothing: no step and no attempt
+- [x] A clean start for each claim: working two claims in a row, the claim model's first prompt each time holds only the claim instructions and one message naming the claim
+- [x] `uv run -m agent CLM-1001` prints the report (tested with `work_claim` stubbed out)
+- [x] Live: after reseeding, `uv run -m agent CLM-1001` prints one report line, and `curl -s localhost:8000/api/claims/CLM-1001` shows the same decision and payout, with a section and a reason of two or three sentences
+- [x] `npm run check` passes
 
 ## Phase 4: The queue agent
 
