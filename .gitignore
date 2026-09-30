@@ -56,3 +56,5 @@ qdrant_data/
 Thumbs.db
 
 .playwright-mcp/
+# Claims desks made by the Week 1 Day 5 labs
+labs/*_desk/

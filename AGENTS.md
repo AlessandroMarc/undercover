@@ -12,7 +12,7 @@ IMPORTANT: at the start of every session, read each of these files in full befor
 4. `docs/PROCESS.md`: how to plan, build and check the work
 5. `docs/BRAND.md`: the look
 6. `docs/STATUS.md`: what's built so far
-7. `docs/PLAN.md`: the current plan, once there is one
+7. `docs/PLAN.md`: the plan for the pilot. Future plans go in their own documents, such as `docs/PLAN_HARNESS.md` or `docs/PLAN_ANOTHER.md`, as we get there
 
 ## Folders
 
