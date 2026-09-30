@@ -14,6 +14,7 @@ The pre-commit hook runs the format, lint, type and unit test checks on every co
 
 When asked to plan, as in "Please plan the pilot", write the plan to `docs/PLAN.md` and write no code.
 
+- Start with the design: the modules, what each one is for, and how they depend on each other. Check it against `docs/CODE_STANDARDS.md` before you write the phases. Describe the agent's instructions by their goals, never as a list of steps.
 - Split the work into phases, usually 5 or 6, each building on the last.
 - Give each phase detailed success criteria that you can verify yourself: tests that pass, commands and their output, API calls and their responses, and pages you check in the browser with the Playwright MCP server. Write each one as a checkbox.
 - Then stop and wait until you are asked to implement the plan.
@@ -24,15 +25,24 @@ When asked to implement the plan, as in "Please implement the plan for the pilot
 
 1. Build it, with tests.
 2. Check every success criterion and fix whatever fails.
-3. Tick off its criteria in `docs/PLAN.md` and update `docs/STATUS.md`.
-4. Commit. The pre-commit hook runs the checks; if it fails, fix the problem and commit again.
+3. Review the phase's changes, as described below, and fix what the review finds.
+4. Tick off its criteria in `docs/PLAN.md` and update `docs/STATUS.md`.
+5. Commit. The pre-commit hook runs the checks; if it fails, fix the problem and commit again.
 
-When the last phase is done, run `npm run check` and report the results.
+When the last phase is done, review the whole branch against `main` in the same way and fix what the review finds. Then run `npm run check` and report the results, including what the reviews found and what you changed.
+
+## Reviewing
+
+The checks show that the code works, but not that it is fit to merge. Every code change gets a review before it is committed.
+
+- The reviewer is a fresh subagent that didn't write the code. Give it `docs/CODE_STANDARDS.md` and the diff, and ask it to review as a strict senior engineer deciding whether to merge the PR.
+- It checks every standard, in particular: one way to call each service, with each URL written once; modules that keep to their own job and don't borrow each other's helpers; the framework's own way of doing things over hand-rolled code; functions that do one job; and agent instructions written as goals.
+- Fix everything it would block the PR for before you commit. If you disagree with a finding, say so in your report instead of skipping it quietly.
 
 ## Rules
 
 - Add tests with each change. Tests never call a model; use a stub model.
-- Outside a plan, commit each change once you have checked it.
+- Outside a plan, commit each change once you have checked and reviewed it.
 - Run `npm run check` before you hand work over.
 - Never use `git commit --no-verify`.
 - Never lower a threshold, turn off a rule or exclude a file to get a green run. If a rule looks wrong, stop and ask.
