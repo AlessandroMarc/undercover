@@ -171,21 +171,21 @@ Turn `run()` into `work_claim(claim_id)`: a new thread for every attempt, the st
 
 Replace `work_queue()` with `run_queue(cap)`: the recovery at the start, the run, the three tools, the cap, the check for missed claims and the summary. Add `--cap` to the command line.
 
-- [ ] A pytest test checks that the queue agent's tools are exactly `list_claims`, `write_todos` and `work_claim`, and that the first two are named after backend operations
-- [ ] Stub model test, a whole run: with three claims waiting, the queue stub lists the claims, writes three items, marks each in progress and then done around its `work_claim`, and finishes with a summary. All three claims are decided, and the latest run is `finished` with that summary and every item `done`. The queue agent's system prompt is the `queue` text, and its first message says the run can work 3 claims
-- [ ] Cap: with four claims waiting and a cap of 2, the stub's `work_claim` on a third claim is refused with a message that names the cap. Two claims are worked, and two stay `waiting` with 0 attempts
-- [ ] A failed claim doesn't stop the run: when the claim model raises on the first of three claims, the other two are still decided and the run finishes
-- [ ] Tried again: a claim that fails once goes back in the queue. The stub calls `work_claim` on it again, which the cap allows, and it's decided. Its steps show both attempts with the error between them
-- [ ] Left for a handler: a claim that fails on both attempts is `left_for_handler`, its report says so, and the run finishes with the other claims decided
-- [ ] Missed claims: when the stub tries to finish while a claim it started is back in the queue, the harness replies naming that claim. The stub works it, and then the run finishes. A stub that ignores the reminders gets two, and then the run finishes
-- [ ] Recovery: a claim left `in_progress` before the run starts is put back in the queue with the error "The run stopped before this claim was finished", and the run can work it
-- [ ] When the queue model raises, the run finishes with a summary that starts "The run stopped:", and no claim is left in progress
-- [ ] With no claim waiting, `run_queue` prints "No claims are waiting" and starts no run
-- [ ] Command line: `uv run -m agent` caps the run at every waiting claim, `--cap 5` caps it at five, and `CLM-1001` works one claim (tested with the run stubbed out)
-- [ ] Live: after reseeding and with `npm run dev` running, `uv run -m agent --cap 5` prints a report line for each claim it works, then the summary
-- [ ] Live: afterwards, `curl -s localhost:8000/api/claims` shows exactly 5 claims that aren't `waiting`, and none `in_progress`. `curl -s localhost:8000/api/runs/latest` shows the run `finished`, with the summary and every claim item `done` or `left_for_handler`
-- [ ] Live: every approval over $1,000 is `waiting_for_sign_off` with no payment, every other approval is paid exactly its payout, and each claim worked has at least one reading step
-- [ ] `npm run check` passes
+- [x] A pytest test checks that the queue agent's tools are exactly `list_claims`, `write_todos` and `work_claim`, and that the first two are named after backend operations
+- [x] Stub model test, a whole run: with three claims waiting, the queue stub lists the claims, writes three items, marks each in progress and then done around its `work_claim`, and finishes with a summary. All three claims are decided, and the latest run is `finished` with that summary and every item `done`. The queue agent's system prompt is the `queue` text, and its first message says the run can work 3 claims
+- [x] Cap: with four claims waiting and a cap of 2, the stub's `work_claim` on a third claim is refused with a message that names the cap. Two claims are worked, and two stay `waiting` with 0 attempts
+- [x] A failed claim doesn't stop the run: when the claim model raises on the first of three claims, the other two are still decided and the run finishes
+- [x] Tried again: a claim that fails once goes back in the queue. The stub calls `work_claim` on it again, which the cap allows, and it's decided. Its steps show both attempts with the error between them
+- [x] Left for a handler: a claim that fails on both attempts is `left_for_handler`, its report says so, and the run finishes with the other claims decided
+- [x] Missed claims: when the stub tries to finish while a claim it started is back in the queue, the harness replies naming that claim. The stub works it, and then the run finishes. A stub that ignores the reminders gets two, and then the run finishes
+- [x] Recovery: a claim left `in_progress` before the run starts is put back in the queue with the error "The run stopped before this claim was finished", and the run can work it
+- [x] When the queue model raises, the run finishes with a summary that starts "The run stopped:", and no claim is left in progress
+- [x] With no claim waiting, `run_queue` prints "No claims are waiting" and starts no run
+- [x] Command line: `uv run -m agent` caps the run at every waiting claim, `--cap 5` caps it at five, and `CLM-1001` works one claim (tested with the run stubbed out)
+- [x] Live: after reseeding and with `npm run dev` running, `uv run -m agent --cap 5` prints a report line for each claim it works, then the summary
+- [x] Live: afterwards, `curl -s localhost:8000/api/claims` shows exactly 5 claims that aren't `waiting`, and none `in_progress`. `curl -s localhost:8000/api/runs/latest` shows the run `finished`, with the summary and every claim item `done` or `left_for_handler`
+- [x] Live: every approval over $1,000 is `waiting_for_sign_off` with no payment, every other approval is paid exactly its payout, and each claim worked has at least one reading step
+- [x] `npm run check` passes
 
 ## Phase 5: The dashboard: the to-do list and what the agent read
 

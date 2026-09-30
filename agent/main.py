@@ -20,6 +20,7 @@ load_dotenv(override=True)
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
 STEPS = 60
+NOT_STARTED = "not started"
 
 
 def model() -> ChatOpenAI:
@@ -122,7 +123,7 @@ def work_claim(claim_id: str, llm: BaseChatModel | None = None) -> str:
     try:
         call_backend("POST", f"/api/claims/{claim_id}/start", {"thread_id": thread_id})
     except BackendError as error:
-        return f"{claim_id}  not started: {error}"
+        return f"{claim_id}  {NOT_STARTED}: {error}"
     reason = "The agent finished without recording a decision"
     try:
         work(claim_id, thread_id, llm)
@@ -135,10 +136,3 @@ def work_claim(claim_id: str, llm: BaseChatModel | None = None) -> str:
     if claim["status"] == "left_for_handler":
         return f"{claim_id}  failed: {reason}, left for a handler"
     return f"{claim_id}  failed: {reason}, back in the queue"
-
-
-def work_queue() -> None:
-    """Work every waiting claim in queue order, printing each report."""
-    for claim in call_backend("GET", "/api/claims"):
-        if claim["status"] == "waiting":
-            print(work_claim(claim["claim_id"]), flush=True)
