@@ -1,11 +1,13 @@
 """The agent's tools, each named after the backend operation it calls."""
 
 from typing import Any, Literal
+from urllib.parse import urlencode
 
 import httpx
 from langchain_core.tools import tool
 
 BACKEND_URL = "http://localhost:8000"
+REFUSED = "Refused with status"
 
 
 def backend() -> httpx.Client:
@@ -25,7 +27,7 @@ def reply(response: httpx.Response) -> str:
     """Give the model the backend's answer, or its reason for refusing."""
     if response.is_success:
         return response.text
-    return f"Refused with status {response.status_code}: {response.text}"
+    return f"{REFUSED} {response.status_code}: {response.text}"
 
 
 @tool
@@ -44,6 +46,20 @@ def get_policy(policy_id: str) -> str:
 def get_claim_history(customer_id: str) -> str:
     """Get a customer's earlier claims, with the outcome and the amount paid."""
     return reply(request("GET", f"/api/customers/{customer_id}/claims"))
+
+
+@tool
+def search_documents(query: str) -> str:
+    """Search the wording and the manual for one word or a short phrase at a time."""
+    return reply(request("GET", f"/api/documents/search?{urlencode({'query': query})}"))
+
+
+@tool
+def read_section(
+    document: Literal["policy_wording", "claims_manual"], number: int
+) -> str:
+    """Read one section of the policy wording or the claims manual in full."""
+    return reply(request("GET", f"/api/documents/{document}/sections/{number}"))
 
 
 @tool
@@ -70,4 +86,12 @@ def pay_claim(claim_id: str, amount: float) -> str:
     return reply(request("POST", f"/api/claims/{claim_id}/payment", {"amount": amount}))
 
 
-TOOLS = [get_claim, get_policy, get_claim_history, record_decision, pay_claim]
+CLAIM_TOOLS = [
+    get_claim,
+    get_policy,
+    get_claim_history,
+    search_documents,
+    read_section,
+    record_decision,
+    pay_claim,
+]

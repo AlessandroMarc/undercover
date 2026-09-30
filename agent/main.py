@@ -14,22 +14,24 @@ from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import SecretStr
 
-from agent.tools import TOOLS, request
+from agent.tools import CLAIM_TOOLS, REFUSED, request
 
 load_dotenv(override=True)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "openai/gpt-6-luna"
+DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
 
 
 def model() -> ChatOpenAI:
-    """Return the model named in MODEL_NAME, or GPT-6 Luna by default."""
+    """Return the model named in MODEL_NAME, or DeepSeek V4.1 Flash by default."""
     name = os.getenv("MODEL_NAME")
     return ChatOpenAI(
         model=name or DEFAULT_MODEL,
         base_url=OPENROUTER_BASE_URL,
         api_key=SecretStr(os.environ["OPENROUTER_API_KEY"]),
         reasoning_effort=None if name else "low",
+        timeout=120,
+        max_retries=5,
     )
 
 
@@ -45,10 +47,22 @@ def call_backend(method: str, path: str, body: dict[str, Any] | None = None) -> 
     return response.json()
 
 
+def reading(result: str) -> list[tuple[str, str]]:
+    """Name a section the agent read, like "Claims manual, section 9: Repeat claims"."""
+    if result.startswith(REFUSED):
+        return []
+    section = json.loads(result)
+    document = section["document"].replace("_", " ").capitalize()
+    return [("reading", f"{document}, section {section['number']}: {section['title']}")]
+
+
 def steps(message: AnyMessage) -> list[tuple[str, str]]:
     """Turn one message from the agent's run into steps for the dashboard."""
     if isinstance(message, ToolMessage):
-        return [("tool_result", f"{message.name}: {message.text}")]
+        found = [("tool_result", f"{message.name}: {message.text}")]
+        if message.name == "read_section" and message.status == "success":
+            found += reading(message.text)
+        return found
     found = []
     if message.text:
         found.append(("message", message.text))
@@ -62,10 +76,10 @@ def steps(message: AnyMessage) -> list[tuple[str, str]]:
 def run(claim_id: str, thread_id: str, llm: BaseChatModel | None = None) -> str:
     """Work one claim, recording each step with the backend, and return the reply."""
     call_backend("POST", f"/api/claims/{claim_id}/start", {"thread_id": thread_id})
-    instructions = call_backend("GET", "/api/instructions")["text"]
+    instructions = call_backend("GET", "/api/instructions")["claim"]
     agent = create_agent(
         llm or model(),
-        tools=TOOLS,
+        tools=CLAIM_TOOLS,
         system_prompt=instructions,
         checkpointer=InMemorySaver(),
     )

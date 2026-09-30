@@ -8,27 +8,31 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 
 from backend.database import connect, database_path, seed
+from backend.documents import TITLES, contents, search, sections
 from backend.models import (
     Claim,
     ClaimSummary,
     Decision,
     DecisionRequest,
+    DocumentName,
     Handler,
     Instructions,
     Payment,
     PaymentRequest,
     Policy,
     PreviousClaim,
+    Section,
+    SectionMatch,
     SignOffRequest,
     StartRequest,
     Step,
     StepRequest,
 )
 
-INSTRUCTIONS = Path(__file__).parent / "instructions.md"
+INSTRUCTIONS = Path(__file__).parent / "instructions"
 
 
 @asynccontextmanager
@@ -166,9 +170,29 @@ def get_claim_history(customer_id: str, db: Database) -> list[PreviousClaim]:
 
 @app.get("/api/instructions", operation_id="get_instructions")
 def get_instructions(db: Database) -> Instructions:
-    """Get the agent's instructions, followed by the policy wording."""
-    wording = db.execute("SELECT policy_wording FROM settings").fetchone()[0]
-    return Instructions(text=f"{INSTRUCTIONS.read_text(encoding='utf-8')}\n{wording}")
+    """Get the agent's instructions for running the queue and for working a claim."""
+    queue = (INSTRUCTIONS / "queue.md").read_text(encoding="utf-8")
+    claim = (INSTRUCTIONS / "claim.md").read_text(encoding="utf-8")
+    return Instructions(queue=queue, claim=f"{claim}\n{contents(db)}")
+
+
+@app.get("/api/documents/search", operation_id="search_documents")
+def search_documents(
+    query: Annotated[str, Query(min_length=1)], db: Database
+) -> list[SectionMatch]:
+    """Find the sections of the wording and the manual that mention a word or phrase."""
+    return search(db, query)
+
+
+@app.get("/api/documents/{document}/sections/{number}", operation_id="read_section")
+def read_section(document: DocumentName, number: int, db: Database) -> Section:
+    """Read one section of the policy wording or the claims manual in full."""
+    for section in sections(db, document):
+        if section.number == number:
+            return section
+    raise HTTPException(
+        404, f"Section {number} of the {TITLES[document].lower()} not found"
+    )
 
 
 @app.get("/api/handlers", operation_id="list_handlers")

@@ -9,16 +9,32 @@ export function InstructionsPage() {
     <>
       <h1>Agent instructions</h1>
       <p className="lead">
-        What the agent reads before it works a claim: its instructions, then the
-        policy wording. This page is read only.
+        What the agent reads before it starts: its instructions for running the
+        queue, and for working each claim, which end with the contents of the
+        policy wording and the claims manual. This page is read only.
       </p>
-      <section className="panel">
-        {data ? (
-          <pre className="instructions">{data.text}</pre>
-        ) : (
+      {data ? (
+        <div className="column">
+          <Instructions title="Running the queue" text={data.queue} />
+          <Instructions title="Working a claim" text={data.claim} />
+        </div>
+      ) : (
+        <section className="panel">
           <Message error={error} />
-        )}
-      </section>
+        </section>
+      )}
     </>
+  );
+}
+
+function Instructions({
+  title,
+  text,
+}: Readonly<{ title: string; text: string }>) {
+  return (
+    <section className="panel" aria-label={title}>
+      <h2>{title}</h2>
+      <pre className="instructions">{text}</pre>
+    </section>
   );
 }

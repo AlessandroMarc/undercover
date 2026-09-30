@@ -118,21 +118,21 @@ As in `docs/PLAN.md`: API calls run against `npm run dev` on a freshly seeded da
 
 Seed the manual, add `search_documents` and `read_section`, and write the two sets of instructions. `get_instructions` returns both, and the claim instructions carry the contents of the documents in place of the whole wording. Give the agent the two lookup tools and the reading step, and switch the default model. The instructions page shows both sets. Update `docs/SPEC.md` so the manual is in scope.
 
-- [ ] `curl -s localhost:8000/api/documents/claims_manual/sections/9` returns number 9, title "Repeat claims", and text that starts "Before deciding any claim, check the customer's claim history"
-- [ ] `curl -s localhost:8000/api/documents/policy_wording/sections/3` returns "Trip Delay" with its two paragraphs and nothing from section 4
-- [ ] `read_section` returns 404 for section 13 of the wording and section 15 of the manual, and 422 for a document called `handbook`
-- [ ] `curl -s "localhost:8000/api/documents/search?query=wild%20animal"` returns one section, section 7 of the manual, "Interpretation notes", with the paragraph that begins "**Wild animals.**"
-- [ ] A search for `GIRAFFE` also finds section 7 of the manual. A search for `zeppelin` returns `[]`, and an empty query returns 422
-- [ ] pytest covers splitting the documents (12 sections in the wording and 14 in the manual, with their numbers and titles), reading, searching, and each 404 and 422
-- [ ] `curl -s localhost:8000/api/instructions` returns `queue` and `claim`. `claim` ends with the contents of both documents, including "3. Trip Delay" and "9. Repeat claims", and holds none of their text: no "Unattended means out of your sight" and no "Monkeys, gulls, bears, giraffes"
-- [ ] A pytest test checks that the claim agent's tools are exactly `get_claim`, `get_policy`, `get_claim_history`, `search_documents`, `read_section`, `record_decision` and `pay_claim`, each named after a backend operation
-- [ ] Stub model test: the system prompt is the `claim` text. The stub reads section 9 of the manual, and the steps show its `tool_call`, its `tool_result`, then a `reading` step "Claims manual, section 9: Repeat claims". A read of section 15 goes back to the model as a refusal and records no reading step
-- [ ] `test_model_name`: the default is `deepseek/deepseek-v4.1-flash` with low reasoning effort, a 120 second timeout and 5 retries, and `MODEL_NAME=openrouter/free` overrides it
-- [ ] Browser, `/instructions`: panels headed "Running the queue" and "Working a claim", with the contents at the end of the second, and no text box, input or edit button in the snapshot
-- [ ] `docs/SPEC.md`: decisions follow the wording and the manual, and the manual is no longer under "Not for now"
-- [ ] `grep -rn evals backend agent dashboard/src` finds nothing, and `grep -rlnE "deepagents|claude_agent_sdk" agent backend` finds nothing
-- [ ] Live: after reseeding and with `npm run dev` running, `uv run -m agent CLM-1001` decides the claim. Its steps show `read_section` for section 3 of the wording and for at least one section of the manual, each followed by its reading step
-- [ ] `npm run check` passes
+- [x] `curl -s localhost:8000/api/documents/claims_manual/sections/9` returns number 9, title "Repeat claims", and text that starts "Before deciding any claim, check the customer's claim history"
+- [x] `curl -s localhost:8000/api/documents/policy_wording/sections/3` returns "Trip Delay" with its two paragraphs and nothing from section 4
+- [x] `read_section` returns 404 for section 13 of the wording and section 15 of the manual, and 422 for a document called `handbook`
+- [x] `curl -s "localhost:8000/api/documents/search?query=wild%20animal"` returns one section, section 7 of the manual, "Interpretation notes", with the paragraph that begins "**Wild animals.**"
+- [x] A search for `GIRAFFE` also finds section 7 of the manual. A search for `zeppelin` returns `[]`, and an empty query returns 422
+- [x] pytest covers splitting the documents (12 sections in the wording and 14 in the manual, with their numbers and titles), reading, searching, and each 404 and 422
+- [x] `curl -s localhost:8000/api/instructions` returns `queue` and `claim`. `claim` ends with the contents of both documents, including "3. Trip Delay" and "9. Repeat claims", and holds none of their text: no "Unattended means out of your sight" and no "Monkeys, gulls, bears, giraffes"
+- [x] A pytest test checks that the claim agent's tools are exactly `get_claim`, `get_policy`, `get_claim_history`, `search_documents`, `read_section`, `record_decision` and `pay_claim`, each named after a backend operation
+- [x] Stub model test: the system prompt is the `claim` text. The stub reads section 9 of the manual, and the steps show its `tool_call`, its `tool_result`, then a `reading` step "Claims manual, section 9: Repeat claims". A read of section 15 goes back to the model as a refusal and records no reading step
+- [x] `test_model_name`: the default is `deepseek/deepseek-v4.1-flash` with low reasoning effort, a 120 second timeout and 5 retries, and `MODEL_NAME=openrouter/free` overrides it
+- [x] Browser, `/instructions`: panels headed "Running the queue" and "Working a claim", with the contents at the end of the second, and no text box, input or edit button in the snapshot
+- [x] `docs/SPEC.md`: decisions follow the wording and the manual, and the manual is no longer under "Not for now"
+- [x] `grep -rn evals backend agent dashboard/src` finds nothing, and `grep -rlnE "deepagents|claude_agent_sdk" agent backend` finds nothing
+- [x] Live: after reseeding and with `npm run dev` running, `uv run -m agent CLM-1001` decides the claim. Its steps show `read_section` for section 3 of the wording and for at least one section of the manual, each followed by its reading step
+- [x] `npm run check` passes
 
 ## Phase 2: Runs, to-do lists and attempts in the backend
 

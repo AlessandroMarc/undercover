@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field, model_validator
 
 Status = Literal["waiting", "in_progress", "waiting_for_sign_off", "decided"]
 DecisionKind = Literal["approve", "decline", "refer"]
-StepKind = Literal["tool_call", "tool_result", "message"]
+StepKind = Literal["tool_call", "tool_result", "message", "reading"]
+DocumentName = Literal["policy_wording", "claims_manual"]
 
 
 class Item(BaseModel):
@@ -112,7 +113,22 @@ class Step(BaseModel):
 
 
 class Instructions(BaseModel):
+    queue: str
+    claim: str
+
+
+class Section(BaseModel):
+    document: DocumentName
+    number: int
+    title: str
     text: str
+
+
+class SectionMatch(BaseModel):
+    document: DocumentName
+    number: int
+    title: str
+    excerpts: list[str]
 
 
 class StartRequest(BaseModel):

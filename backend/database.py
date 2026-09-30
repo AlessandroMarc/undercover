@@ -13,7 +13,8 @@ DATA = ROOT / "data"
 SCHEMA = """
 CREATE TABLE settings (
     payout_approval_limit REAL NOT NULL,
-    policy_wording TEXT NOT NULL
+    policy_wording TEXT NOT NULL,
+    claims_manual TEXT NOT NULL
 );
 CREATE TABLE handlers (
     handler_id TEXT PRIMARY KEY,
@@ -98,12 +99,13 @@ def seed(path: Path) -> dict[str, int]:
     policies = load("policies.json")
     claims = load("claims.json")
     wording = (DATA / "policy_wording.md").read_text(encoding="utf-8")
+    manual = (DATA / "claims_manual.md").read_text(encoding="utf-8")
     path.unlink(missing_ok=True)
     with closing(sqlite3.connect(path)) as connection, connection:
         connection.executescript(SCHEMA)
         connection.execute(
-            "INSERT INTO settings VALUES (?, ?)",
-            (company["payout_approval_limit"], wording),
+            "INSERT INTO settings VALUES (?, ?, ?)",
+            (company["payout_approval_limit"], wording, manual),
         )
         connection.executemany(
             "INSERT INTO handlers VALUES (?, ?, ?, ?)",

@@ -106,9 +106,21 @@ it("shows other errors loading a claim", async () => {
 });
 
 it("shows the agent's instructions read only", async () => {
-  stubApi({ "GET /api/instructions": { text: "# UnderCover Agent" } });
+  stubApi({
+    "GET /api/instructions": {
+      queue: "# Running the queue",
+      claim: "# Working a claim\n\n## Contents of the claims manual",
+    },
+  });
   renderAt("/instructions");
-  expect(await screen.findByText("# UnderCover Agent")).toBeDefined();
+  const queue = await screen.findByRole("region", {
+    name: "Running the queue",
+  });
+  expect(within(queue).getByText("# Running the queue")).toBeDefined();
+  const claim = screen.getByRole("region", { name: "Working a claim" });
+  expect(
+    within(claim).getByText(/## Contents of the claims manual/),
+  ).toBeDefined();
   expect(screen.queryByRole("textbox")).toBeNull();
   expect(screen.queryByRole("button")).toBeNull();
 });

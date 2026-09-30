@@ -25,6 +25,11 @@ test("the header opens the instructions", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: "Instructions" }).click();
   await expect(page).toHaveURL("/instructions");
-  await expect(page.getByText(/You are the UnderCover Agent/)).toBeVisible();
-  await expect(page.getByText(/How we work out your payment/)).toBeVisible();
+  const queue = page.getByRole("region", { name: "Running the queue" });
+  await expect(queue.getByText(/you run the claims queue/)).toBeVisible();
+  const claim = page.getByRole("region", { name: "Working a claim" });
+  await expect(
+    claim.getByText(/10\. How we work out your payment/),
+  ).toBeVisible();
+  await expect(claim.getByText(/9\. Repeat claims/)).toBeVisible();
 });

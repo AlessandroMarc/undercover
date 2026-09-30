@@ -4,7 +4,7 @@ from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolM
 
 from agent import __main__ as cli
 from agent import main
-from agent.tools import TOOLS
+from agent.tools import CLAIM_TOOLS
 
 
 class StubModel(GenericFakeChatModel):
@@ -54,21 +54,65 @@ def test_tools_are_named_after_backend_operations(client):
         for path in client.get("/openapi.json").json()["paths"].values()
         for operation in path.values()
     }
-    names = [t.name for t in TOOLS]
+    names = [t.name for t in CLAIM_TOOLS]
     assert names == [
         "get_claim",
         "get_policy",
         "get_claim_history",
+        "search_documents",
+        "read_section",
         "record_decision",
         "pay_claim",
     ]
     assert set(names) <= operations
 
 
-def test_get_instructions(client):
-    text = client.get("/api/instructions").json()["text"]
-    assert text.startswith("# UnderCover Agent")
-    assert "## 10. How we work out your payment" in text
+def test_reading_a_section_is_recorded(client):
+    stub = script(
+        "CLM-1004",
+        "POL-2004",
+        "CUS-3004",
+        "approve",
+        100.0,
+        call("read_section", document="claims_manual", number=9),
+        call("read_section", document="claims_manual", number=15),
+        call("search_documents", query="wild animal"),
+    )
+    main.run("CLM-1004", "thread-1", stub)
+
+    steps = [
+        (s["kind"], s["content"])
+        for s in client.get("/api/claims/CLM-1004/steps").json()
+    ]
+    first = steps.index(
+        ("tool_call", 'read_section(document="claims_manual", number=9)')
+    )
+    assert steps[first + 1][1].startswith('read_section: {"document":"claims_manual"')
+    assert steps[first + 2] == ("reading", "Claims manual, section 9: Repeat claims")
+    refused = steps[first + 4]
+    assert refused[1].startswith("read_section: Refused with status 404")
+    assert steps[first + 5] == (
+        "tool_call",
+        'search_documents(query="wild animal")',
+    )
+    assert [s for s in steps if s[0] == "reading"] == [steps[first + 2]]
+    search = steps[first + 6][1]
+    assert search.startswith('search_documents: [{"document":"claims_manual"')
+
+
+def test_a_section_with_bad_arguments_goes_back_to_the_model(client):
+    stub = script(
+        "CLM-1004",
+        "POL-2004",
+        "CUS-3004",
+        "refer",
+        0,
+        call("read_section", document="handbook", number=1),
+    )
+    main.run("CLM-1004", "thread-1", stub)
+    steps = client.get("/api/claims/CLM-1004/steps").json()
+    assert "reading" not in {s["kind"] for s in steps}
+    assert client.get("/api/claims/CLM-1004").json()["status"] == "decided"
 
 
 def test_run_approves_and_pays_within_the_limit(client):
@@ -109,7 +153,7 @@ def test_run_uses_the_instructions_from_the_backend(client):
     main.run("CLM-1003", "thread-1", stub)
     system = stub.prompts[0][0]
     assert isinstance(system, SystemMessage)
-    assert system.content == client.get("/api/instructions").json()["text"]
+    assert system.content == client.get("/api/instructions").json()["claim"]
 
 
 def test_payment_over_the_limit_is_refused(client):
@@ -168,6 +212,11 @@ def test_command_line(monkeypatch, capsys):
 def test_model_name(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.delenv("MODEL_NAME", raising=False)
-    assert main.model().model_name == "openai/gpt-6-luna"
+    default = main.model()
+    assert default.model_name == "deepseek/deepseek-v4.1-flash"
+    assert default.reasoning_effort == "low"
+    assert default.request_timeout == 120
+    assert default.max_retries == 5
     monkeypatch.setenv("MODEL_NAME", "openrouter/free")
     assert main.model().model_name == "openrouter/free"
+    assert main.model().reasoning_effort is None
