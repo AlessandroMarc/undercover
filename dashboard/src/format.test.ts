@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { addOnName, date, label, money } from "./format";
+import { addOnName, date, duration, label, modelCost, money } from "./format";
 
 it("formats money in US dollars", () => {
   expect(money(1150)).toBe("$1,150.00");
@@ -14,4 +14,15 @@ it("turns codes into labels", () => {
   expect(label("trip_delay")).toBe("Trip delay");
   expect(addOnName("electronics_plus")).toBe("Electronics Plus");
   expect(addOnName("new_add_on")).toBe("New add on");
+});
+
+it("formats model costs to four places, since they're often under a cent", () => {
+  expect(modelCost(0.0125)).toBe("$0.0125");
+  expect(modelCost(1.5)).toBe("$1.5000");
+});
+
+it("formats lengths of time in minutes and seconds", () => {
+  expect(duration(41.4)).toBe("41 s");
+  expect(duration(161)).toBe("2 min 41 s");
+  expect(duration(0)).toBe("0 s");
 });

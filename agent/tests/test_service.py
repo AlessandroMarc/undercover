@@ -1,27 +1,39 @@
+import threading
+from contextlib import nullcontext
+
 import pytest
 from fastapi.testclient import TestClient
 from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import harness, service
-from agent.tests.records import claim_of, steps_of
-from agent.tests.stubs import decide, graph_on, stub
+from agent.tests.dispatching import new_dispatch
+from agent.tests.queue_setup import leave_waiting
+from agent.tests.records import claim_of, latest_dispatch, steps_of
+from agent.tests.stubs import decide, graph_on, stub, swarm
 from api_rules import rule_breaks
 
 
 @pytest.fixture
 def serve():
-    """Run the agent's service, without its lifespan, on a given claim graph."""
+    """Run the agent's service, without its lifespan, with claim agents on a stub
+    model whose graphs share a saver."""
 
-    def with_graph(graph):
-        service.app.dependency_overrides[service.build_graph] = lambda: graph
+    def with_model(model, saver=None):
+        saver = saver or InMemorySaver()
+        agents = service.ClaimAgents("stub", "none", lambda: graph_on(model, saver))
+        service.app.dependency_overrides[service.claim_agents] = lambda: agents
         return TestClient(service.app)
 
-    yield with_graph
+    yield with_model
     service.app.dependency_overrides.clear()
 
 
 def resume(agent, claim_id):
     return agent.post(f"/api/claims/{claim_id}/resume")
+
+
+def start_dispatch(agent, agents):
+    return agent.post("/api/dispatches", json={"agents": agents})
 
 
 def test_the_service_follows_the_api_rules():
@@ -35,13 +47,12 @@ def test_health():
 def test_a_sign_off_picks_the_claim_up_and_pays_it_once(
     client, serve, agent_calls, traces
 ):
-    model = stub(*decide("approve", 1350.0))
-    graph = graph_on(model, InMemorySaver())
-    harness.work_claim("CLM-1002", None, graph)
+    model, saver = stub(*decide("approve", 1350.0)), InMemorySaver()
+    harness.work_claim("CLM-1002", None, graph_on(model, saver))
     signed = client.post("/api/claims/CLM-1002/sign-off", json={"handler_id": "HND-01"})
     assert agent_calls == ["/api/claims/CLM-1002/resume"]
 
-    agent = serve(graph)
+    agent = serve(model, saver)
     response = resume(agent, "CLM-1002")
     assert response.status_code == 202
     claim = claim_of(client, "CLM-1002")
@@ -61,11 +72,30 @@ def test_a_sign_off_picks_the_claim_up_and_pays_it_once(
     assert claim_of(client, "CLM-1002")["payment"] == claim["payment"]
 
 
+def test_a_claim_is_kept_from_dispatches_while_it_is_resumed(
+    client, serve, monkeypatch
+):
+    model, saver = stub(*decide("approve", 1350.0)), InMemorySaver()
+    harness.work_claim("CLM-1002", None, graph_on(model, saver))
+    client.post("/api/claims/CLM-1002/sign-off", json={"handler_id": "HND-01"})
+    seen = []
+    carry_on = service.carry_on
+
+    def watch(claim_id, run_id, graph):
+        seen.append(set(service.resuming))
+        return carry_on(claim_id, run_id, graph)
+
+    monkeypatch.setattr(service, "carry_on", watch)
+    assert resume(serve(model, saver), "CLM-1002").status_code == 202
+    assert seen == [{"CLM-1002"}]
+    assert service.resuming == set()
+
+
 def test_a_claim_waiting_for_sign_off_is_not_picked_up(client, serve):
-    graph = graph_on(stub(*decide("approve", 1350.0)))
-    harness.work_claim("CLM-1002", None, graph)
+    model, saver = stub(*decide("approve", 1350.0)), InMemorySaver()
+    harness.work_claim("CLM-1002", None, graph_on(model, saver))
     before = steps_of(client, "CLM-1002")
-    response = resume(serve(graph), "CLM-1002")
+    response = resume(serve(model, saver), "CLM-1002")
     assert response.status_code == 409
     assert response.json()["detail"] == (
         "Claim CLM-1002 has no sign-off waiting to be paid"
@@ -76,7 +106,7 @@ def test_a_claim_waiting_for_sign_off_is_not_picked_up(client, serve):
 
 def test_a_claim_in_progress_without_a_sign_off_is_left_to_its_agent(client, serve):
     client.post("/api/claims/CLM-1001/start", json={"thread_id": "working"})
-    response = resume(serve(graph_on(stub())), "CLM-1001")
+    response = resume(serve(stub()), "CLM-1001")
     assert response.status_code == 409
     claim = claim_of(client, "CLM-1001")
     assert (claim["status"], claim["attempts"]) == ("in_progress", 1)
@@ -84,6 +114,80 @@ def test_a_claim_in_progress_without_a_sign_off_is_left_to_its_agent(client, ser
 
 
 def test_an_unknown_claim(serve):
-    response = resume(serve(graph_on(stub())), "CLM-9999")
+    response = resume(serve(stub()), "CLM-9999")
     assert response.status_code == 404
     assert response.json()["detail"] == "Claim CLM-9999 not found"
+
+
+def test_start_a_dispatch(client, serve):
+    ids = ["CLM-1001", "CLM-1003", "CLM-1004"]
+    leave_waiting(*ids)
+    model = swarm({claim_id: decide("refer", 0) for claim_id in ids}, pause=0.05)
+    response = start_dispatch(serve(model), 2)
+    assert response.status_code == 202
+    assert response.json() == {"status": "accepted"}
+
+    dispatch = latest_dispatch(client)
+    assert (dispatch["status"], dispatch["agents"]) == ("finished", 2)
+    assert (dispatch["model"], dispatch["reasoning_effort"]) == ("stub", "none")
+    assert [c["status"] for c in dispatch["claims"]] == ["decided"] * 3
+    assert model.most_at_once == 2
+
+
+@pytest.mark.parametrize("agents", [0, 26])
+def test_a_dispatch_has_1_to_25_claim_agents(client, serve, agents):
+    assert start_dispatch(serve(stub()), agents).status_code == 422
+    assert latest_dispatch(client) is None
+
+
+def test_one_run_at_a_time(client, serve, monkeypatch):
+    leave_waiting()
+    working, release = threading.Event(), threading.Event()
+    work_run = service.work_run
+
+    def held(run, new_graph, resuming):
+        working.set()
+        release.wait(5)
+        return work_run(run, new_graph, resuming)
+
+    monkeypatch.setattr(service, "work_run", held)
+    agent = serve(stub())
+    first = threading.Thread(target=start_dispatch, args=(agent, 3))
+    first.start()
+    assert working.wait(5)
+
+    refused = start_dispatch(agent, 3)
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "A dispatch or an evaluation is already running"
+    assert latest_dispatch(client)["number"] == 1
+
+    release.set()
+    first.join(5)
+    assert latest_dispatch(client)["status"] == "finished"
+    assert start_dispatch(agent, 3).status_code == 202
+    assert latest_dispatch(client)["number"] == 2
+
+
+def test_a_dispatch_whose_dispatcher_fails_is_stopped(client, serve, monkeypatch):
+    leave_waiting()
+    work_run = service.work_run
+
+    def broken(run, new_graph, resuming):
+        raise RuntimeError("The backend is unreachable")
+
+    monkeypatch.setattr(service, "work_run", broken)
+    agent = serve(stub())
+    assert start_dispatch(agent, 3).status_code == 202
+    assert latest_dispatch(client)["status"] == "stopped"
+
+    monkeypatch.setattr(service, "work_run", work_run)
+    assert start_dispatch(agent, 3).status_code == 202
+    assert latest_dispatch(client)["status"] == "finished"
+
+
+def test_starting_the_service_stops_the_runs_left_running(client, monkeypatch):
+    run_id = new_dispatch()["run_id"]
+    monkeypatch.setattr(service, "checkpoint_pool", lambda: nullcontext(object()))
+    with TestClient(service.app):
+        dispatch = latest_dispatch(client)
+        assert (dispatch["run_id"], dispatch["status"]) == (run_id, "stopped")

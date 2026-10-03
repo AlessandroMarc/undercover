@@ -2,7 +2,7 @@ import { Link } from "react-router";
 import { api, statuses } from "../api";
 import { DecisionChip, StatusChip } from "../components/Chips";
 import { Message } from "../components/Message";
-import { RunPanel } from "../components/RunPanel";
+import { DispatchPanel } from "../components/DispatchPanel";
 import { date, label, money, statusLabels } from "../format";
 import { claimPage } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
@@ -29,7 +29,7 @@ export function QueuePage() {
           );
         })}
       </section>
-      <RunPanel />
+      <DispatchPanel />
       <section className="panel table-scroll">
         <table className="table">
           <thead>

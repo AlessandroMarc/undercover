@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from langchain_core.callbacks import BaseCallbackHandler
 
-from agent import api, harness
+from agent import api, dispatcher, harness
 from backend.main import app
 
 
@@ -32,3 +32,14 @@ def traces(monkeypatch):
     roots: list[dict[str, Any]] = []
     monkeypatch.setattr(harness, "CallbackHandler", lambda: RecordRoots(roots))
     return roots
+
+
+@pytest.fixture(autouse=True)
+def no_waits(monkeypatch):
+    """Take the waits out of the dispatcher's RetryPolicy, keeping its tries, so the
+    tests never sleep through the backoff. Returns the real policy."""
+    real = dispatcher.RETRY
+    monkeypatch.setattr(
+        dispatcher, "RETRY", real._replace(initial_interval=0, jitter=False)
+    )
+    return real

@@ -1,14 +1,13 @@
 """The UnderCover backend."""
 
-import uuid
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
-from sqlalchemy import Connection, RowMapping, delete, insert, select, update
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
+from sqlalchemy import Connection, RowMapping, insert, select, update
 
 from backend import agent_service
 from backend.database import (
@@ -20,37 +19,34 @@ from backend.database import (
     handlers,
     is_seeded,
     model_calls,
+    now,
     payments,
     policies,
     runs,
     seed,
     settings,
+    stamp,
     steps,
-    todos,
     work_times,
 )
+from backend.dependencies import Database
 from backend.documents import contents, search, sections, titles
 from backend.models import (
     Claim,
     ClaimSummary,
-    Decision,
     DecisionRequest,
     DocumentName,
     FailureRequest,
-    FinishRequest,
     Handler,
     Instructions,
     ModelCall,
     ModelCallRequest,
-    Payment,
     PaymentRequest,
     Payout,
     PayoutRequest,
     Plans,
     Policy,
     PreviousClaim,
-    Run,
-    RunRequest,
     Section,
     SectionMatch,
     SignOffRequest,
@@ -58,16 +54,15 @@ from backend.models import (
     Status,
     Step,
     StepRequest,
-    Todo,
-    TodosRequest,
     WorkTime,
     WorkTimeRequest,
 )
 from backend.payout import needs_sign_off, work_out_payout
+from backend.runs import RUN_NOT_FOUND, router
+from backend.views import to_claim, to_summary
 
 INSTRUCTIONS = Path(__file__).parent / "instructions"
 ATTEMPTS = 2
-RUN_NOT_FOUND = "Run {run_id} not found"
 
 
 @asynccontextmanager
@@ -79,26 +74,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="UnderCover", lifespan=lifespan)
-
-
-def database() -> Iterator[Connection]:
-    """Open the database for one request, in a transaction committed at its end."""
-    with engine().begin() as connection:
-        yield connection
-
-
-# Committed before the response is sent and before any background task runs.
-Database = Annotated[Connection, Depends(database, scope="function")]
-
-
-def stamp(moment: datetime) -> str:
-    """Write a moment in UTC to the second, as every record has it."""
-    return moment.isoformat(timespec="seconds")
-
-
-def now() -> str:
-    """Return the current time in UTC, to the second."""
-    return stamp(datetime.now(UTC))
+app.include_router(router)
 
 
 def dollars(amount: float) -> str:
@@ -141,40 +117,6 @@ def set_status(db: Connection, claim_id: str, status: Status) -> None:
     )
 
 
-def to_summary(row: RowMapping) -> ClaimSummary:
-    """Build a claim's line in the queue from its row."""
-    return ClaimSummary(
-        **row["record"]
-        | {
-            "status": row["status"],
-            "customer_name": row["customer_name"],
-            "decision": row["decision"],
-            "payout": row["payout"],
-        }
-    )
-
-
-def to_claim(row: RowMapping) -> Claim:
-    """Build a claim in full, with its decision and payment, from its row."""
-    decision = None
-    if row["decision"] is not None:
-        decision = Decision(**{field: row[field] for field in Decision.model_fields})
-    payment = None
-    if row["paid_at"] is not None:
-        payment = Payment(**{field: row[field] for field in Payment.model_fields})
-    return Claim(
-        **row["record"]
-        | {
-            "status": row["status"],
-            "customer_name": row["customer_name"],
-            "thread_id": row["thread_id"],
-            "attempts": row["attempts"],
-            "decision": decision,
-            "payment": payment,
-        }
-    )
-
-
 def started_thread(db: Connection, claim_id: str) -> str:
     """Return the thread of a claim that has been started, or raise a 404 or a 409."""
     thread_id = find_claim(db, claim_id)["thread_id"]
@@ -208,28 +150,6 @@ def add_step(
         .returning(steps)
     )
     return Step(**db.execute(query).mappings().one())
-
-
-def find_run(db: Connection, run_id: str) -> Run:
-    """Return one run with its to-do list, or raise a 404."""
-    row = db.execute(select(runs).where(runs.c.run_id == run_id)).mappings().first()
-    if row is None:
-        raise HTTPException(404, RUN_NOT_FOUND.format(run_id=run_id))
-    query = (
-        select(todos.c.content, todos.c.status)
-        .where(todos.c.run_id == run_id)
-        .order_by(todos.c.position)
-    )
-    items = [Todo(**todo) for todo in db.execute(query).mappings()]
-    return Run(**row, todos=items)
-
-
-def running_run(db: Connection, run_id: str) -> Run:
-    """Return a run that is still running, or raise a 404 or a 409."""
-    run = find_run(db, run_id)
-    if run.status != "running":
-        raise HTTPException(409, f"Run {run_id} has finished")
-    return run
 
 
 @app.get("/api/health", operation_id="health")
@@ -269,10 +189,9 @@ def get_claim_history(customer_id: str, db: Database) -> list[PreviousClaim]:
 
 @app.get("/api/instructions", operation_id="get_instructions")
 def get_instructions(db: Database) -> Instructions:
-    """Get the agent's instructions for running the queue and for working a claim."""
-    queue = (INSTRUCTIONS / "queue.md").read_text(encoding="utf-8")
+    """Get the claim agent's instructions, ending with the documents' contents."""
     claim = (INSTRUCTIONS / "claim.md").read_text(encoding="utf-8")
-    return Instructions(queue=queue, claim=f"{claim}\n{contents(db)}")
+    return Instructions(claim=f"{claim}\n{contents(db)}")
 
 
 @app.get("/api/documents/search", operation_id="search_documents")
@@ -476,51 +395,3 @@ def fail_claim(claim_id: str, request: FailureRequest, db: Database) -> Claim:
     status = "left_for_handler" if claim["attempts"] >= ATTEMPTS else "waiting"
     set_status(db, claim_id, status)
     return to_claim(find_claim(db, claim_id))
-
-
-@app.post("/api/runs", operation_id="start_run")
-def start_run(request: RunRequest, db: Database) -> Run:
-    """Start a run of the agent on the queue, with an empty to-do list."""
-    run_id = str(uuid.uuid4())
-    db.execute(
-        insert(runs).values(
-            run_id=run_id, cap=request.cap, status="running", started_at=now()
-        )
-    )
-    return find_run(db, run_id)
-
-
-@app.get("/api/runs/latest", operation_id="get_latest_run")
-def get_latest_run(db: Database) -> Run | None:
-    """Get the newest run with its to-do list, or nothing before the first run."""
-    query = select(runs.c.run_id).order_by(runs.c.number.desc()).limit(1)
-    run_id = db.execute(query).scalar_one_or_none()
-    return None if run_id is None else find_run(db, run_id)
-
-
-@app.put("/api/runs/{run_id}/todos", operation_id="write_todos")
-def write_todos(run_id: str, request: TodosRequest, db: Database) -> Run:
-    """Replace the to-do list of a running run."""
-    running_run(db, run_id)
-    db.execute(delete(todos).where(todos.c.run_id == run_id))
-    if request.todos:
-        db.execute(
-            insert(todos),
-            [
-                {"run_id": run_id, "position": position, **todo.model_dump()}
-                for position, todo in enumerate(request.todos)
-            ],
-        )
-    return find_run(db, run_id)
-
-
-@app.post("/api/runs/{run_id}/finish", operation_id="finish_run")
-def finish_run(run_id: str, request: FinishRequest, db: Database) -> Run:
-    """Finish a run with the agent's summary for the handlers."""
-    running_run(db, run_id)
-    db.execute(
-        update(runs)
-        .where(runs.c.run_id == run_id)
-        .values(status="finished", finished_at=now(), summary=request.summary)
-    )
-    return find_run(db, run_id)

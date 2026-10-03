@@ -6,6 +6,7 @@ SQLite otherwise, as in the tests.
 
 import json
 import os
+from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,10 @@ DATA = ROOT / "data"
 DOCUMENTS = {"policy_wording": "Policy wording", "claims_manual": "Claims manual"}
 SCHEMA = "undercover"
 CONNECTIONS = 4
+CONNECTION_WAIT = 120
+# Tables of earlier versions, dropped before the others, since on Postgres a foreign
+# key of theirs would stop the tables they refer to being dropped.
+RETIRED = ["todos"]
 
 metadata = MetaData()
 
@@ -117,11 +122,23 @@ runs = Table(
     metadata,
     Column("number", Integer, primary_key=True),
     Column("run_id", Text, nullable=False, unique=True),
-    Column("cap", Integer, nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("agents", Integer, nullable=False),
+    Column("model", Text, nullable=False),
+    Column("reasoning_effort", Text, nullable=False),
+    Column("evaluation_set", Text),
+    Column("tiny", Boolean),
     Column("status", Text, nullable=False),
     Column("started_at", Text, nullable=False),
     Column("finished_at", Text),
-    Column("summary", Text),
+    Column("summary", JSON),
+)
+run_claims = Table(
+    "run_claims",
+    metadata,
+    Column("run_id", Text, ForeignKey("runs.run_id"), primary_key=True),
+    Column("position", Integer, primary_key=True),
+    Column("claim_id", Text, ForeignKey("claims.claim_id"), nullable=False),
 )
 model_calls = Table(
     "model_calls",
@@ -144,14 +161,6 @@ work_times = Table(
     Column("run_id", Text, ForeignKey("runs.run_id")),
     Column("started_at", Text, nullable=False),
     Column("seconds", Float, nullable=False),
-)
-todos = Table(
-    "todos",
-    metadata,
-    Column("run_id", Text, ForeignKey("runs.run_id"), primary_key=True),
-    Column("position", Integer, primary_key=True),
-    Column("content", Text, nullable=False),
-    Column("status", Text, nullable=False),
 )
 
 claim_view = (
@@ -178,6 +187,16 @@ claim_view = (
 )
 
 
+def stamp(moment: datetime) -> str:
+    """Write a moment in UTC to the second, as every record has it."""
+    return moment.isoformat(timespec="seconds")
+
+
+def now() -> str:
+    """Return the current time in UTC, to the second."""
+    return stamp(datetime.now(UTC))
+
+
 def database_url() -> URL:
     """Return Postgres at DATABASE_URL, through psycopg and in our own schema, or
     SQLite at UNDERCOVER_DB or undercover.db."""
@@ -195,11 +214,15 @@ def on_postgres(url: URL) -> bool:
 
 @cache
 def engine_for(url: URL) -> Engine:
-    """Open a database: Postgres with at most CONNECTIONS connections, or SQLite with
-    a connection for each request."""
+    """Open a database: Postgres with at most CONNECTIONS connections, waiting up to
+    CONNECTION_WAIT seconds for one, or SQLite with a connection for each request."""
     if on_postgres(url):
         return create_engine(
-            url, pool_size=CONNECTIONS, max_overflow=0, pool_pre_ping=True
+            url,
+            pool_size=CONNECTIONS,
+            max_overflow=0,
+            pool_timeout=CONNECTION_WAIT,
+            pool_pre_ping=True,
         )
     return create_engine(url, poolclass=NullPool)
 
@@ -236,6 +259,8 @@ def seed(db: Engine) -> dict[str, int]:
     with db.begin() as connection:
         if on_postgres(db.url):
             connection.execute(CreateSchema(SCHEMA, if_not_exists=True))
+        for name in RETIRED:
+            Table(name, MetaData()).drop(connection, checkfirst=True)
         metadata.drop_all(connection)
         metadata.create_all(connection)
         connection.execute(

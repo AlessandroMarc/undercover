@@ -13,8 +13,8 @@ def steps_of(client, claim_id):
     return client.get(f"/api/claims/{claim_id}/steps").json()
 
 
-def latest(client):
-    return client.get("/api/runs/latest").json()
+def latest_dispatch(client):
+    return client.get("/api/dispatches/latest").json()
 
 
 def rows_of(table, claim_id):

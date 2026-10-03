@@ -2,14 +2,19 @@
 
 import os
 from enum import StrEnum
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
 
 import httpx
 from pydantic import BaseModel, Field
 
 BACKEND_URL = os.getenv("UNDERCOVER_API", "http://127.0.0.1:8000")
 
-backend = httpx.Client(base_url=f"{BACKEND_URL}/api", timeout=30)
+# Retries a refused connection for about 7 seconds, while the backend starts.
+backend = httpx.Client(
+    base_url=f"{BACKEND_URL}/api",
+    timeout=30,
+    transport=httpx.HTTPTransport(retries=5),
+)
 
 DecisionKind = Literal["approve", "decline", "refer"]
 APPROVE: DecisionKind = "approve"
@@ -34,18 +39,6 @@ class Status(StrEnum):
     WAITING_FOR_SIGN_OFF = "waiting_for_sign_off"
     DECIDED = "decided"
     LEFT_FOR_HANDLER = "left_for_handler"
-
-
-class RunStatus(StrEnum):
-    """Where a run of the queue agent stands."""
-
-    RUNNING = "running"
-    FINISHED = "finished"
-
-
-class Todo(TypedDict):
-    content: str
-    status: Literal["to_do", "in_progress", "done", "left_for_handler"]
 
 
 LineKind = Literal[
@@ -192,17 +185,18 @@ def record_work_time(
     return _call("POST", f"/claims/{claim_id}/work-times", json=body)
 
 
-def start_run(cap: int) -> dict[str, Any]:
-    return _call("POST", "/runs", json={"cap": cap})
+def create_dispatch(agents: int, model: str, reasoning_effort: str) -> dict[str, Any]:
+    body = {"agents": agents, "model": model, "reasoning_effort": reasoning_effort}
+    return _call("POST", "/runs/dispatches", json=body)
 
 
-def get_latest_run() -> dict[str, Any] | None:
-    return _call("GET", "/runs/latest")
+def record_run_claims(run_id: str, claim_ids: list[str]) -> dict[str, Any]:
+    return _call("PUT", f"/runs/{run_id}/claims", json={"claim_ids": claim_ids})
 
 
-def write_todos(run_id: str, todos: list[Todo]) -> dict[str, Any]:
-    return _call("PUT", f"/runs/{run_id}/todos", json={"todos": todos})
+def finish_run(run_id: str) -> dict[str, Any]:
+    return _call("POST", f"/runs/{run_id}/finish")
 
 
-def finish_run(run_id: str, summary: str) -> dict[str, Any]:
-    return _call("POST", f"/runs/{run_id}/finish", json={"summary": summary})
+def stop_runs() -> list[str]:
+    return _call("POST", "/runs/stop")

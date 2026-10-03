@@ -3,28 +3,15 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from backend import main
-from backend.tests.claim_requests import start
+from backend.tests.claim_requests import record_call, record_time, start
+from backend.tests.run_requests import create_dispatch
 
 RECORDED_AT = "2026-10-02T12:00:30+00:00"
 
 
-def record_call(client, claim_id, run_id, **usage):
-    body = {"input_tokens": 1200, "output_tokens": 300, "cost": 0.0042} | usage
-    return client.post(
-        f"/api/claims/{claim_id}/model-calls", json={"run_id": run_id, **body}
-    )
-
-
-def record_time(client, claim_id, run_id, seconds=12.5):
-    return client.post(
-        f"/api/claims/{claim_id}/work-times",
-        json={"run_id": run_id, "seconds": seconds},
-    )
-
-
 @pytest.fixture
 def run_id(client):
-    return client.post("/api/runs", json={"cap": 1}).json()["run_id"]
+    return create_dispatch(client).json()["run_id"]
 
 
 @pytest.mark.parametrize("in_run", [True, False])

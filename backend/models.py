@@ -9,7 +9,10 @@ Status = Literal[
 ]
 DecisionKind = Literal["approve", "decline", "refer"]
 StepKind = Literal["tool_call", "tool_result", "message", "reading", "error"]
-TodoStatus = Literal["to_do", "in_progress", "done", "left_for_handler"]
+RunKind = Literal["dispatch", "evaluation"]
+RunStatus = Literal["running", "finished", "stopped"]
+EvaluationSet = Literal["evaluation", "held_out"]
+MOST_AGENTS = 25
 DocumentName = Literal["policy_wording", "claims_manual"]
 Benefit = Literal[
     "trip_cancellation",
@@ -132,7 +135,6 @@ class Step(BaseModel):
 
 
 class Instructions(BaseModel):
-    queue: str
     claim: str
 
 
@@ -282,28 +284,51 @@ class WorkTime(BaseModel):
     seconds: float
 
 
-class Todo(BaseModel):
-    content: str = Field(min_length=1)
-    status: TodoStatus
+class DispatchRequest(BaseModel):
+    agents: int = Field(
+        ge=1, le=MOST_AGENTS, description="How many claim agents work at once"
+    )
+    model: str = Field(min_length=1)
+    reasoning_effort: str = Field(min_length=1, description="Or none")
+
+
+class RunClaimsRequest(BaseModel):
+    claim_ids: list[str] = Field(description="The claims a dispatch works, in order")
+
+
+class HeldPayout(BaseModel):
+    claim_id: str
+    payout: float
+
+
+class DispatchSummary(BaseModel):
+    approved: int
+    declined: int
+    referred: int
+    waiting_for_sign_off: list[HeldPayout]
+    left_for_handler: list[str]
+    unfinished: list[str]
+
+
+class RunClaim(ClaimSummary):
+    started_at: str | None
+    seconds: float
+    model_cost: float
 
 
 class Run(BaseModel):
     run_id: str
-    cap: int
-    status: Literal["running", "finished"]
+    number: int
+    kind: RunKind
+    agents: int
+    model: str
+    reasoning_effort: str
+    evaluation_set: EvaluationSet | None
+    tiny: bool | None
+    status: RunStatus
     started_at: str
     finished_at: str | None
-    summary: str | None
-    todos: list[Todo]
-
-
-class RunRequest(BaseModel):
-    cap: int = Field(ge=1, description="The most claims the run can work")
-
-
-class TodosRequest(BaseModel):
-    todos: list[Todo]
-
-
-class FinishRequest(BaseModel):
-    summary: str = Field(min_length=1, description="The summary for the handlers")
+    seconds: float | None
+    summary: DispatchSummary | None
+    model_cost: float
+    claims: list[RunClaim]

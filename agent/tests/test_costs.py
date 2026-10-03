@@ -6,16 +6,17 @@ import httpx
 import pytest
 
 from agent import api, harness
+from agent.tests.dispatching import dispatch, new_dispatch
 from agent.tests.failures import fail_once
 from agent.tests.queue_setup import leave_waiting
 from agent.tests.records import (
     claim_of,
-    latest,
+    latest_dispatch,
     model_calls_of,
     steps_of,
     work_times_of,
 )
-from agent.tests.stubs import USAGE, call, decide, graph_on, stub
+from agent.tests.stubs import USAGE, call, decide, graph_on, stub, swarm
 
 
 def test_each_model_call_and_spell_of_work_is_recorded(client):
@@ -32,15 +33,9 @@ def test_each_model_call_and_spell_of_work_is_recorded(client):
 
 def test_a_run_records_its_calls_and_spells_and_tags_its_traces(client, traces):
     leave_waiting("CLM-1001", "CLM-1003")
-    queue_model = stub(
-        call("work_claim", claim_id="CLM-1001"),
-        call("work_claim", claim_id="CLM-1003"),
-        "Done.",
-    )
-    claim_model = stub(*decide("decline", 0), *decide("refer", 0))
-    harness.run_queue(None, queue_model, graph_on(claim_model))
+    dispatch(swarm({"CLM-1001": decide("decline", 0), "CLM-1003": decide("refer", 0)}))
 
-    run_id = latest(client)["run_id"]
+    run_id = latest_dispatch(client)["run_id"]
     for claim_id in ("CLM-1001", "CLM-1003"):
         assert [c["run_id"] for c in model_calls_of(claim_id)] == [run_id] * 2
         assert [w["run_id"] for w in work_times_of(claim_id)] == [run_id]
@@ -55,19 +50,10 @@ def test_a_claim_worked_alone_has_no_tags(traces):
 
 def test_both_attempts_of_a_claim_are_under_the_run(client):
     leave_waiting("CLM-1004")
-    queue_model = stub(
-        call("work_claim", claim_id="CLM-1004"),
-        call("work_claim", claim_id="CLM-1004"),
-        "Done.",
-    )
-    claim_model = stub(
-        call("get_claim"),
-        RuntimeError("503: The model is unavailable"),
-        *decide("refer", 0),
-    )
-    harness.run_queue(None, queue_model, graph_on(claim_model))
+    outage = RuntimeError("503: The model is unavailable")
+    dispatch(swarm({"CLM-1004": [call("get_claim"), outage, *decide("refer", 0)]}))
 
-    run_id = latest(client)["run_id"]
+    run_id = latest_dispatch(client)["run_id"]
     calls, spells = model_calls_of("CLM-1004"), work_times_of("CLM-1004")
     assert [c["run_id"] for c in calls] == [run_id] * 3
     assert [s["run_id"] for s in spells] == [run_id] * 2
@@ -89,7 +75,7 @@ class MovedClock:
 def test_the_wait_for_a_sign_off_isnt_counted(client, monkeypatch):
     clock = MovedClock()
     monkeypatch.setattr(harness, "time", clock)
-    run_id = api.start_run(1)["run_id"]
+    run_id = new_dispatch()["run_id"]
     graph = graph_on(stub(*decide("approve", 1350.0)))
     harness.work_claim("CLM-1002", run_id, graph)
     wait = 3600

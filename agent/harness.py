@@ -1,4 +1,4 @@
-"""The harness: a queue agent works the run, and a claim graph works each claim."""
+"""The harness: it builds the claim agent's graph and works a claim with it."""
 
 import contextvars
 import json
@@ -11,13 +11,8 @@ from contextlib import contextmanager
 from functools import partial
 from typing import Any, cast
 
-from langchain.agents import create_agent
-from langchain.agents.middleware import (
-    AgentMiddleware,
-    ModelCallLimitMiddleware,
-    ToolErrorMiddleware,
-)
 from langchain.tools import ToolException
+from langchain_core.exceptions import ModelRateLimitError, ModelTimeoutError
 from langchain_core.language_models import BaseChatModel, LanguageModelInput
 from langchain_core.messages import (
     AIMessage,
@@ -30,7 +25,6 @@ from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_openai import ChatOpenAI
 from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -44,26 +38,28 @@ from psycopg_pool import ConnectionPool
 from pydantic import SecretStr
 
 from agent import api
-from agent.tools import CLAIM_TOOLS, QUEUE_TOOLS, ClaimContext, ClaimState, RunContext
+from agent.console import describe
+from agent.tools import CLAIM_TOOLS, ClaimContext, ClaimState
 
 log = logging.getLogger(__name__)
 
 ClaimGraph = CompiledStateGraph[ClaimState, ClaimContext, Any, Any]
-QueueAgent = CompiledStateGraph[Any, RunContext, Any, Any]
+NewGraph = Callable[[], ClaimGraph]
+Pool = ConnectionPool[Connection[DictRow]]
 Messages = dict[str, list[BaseMessage]]
 Start = Messages | Command | None
+
+# The model's errors that pass with time: a claim that hits one is left in progress,
+# with its progress saved, to carry on later.
+TRANSIENT = (ModelRateLimitError, ModelTimeoutError)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "openai/gpt-6-luna"
 SCHEMA = "undercover"
 CONNECTIONS = 4
+CONNECTION_WAIT = 120
 CLAIM_MODEL_CALLS = 30
-QUEUE_MODEL_CALLS_PER_CLAIM = 6
-QUEUE_MODEL_CALLS_TO_PLAN = 12
-REMINDERS = 2
 NO_DECISION = "The agent finished without recording a decision"
-NO_SUMMARY = "The run finished without a summary."
-RUN_STOPPED = "The run stopped before it finished."
 WORK_CLAIM = "Work claim"
 CARRY_ON = "Carry on"
 AGENT = "agent"
@@ -90,9 +86,10 @@ def model() -> ChatOpenAI:
 
 
 @contextmanager
-def checkpointer() -> Iterator[PostgresSaver]:
-    """Save the claim graph's progress in Postgres at DATABASE_URL, in our own schema,
-    with at most CONNECTIONS connections."""
+def checkpoint_pool() -> Iterator[Pool]:
+    """Open the process's pool of at most CONNECTIONS connections to DATABASE_URL,
+    where claim graphs save their progress in our own schema, set up once. A claim
+    agent waits up to CONNECTION_WAIT seconds for a connection."""
     settings = {
         "autocommit": True,
         "prepare_threshold": 0,
@@ -103,14 +100,14 @@ def checkpointer() -> Iterator[PostgresSaver]:
         os.environ["DATABASE_URL"],
         min_size=1,
         max_size=CONNECTIONS,
+        timeout=CONNECTION_WAIT,
         kwargs=settings,
     ) as pool:
         with pool.connection() as connection:
             create = sql.SQL("CREATE SCHEMA IF NOT EXISTS {}")
             connection.execute(create.format(sql.Identifier(SCHEMA)))
-        saver = PostgresSaver(pool)
-        saver.setup()
-        yield saver
+        PostgresSaver(pool).setup()
+        yield pool
 
 
 def refusal(error: Exception) -> str:
@@ -233,6 +230,16 @@ def claim_graph(llm: BaseChatModel, saver: BaseCheckpointSaver[Any]) -> ClaimGra
     return builder.compile(checkpointer=saver)
 
 
+def claim_graphs(llm: BaseChatModel, pool: Pool) -> NewGraph:
+    """Return how to build a claim graph with a saver of its own on the pool, since
+    a saver lets one claim at a time read or write."""
+
+    def new_graph() -> ClaimGraph:
+        return claim_graph(llm, PostgresSaver(pool))
+
+    return new_graph
+
+
 def thread_of(claim: dict[str, Any]) -> RunnableConfig:
     """Address the claim's thread, where the claim graph saves its progress."""
     return {"configurable": {"thread_id": claim["thread_id"]}}
@@ -258,20 +265,9 @@ def claim_config(
     }
 
 
-def ask(text: str) -> Messages:
-    """Give an agent one message from the user."""
-    return {"messages": [HumanMessage(text)]}
-
-
 def begin(claim_id: str) -> Messages:
     """Give a claim agent its first message, naming the claim it works on."""
-    return ask(f"Claim {claim_id}")
-
-
-def describe(error: Exception) -> str:
-    """Say in one line what went wrong."""
-    lines = str(error).splitlines()
-    return f"{type(error).__name__}: {lines[0]}" if lines else type(error).__name__
+    return {"messages": [HumanMessage(f"Claim {claim_id}")]}
 
 
 def report(claim: dict[str, Any], reason: str) -> str:
@@ -297,10 +293,11 @@ def run_claim_graph(
     run_id: str | None,
 ) -> str | None:
     """Run the claim graph on the claim's thread, saving each step, and say what went
-    wrong, if anything."""
+    wrong, if anything. A rate limit or a timeout is raised again, leaving the claim
+    in progress with its progress saved, to carry on later."""
     try:
-        # A fresh context makes this a root run even inside the queue agent's tool,
-        # which Langfuse needs to put it in the claim's session.
+        # A fresh context makes this a root run even inside the dispatcher, which
+        # Langfuse needs to put it in the claim's session.
         contextvars.Context().run(
             graph.invoke,
             start,
@@ -308,6 +305,8 @@ def run_claim_graph(
             context=ClaimContext(claim["claim_id"], run_id),
             durability="sync",
         )
+    except TRANSIENT:
+        raise
     except Exception as error:  # a claim that fails must not stop the run
         return describe(error)
     return None
@@ -363,89 +362,10 @@ def carry_on(claim_id: str, run_id: str | None, graph: ClaimGraph) -> str:
         return settle(claim_id, error)
 
 
-def waiting() -> list[str]:
-    """Return the ids of the claims waiting in the queue, oldest submitted first."""
-    claims = sorted(api.list_claims(), key=lambda claim: claim["submitted_on"])
-    return [c["claim_id"] for c in claims if c["status"] == api.Status.WAITING]
-
-
-def finish_stopped_run() -> None:
-    """Finish the latest run if it stopped before it finished."""
-    run = api.get_latest_run()
-    if run is not None and run["status"] == api.RunStatus.RUNNING:
-        api.finish_run(run["run_id"], RUN_STOPPED)
-
-
-def carry_on_stopped(graph: ClaimGraph) -> None:
-    """Carry on every claim in progress: stopped partway, or signed off while the
-    agent was away."""
-    for claim in api.list_claims():
-        if claim["status"] == api.Status.IN_PROGRESS:
-            carry_on(claim["claim_id"], None, graph)
-
-
-def missed(run: RunContext) -> list[str]:
-    """Return the waiting claims the run should still work: its own, then new ones."""
-    ids = waiting()
-    own = [claim_id for claim_id in ids if claim_id in run.started]
-    new = [claim_id for claim_id in ids if claim_id not in run.started]
-    return own + new[: run.cap - len(run.started)]
-
-
-def queue_agent(llm: BaseChatModel, cap: int) -> QueueAgent:
-    """Build the queue agent for a run, which keeps its conversation between turns."""
-    calls = QUEUE_MODEL_CALLS_PER_CLAIM * cap + QUEUE_MODEL_CALLS_TO_PLAN
-    middleware: list[AgentMiddleware[Any, Any]] = [
-        ModelCallLimitMiddleware(run_limit=calls, exit_behavior="error"),
-        ToolErrorMiddleware(lambda error, _: refusal(error)),
-    ]
-    return create_agent(
-        llm,
-        tools=QUEUE_TOOLS,
-        system_prompt=api.get_instructions()["queue"],
-        middleware=middleware,
-        context_schema=RunContext,
-        checkpointer=InMemorySaver(),
-    )
-
-
-def work_queue(run: RunContext, agent: QueueAgent) -> str:
-    """Let the queue agent work the run, naming any claims it missed, and summarize."""
-    # One tool call at a time, so the cap holds when several claims are handed over.
-    config: RunnableConfig = {
-        "configurable": {"thread_id": run.run_id},
-        "max_concurrency": 1,
-    }
-    message = f"Please work the queue. This run can work up to {run.cap} claims."
-    state = agent.invoke(ask(message), config, context=run)
-    for _ in range(REMINDERS):
-        left = missed(run)
-        if not left:
-            break
-        reminder = (
-            "These claims are still waiting within the run's cap: "
-            f"{', '.join(left)}. Please work them, then finish with the summary."
-        )
-        state = agent.invoke(ask(reminder), config, context=run)
-    return state["messages"][-1].text or NO_SUMMARY
-
-
-def run_queue(cap: int | None, llm: BaseChatModel, graph: ClaimGraph) -> None:
-    """Finish a run that stopped and carry on every claim in progress, then work the
-    queue with a queue agent, up to cap claims or every waiting claim."""
-    finish_stopped_run()
-    carry_on_stopped(graph)
-    count = len(waiting())
-    if count == 0:
-        log.info("No claims are waiting")
-        return
-    cap = min(cap or count, count)
-    run_id = api.start_run(cap)["run_id"]
-    run = RunContext(run_id, cap, partial(work_claim, run_id=run_id, graph=graph))
-    try:
-        summary = work_queue(run, queue_agent(llm, cap))
-    except Exception as error:
-        api.finish_run(run_id, f"The run stopped: {describe(error)}")
-        raise
-    api.finish_run(run_id, summary)
-    log.info(summary)
+def work_in_run(claim_id: str, run_id: str, new_graph: NewGraph) -> str:
+    """Work one claim in a run on a claim graph of its own, carrying it on if it is
+    in progress or starting it if it is waiting, and report how it ended."""
+    graph = new_graph()
+    if api.get_claim(claim_id)["status"] == api.Status.IN_PROGRESS:
+        return carry_on(claim_id, run_id, graph)
+    return work_claim(claim_id, run_id, graph)
