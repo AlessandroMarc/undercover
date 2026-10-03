@@ -62,9 +62,10 @@ QUEUE_MODEL_CALLS_TO_PLAN = 12
 REMINDERS = 2
 NO_DECISION = "The agent finished without recording a decision"
 NO_SUMMARY = "The run finished without a summary."
-STOPPED = "The run stopped before this claim was finished"
+RUN_STOPPED = "The run stopped before it finished."
 WORK_CLAIM = "Work claim"
 CARRY_ON = "Carry on"
+PAUSE = "wait_for_sign_off"
 
 
 class TooManyModelCalls(Exception):
@@ -187,7 +188,7 @@ def after_tools(state: ClaimState) -> str:
     if not decision:
         return "agent"
     if status == api.Status.WAITING_FOR_SIGN_OFF:
-        return "wait_for_sign_off"
+        return PAUSE
     if decision["decision"] == api.APPROVE and status == api.Status.IN_PROGRESS:
         return "pay"
     return END
@@ -205,14 +206,12 @@ def claim_graph(llm: BaseChatModel, saver: BaseCheckpointSaver[Any]) -> ClaimGra
         "tools",
         ToolNode(CLAIM_TOOLS, handle_tool_errors=refusal, wrap_tool_call=record_result),
     )
-    builder.add_node("wait_for_sign_off", wait_for_sign_off)
+    builder.add_node(PAUSE, wait_for_sign_off)
     builder.add_node("pay", pay)
     builder.add_edge(START, "agent")
     builder.add_conditional_edges("agent", after_agent, ["tools", END])
-    builder.add_conditional_edges(
-        "tools", after_tools, ["agent", "wait_for_sign_off", "pay", END]
-    )
-    builder.add_edge("wait_for_sign_off", "pay")
+    builder.add_conditional_edges("tools", after_tools, ["agent", PAUSE, "pay", END])
+    builder.add_edge(PAUSE, "pay")
     builder.add_edge("pay", END)
     return builder.compile(checkpointer=saver)
 
@@ -259,11 +258,6 @@ def report(claim: dict[str, Any], reason: str) -> str:
     return line
 
 
-def undecided(claim: dict[str, Any]) -> bool:
-    """Say whether a claim is in progress without a decision."""
-    return claim["status"] == api.Status.IN_PROGRESS and claim["decision"] is None
-
-
 def run_claim_graph(
     graph: ClaimGraph, start: Start, claim: dict[str, Any], name: str
 ) -> str | None:
@@ -289,7 +283,7 @@ def settle(claim_id: str, error: str | None) -> str:
     error after the decision is logged, and the claim keeps its decision."""
     claim = api.get_claim(claim_id)
     reason = error or NO_DECISION
-    if undecided(claim):
+    if claim["status"] == api.Status.IN_PROGRESS and claim["decision"] is None:
         claim = api.fail_claim(claim_id, reason)
     elif error:
         log.warning("%s  %s", claim_id, error)
@@ -307,11 +301,16 @@ def work_claim(claim_id: str, graph: ClaimGraph) -> str:
 
 def carry_on(claim_id: str, graph: ClaimGraph) -> str:
     """Carry a claim in progress on from its saved progress, as the same attempt, and
-    report how it ended. A claim paused for sign-off resumes past the pause."""
+    report how it ended. A claim at the pause has been signed off, so it resumes past
+    it. One with nothing saved, stopped before its first step, starts on its own
+    thread; any other carries on, finishing a step whose writes were saved."""
     claim = api.get_claim(claim_id)
+    saved = graph.get_state(thread_of(claim))
     start: Start = None
-    if graph.get_state(thread_of(claim)).interrupts:
+    if saved.next == (PAUSE,):
         start = Command(resume=True)
+    elif saved.created_at is None and claim["decision"] is None:
+        start = ask(f"Claim {claim_id}")
     error = run_claim_graph(graph, start, claim, CARRY_ON)
     return settle(claim_id, error)
 
@@ -322,12 +321,19 @@ def waiting() -> list[str]:
     return [c["claim_id"] for c in claims if c["status"] == api.Status.WAITING]
 
 
-def recover() -> None:
-    """Put back in the queue any undecided claim left in progress by a run that
-    stopped."""
+def finish_stopped_run() -> None:
+    """Finish the latest run if it stopped before it finished."""
+    run = api.get_latest_run()
+    if run is not None and run["status"] == api.RunStatus.RUNNING:
+        api.finish_run(run["run_id"], RUN_STOPPED)
+
+
+def carry_on_stopped(graph: ClaimGraph) -> None:
+    """Carry on every claim in progress: stopped partway, or signed off while the
+    agent was away."""
     for claim in api.list_claims():
-        if undecided(claim):
-            api.fail_claim(claim["claim_id"], STOPPED)
+        if claim["status"] == api.Status.IN_PROGRESS:
+            carry_on(claim["claim_id"], graph)
 
 
 def missed(run: RunContext) -> list[str]:
@@ -377,8 +383,10 @@ def work_queue(run: RunContext, agent: QueueAgent) -> str:
 
 
 def run_queue(cap: int | None, llm: BaseChatModel, graph: ClaimGraph) -> None:
-    """Work the queue with a queue agent, up to cap claims or every waiting claim."""
-    recover()
+    """Finish a run that stopped and carry on every claim in progress, then work the
+    queue with a queue agent, up to cap claims or every waiting claim."""
+    finish_stopped_run()
+    carry_on_stopped(graph)
     count = len(waiting())
     if count == 0:
         log.info("No claims are waiting")

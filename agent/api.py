@@ -36,6 +36,13 @@ class Status(StrEnum):
     LEFT_FOR_HANDLER = "left_for_handler"
 
 
+class RunStatus(StrEnum):
+    """Where a run of the queue agent stands."""
+
+    RUNNING = "running"
+    FINISHED = "finished"
+
+
 class Todo(TypedDict):
     content: str
     status: Literal["to_do", "in_progress", "done", "left_for_handler"]
@@ -164,6 +171,10 @@ def fail_claim(claim_id: str, reason: str) -> dict[str, Any]:
 
 def start_run(cap: int) -> dict[str, Any]:
     return _call("POST", "/runs", json={"cap": cap})
+
+
+def get_latest_run() -> dict[str, Any] | None:
+    return _call("GET", "/runs/latest")
 
 
 def write_todos(run_id: str, todos: list[Todo]) -> dict[str, Any]:

@@ -23,7 +23,7 @@ class StubModel(GenericFakeChatModel):
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
         self.prompts.append(messages)
         reply = next(self.messages)
-        if isinstance(reply, Exception):
+        if isinstance(reply, BaseException):
             raise reply
         message = AIMessage(content=reply) if isinstance(reply, str) else reply
         return ChatResult(generations=[ChatGeneration(message=message)])

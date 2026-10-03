@@ -5,26 +5,13 @@ from functools import partial
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
-from sqlalchemy import update
 
 from agent import __main__ as cli
 from agent import api, harness
-from agent.tests.records import claim_of
+from agent.tests.queue_setup import leave_waiting
+from agent.tests.records import claim_of, latest
 from agent.tests.stubs import call, decide, graph_on, stub
 from agent.tools import RunContext
-from backend.database import claims as claims_table
-from backend.database import engine
-
-
-def leave_waiting(*claim_ids):
-    """Leave every claim but the ones named for a handler, out of the agent's way."""
-    with engine().begin() as db:
-        db.execute(update(claims_table).values(status="left_for_handler"))
-        db.execute(
-            update(claims_table)
-            .where(claims_table.c.claim_id.in_(claim_ids))
-            .values(status="waiting")
-        )
 
 
 def todos(*items):
@@ -41,10 +28,6 @@ def done(text="Worked the claims."):
 
 def claims(client):
     return {c["claim_id"]: c for c in client.get("/api/claims").json()}
-
-
-def latest(client):
-    return client.get("/api/runs/latest").json()
 
 
 def tool_replies(model):
@@ -283,40 +266,6 @@ def test_the_harness_reminds_twice_at_most(client):
     run = latest(client)
     assert (run["status"], run["summary"]) == ("finished", "Done for good.")
     assert claims(client)["CLM-1001"]["status"] == "waiting"
-
-
-def test_a_claim_left_in_progress_is_put_back(client):
-    leave_waiting("CLM-1001")
-    client.post("/api/claims/CLM-1001/start", json={"thread_id": "crashed"})
-    harness.run_queue(
-        None, stub(work("CLM-1001"), done()), graph_on(stub(*decide("refer", 0)))
-    )
-
-    steps = client.get("/api/claims/CLM-1001/steps").json()
-    assert (steps[0]["kind"], steps[0]["content"]) == ("error", harness.STOPPED)
-    claim = client.get("/api/claims/CLM-1001").json()
-    assert (claim["status"], claim["attempts"]) == ("decided", 2)
-
-
-def test_an_approval_waiting_for_its_payment_is_left_alone(client):
-    leave_waiting("CLM-1001", "CLM-1003")
-    client.post("/api/claims/CLM-1001/start", json={"thread_id": "stopped"})
-    client.post(
-        "/api/claims/CLM-1001/decision",
-        json={
-            "decision": "approve",
-            "payout": 420.0,
-            "section": "Section 3",
-            "reason": "Covered.",
-        },
-    )
-    harness.run_queue(
-        None, stub(work("CLM-1003"), done()), graph_on(stub(*decide("refer", 0)))
-    )
-    claim = claim_of(client, "CLM-1001")
-    assert (claim["status"], claim["attempts"]) == ("in_progress", 1)
-    assert client.get("/api/claims/CLM-1001/steps").json() == []
-    assert latest(client)["status"] == "finished"
 
 
 def test_a_failure_of_the_queue_agent_finishes_the_run(client):
