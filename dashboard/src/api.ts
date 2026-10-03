@@ -40,12 +40,15 @@ export interface Decision {
   section: string;
   reason: string;
   decided_at: string;
+  signed_off_by: string | null;
+  signed_off_at: string | null;
 }
 
 export interface Payment {
   amount: number;
   paid_at: string;
   signed_off_by: string | null;
+  signed_off_at: string | null;
 }
 
 export interface Claim {

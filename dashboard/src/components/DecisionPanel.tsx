@@ -1,7 +1,15 @@
-import type { Claim } from "../api";
+import type { Claim, Payment } from "../api";
 import { money, time } from "../format";
 import { DecisionChip } from "./Chips";
 import { SignOffForm } from "./SignOffForm";
+
+type SignOff = Pick<Payment, "signed_off_by" | "signed_off_at">;
+
+function whoAndWhen({ signed_off_by, signed_off_at }: SignOff): string | null {
+  return signed_off_by && signed_off_at
+    ? `${signed_off_by} at ${time(signed_off_at)}`
+    : null;
+}
 
 function progress(claim: Claim): string {
   if (claim.status === "in_progress")
@@ -17,6 +25,8 @@ export function DecisionPanel({
   onSignedOff,
 }: Readonly<{ claim: Claim; onSignedOff: () => void }>) {
   const { decision, payment } = claim;
+  const signedOff = decision && whoAndWhen(decision);
+  const paidSignedOff = payment && whoAndWhen(payment);
 
   return (
     <section className="panel" aria-labelledby="decision-title">
@@ -38,12 +48,17 @@ export function DecisionPanel({
       {payment && (
         <p className="payment">
           Paid <span className="mono">{money(payment.amount)}</span>
-          {payment.signed_off_by && `, signed off by ${payment.signed_off_by}`}
+          {paidSignedOff && `, signed off by ${paidSignedOff}`}
         </p>
       )}
       {decision?.decision === "approve" &&
         !payment &&
-        claim.status === "decided" && <p className="payment">Not paid yet</p>}
+        claim.status === "in_progress" && (
+          <p className="payment">
+            {signedOff && `Signed off by ${signedOff}. `}
+            Waiting for the agent to pay it.
+          </p>
+        )}
       {decision && claim.status === "waiting_for_sign_off" && (
         <div className="sign-off">
           <p>

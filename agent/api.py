@@ -81,12 +81,16 @@ class Line(BaseModel):
 class Refused(Exception):
     """The backend refused a request, with its status code and reason."""
 
+    def __init__(self, status_code: int, detail: str) -> None:
+        super().__init__(f"{status_code}: {detail}")
+        self.status_code, self.detail = status_code, detail
+
 
 def _call(method: str, path: str, **request: Any) -> Any:
     """Send one request to the backend and return its JSON, or raise Refused."""
     response = backend.request(method, path, **request)
     if response.is_error:
-        raise Refused(f"{response.status_code}: {response.json()['detail']}")
+        raise Refused(response.status_code, response.json()["detail"])
     return response.json()
 
 

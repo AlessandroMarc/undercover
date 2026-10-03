@@ -43,12 +43,15 @@ class Decision(BaseModel):
     section: str
     reason: str
     decided_at: str
+    signed_off_by: str | None
+    signed_off_at: str | None
 
 
 class Payment(BaseModel):
     amount: float
     paid_at: str
     signed_off_by: str | None
+    signed_off_at: str | None
 
 
 class ClaimSummary(BaseModel):

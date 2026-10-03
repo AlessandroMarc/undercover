@@ -1,0 +1,89 @@
+import pytest
+from fastapi.testclient import TestClient
+from langgraph.checkpoint.memory import InMemorySaver
+
+from agent import harness, service
+from agent.tests.records import claim_of, steps_of
+from agent.tests.stubs import decide, graph_on, stub
+from api_rules import rule_breaks
+
+
+@pytest.fixture
+def serve():
+    """Run the agent's service, without its lifespan, on a given claim graph."""
+
+    def with_graph(graph):
+        service.app.dependency_overrides[service.build_graph] = lambda: graph
+        return TestClient(service.app)
+
+    yield with_graph
+    service.app.dependency_overrides.clear()
+
+
+def resume(agent, claim_id):
+    return agent.post(f"/api/claims/{claim_id}/resume")
+
+
+def test_the_service_follows_the_api_rules():
+    assert rule_breaks(service.app.openapi()) == []
+
+
+def test_health():
+    assert TestClient(service.app).get("/api/health").json() == {"status": "ok"}
+
+
+def test_a_sign_off_picks_the_claim_up_and_pays_it_once(
+    client, serve, agent_calls, traces
+):
+    model = stub(*decide("approve", 1350.0))
+    graph = graph_on(model, InMemorySaver())
+    harness.work_claim("CLM-1002", graph)
+    signed = client.post("/api/claims/CLM-1002/sign-off", json={"handler_id": "HND-01"})
+    assert agent_calls == ["/api/claims/CLM-1002/resume"]
+
+    agent = serve(graph)
+    response = resume(agent, "CLM-1002")
+    assert response.status_code == 202
+    claim = claim_of(client, "CLM-1002")
+    assert claim["status"] == "decided"
+    assert claim["payment"]["amount"] == 1350.0
+    assert claim["payment"]["signed_off_by"] == "Dana Whitfield"
+    signed_off_at = signed.json()["decision"]["signed_off_at"]
+    assert claim["payment"]["signed_off_at"] == signed_off_at
+    assert len(model.prompts) == 2
+    session = f"CLM-1002:{claim['thread_id']}"
+    assert [(t["langfuse_session_id"], t["langfuse_trace_name"]) for t in traces] == [
+        (session, "Work claim"),
+        (session, "Carry on"),
+    ]
+
+    assert resume(agent, "CLM-1002").status_code == 409
+    assert claim_of(client, "CLM-1002")["payment"] == claim["payment"]
+
+
+def test_a_claim_waiting_for_sign_off_is_not_picked_up(client, serve):
+    graph = graph_on(stub(*decide("approve", 1350.0)))
+    harness.work_claim("CLM-1002", graph)
+    before = steps_of(client, "CLM-1002")
+    response = resume(serve(graph), "CLM-1002")
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Claim CLM-1002 has no sign-off waiting to be paid"
+    )
+    assert claim_of(client, "CLM-1002")["status"] == "waiting_for_sign_off"
+    assert steps_of(client, "CLM-1002") == before
+
+
+def test_a_claim_in_progress_without_a_sign_off_is_left_to_its_agent(client, serve):
+    client.post("/api/claims/CLM-1001/start", json={"thread_id": "working"})
+    response = resume(serve(graph_on(stub())), "CLM-1001")
+    assert response.status_code == 409
+    claim = claim_of(client, "CLM-1001")
+    assert (claim["status"], claim["attempts"]) == ("in_progress", 1)
+    assert steps_of(client, "CLM-1001") == []
+
+
+def test_an_unknown_claim(serve):
+    response = resume(serve(graph_on(stub())), "CLM-9999")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Claim CLM-9999 not found"

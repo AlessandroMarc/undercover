@@ -402,7 +402,7 @@ def test_command_line_works_one_claim(monkeypatch, capsys):
     assert worked == [("CLM-1001", ("model", saver))]
 
     def refuse(claim_id, graph):
-        raise api.Refused(f"409: Claim {claim_id} is not waiting")
+        raise api.Refused(409, f"Claim {claim_id} is not waiting")
 
     monkeypatch.setattr(cli, "work_claim", refuse)
     with pytest.raises(SystemExit) as refused:

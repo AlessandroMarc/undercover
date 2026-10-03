@@ -92,6 +92,8 @@ decisions = Table(
     Column("section", Text, nullable=False),
     Column("reason", Text, nullable=False),
     Column("decided_at", Text, nullable=False),
+    Column("signed_off_by", Text),
+    Column("signed_off_at", Text),
 )
 payments = Table(
     "payments",
@@ -99,7 +101,6 @@ payments = Table(
     Column("claim_id", Text, ForeignKey("claims.claim_id"), primary_key=True),
     Column("amount", Float, nullable=False),
     Column("paid_at", Text, nullable=False),
-    Column("signed_off_by", Text),
 )
 steps = Table(
     "steps",
@@ -144,9 +145,10 @@ claim_view = (
         decisions.c.section,
         decisions.c.reason,
         decisions.c.decided_at,
+        decisions.c.signed_off_by,
+        decisions.c.signed_off_at,
         payments.c.amount,
         payments.c.paid_at,
-        payments.c.signed_off_by,
     )
     .join(customers, customers.c.customer_id == claims.c.customer_id)
     .outerjoin(decisions, decisions.c.claim_id == claims.c.claim_id)

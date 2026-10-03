@@ -50,6 +50,7 @@ log = logging.getLogger(__name__)
 
 ClaimGraph = CompiledStateGraph[ClaimState, ClaimContext, Any, Any]
 QueueAgent = CompiledStateGraph[Any, RunContext, Any, Any]
+Start = InputAgentState | Command | None
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
@@ -63,6 +64,7 @@ NO_DECISION = "The agent finished without recording a decision"
 NO_SUMMARY = "The run finished without a summary."
 STOPPED = "The run stopped before this claim was finished"
 WORK_CLAIM = "Work claim"
+CARRY_ON = "Carry on"
 
 
 class TooManyModelCalls(Exception):
@@ -161,8 +163,8 @@ def call_model(
 
 
 def wait_for_sign_off(state: ClaimState, runtime: Runtime[ClaimContext]) -> None:
-    """Pause until a handler signs off the payout. On resume this runs again from the
-    top, so nothing comes before the interrupt."""
+    """Pause until a handler signs off the payout, which the backend records. On
+    resume this runs again from the top, so nothing comes before the interrupt."""
     interrupt({"claim_id": runtime.context.claim_id})
 
 
@@ -215,11 +217,15 @@ def claim_graph(llm: BaseChatModel, saver: BaseCheckpointSaver[Any]) -> ClaimGra
     return builder.compile(checkpointer=saver)
 
 
+def thread_of(claim: dict[str, Any]) -> RunnableConfig:
+    """Address the claim's thread, where the claim graph saves its progress."""
+    return {"configurable": {"thread_id": claim["thread_id"]}}
+
+
 def claim_config(claim: dict[str, Any], name: str) -> RunnableConfig:
     """Run on the claim's thread, traced in Langfuse in the session of that thread."""
     session = f"{claim['claim_id']}:{claim['thread_id']}"
-    return {
-        "configurable": {"thread_id": claim["thread_id"]},
+    return thread_of(claim) | {
         "callbacks": [CallbackHandler()],
         "metadata": {"langfuse_session_id": session, "langfuse_trace_name": name},
         # One tool call at a time, so two decisions in one reply can't race.
@@ -259,7 +265,7 @@ def undecided(claim: dict[str, Any]) -> bool:
 
 
 def run_claim_graph(
-    graph: ClaimGraph, start: InputAgentState, claim: dict[str, Any], name: str
+    graph: ClaimGraph, start: Start, claim: dict[str, Any], name: str
 ) -> str | None:
     """Run the claim graph on the claim's thread, saving each step, and say what went
     wrong, if anything."""
@@ -296,6 +302,17 @@ def work_claim(claim_id: str, graph: ClaimGraph) -> str:
     """Work one claim from a clean start, as a new attempt, and report how it ended."""
     claim = api.start_claim(claim_id, str(uuid.uuid4()))
     error = run_claim_graph(graph, ask(f"Claim {claim_id}"), claim, WORK_CLAIM)
+    return settle(claim_id, error)
+
+
+def carry_on(claim_id: str, graph: ClaimGraph) -> str:
+    """Carry a claim in progress on from its saved progress, as the same attempt, and
+    report how it ended. A claim paused for sign-off resumes past the pause."""
+    claim = api.get_claim(claim_id)
+    start: Start = None
+    if graph.get_state(thread_of(claim)).interrupts:
+        start = Command(resume=True)
+    error = run_claim_graph(graph, start, claim, CARRY_ON)
     return settle(claim_id, error)
 
 

@@ -291,21 +291,21 @@ Add `uv add psycopg-pool`. Replace the claim agent's `create_agent` and middlewa
 
 Change `sign_off_claim` to record who signed off and when, move the claim to in progress and tell the agent's service. Add `carry_on` for a thread paused at `wait_for_sign_off`, `backend/agent_service.py`, the agent's service in `agent/service.py`, the service in `npm run dev`, the new decision panel, and the stand-in for the end-to-end tests.
 
-- [ ] pytest, backend: signing off `CLM-1002`'s held 1,350.00 as `HND-01` returns the claim `in_progress` with the decision signed off by Dana Whitfield at a time, and no payment. Paying 1,350.00 then returns the claim `decided`, with a payment that records Dana Whitfield and the time of the sign-off. The 404, 403 and 409 rules of `sign_off_claim` still hold
-- [ ] pytest, backend: the agent's service is told once, for `CLM-1002`, and only once the sign-off is saved: the recorder put in place of the service reads the claim from the database at that moment and finds the sign-off
-- [ ] pytest, backend: when the agent's service can't be reached, the sign-off returns 200 and stands, and a warning is logged
-- [ ] pytest, backend: `pay_claim` on a held claim still returns 403 and records nothing
-- [ ] The shared OpenAPI test passes for the backend and for the agent's service
-- [ ] Stub model test, the whole sign-off: the stub approves `CLM-1002` for 1,350.00 and the graph pauses. After the sign-off through the backend, `resume_claim` on the agent's service returns 202, and the claim is `decided` with one payment of 1,350.00 signed off by Dana Whitfield. The model isn't called again, and the carry-on is a root run named "Carry on" in the claim's session. A second `resume_claim` returns 409 and the claim still has one payment
-- [ ] `resume_claim` on a claim waiting for sign-off returns 409 and changes nothing
-- [ ] With `npm run dev` running, `curl -s localhost:8002/api/health` returns `{"status":"ok"}`, beside the backend on 8000 and the dashboard on 5173
-- [ ] `grep -rn "UNDERCOVER_AGENT\|8002" backend --include=*.py` finds them only in `backend/agent_service.py`
-- [ ] vitest covers the decision panel for an approval waiting for its payment, a signed-off claim waiting for its payment, and a payment with its sign-off
-- [ ] e2e, sign-off: the test approves `CLM-1020` for 1,350.00 through the API, and a payment attempt returns 403. On the dashboard, choosing Dana Whitfield and pressing "Sign off" shows In progress and "Signed off by Dana Whitfield", and the stand-in lists `CLM-1020`. After the test pays 1,350.00 through the API, the page shows Decided and "Paid $1,350.00, signed off by Dana Whitfield at" a time, without a reload
-- [ ] Browser: screenshots of a signed-off claim waiting for its payment, in light and dark mode, show rounded panels with no outlines, no one-edge borders and no gradients, and `browser_console_messages` shows no errors
-- [ ] Live: after `npm run seed` and with `npm run dev` running, `uv run -m agent CLM-1003` leaves the claim waiting for sign-off. In the browser, signing off on `/claims/CLM-1003` as Dana Whitfield shows Decided and "Paid", with Dana Whitfield and the time, within five seconds (`browser_wait_for`), and the agent's service logs the report line
-- [ ] Live: through Langfuse's API, `CLM-1003`'s session has a "Work claim" trace from before the sign-off and a "Carry on" trace from after it
-- [ ] `npm run check` passes
+- [x] pytest, backend: signing off `CLM-1002`'s held 1,350.00 as `HND-01` returns the claim `in_progress` with the decision signed off by Dana Whitfield at a time, and no payment. Paying 1,350.00 then returns the claim `decided`, with a payment that records Dana Whitfield and the time of the sign-off. The 404, 403 and 409 rules of `sign_off_claim` still hold
+- [x] pytest, backend: the agent's service is told once, for `CLM-1002`, and only once the sign-off is saved: the recorder put in place of the service reads the claim from the database at that moment and finds the sign-off
+- [x] pytest, backend: when the agent's service can't be reached, the sign-off returns 200 and stands, and a warning is logged
+- [x] pytest, backend: `pay_claim` on a held claim still returns 403 and records nothing
+- [x] The shared OpenAPI test passes for the backend and for the agent's service
+- [x] Stub model test, the whole sign-off: the stub approves `CLM-1002` for 1,350.00 and the graph pauses. After the sign-off through the backend, `resume_claim` on the agent's service returns 202, and the claim is `decided` with one payment of 1,350.00 signed off by Dana Whitfield. The model isn't called again, and the carry-on is a root run named "Carry on" in the claim's session. A second `resume_claim` returns 409 and the claim still has one payment
+- [x] `resume_claim` on a claim waiting for sign-off returns 409 and changes nothing
+- [x] With `npm run dev` running, `curl -s localhost:8002/api/health` returns `{"status":"ok"}`, beside the backend on 8000 and the dashboard on 5173
+- [x] `grep -rn "UNDERCOVER_AGENT\|8002" backend --include=*.py` finds them only in `backend/agent_service.py`
+- [x] vitest covers the decision panel for an approval waiting for its payment, a signed-off claim waiting for its payment, and a payment with its sign-off
+- [x] e2e, sign-off: the test approves `CLM-1020` for 1,350.00 through the API, and a payment attempt returns 403. On the dashboard, choosing Dana Whitfield and pressing "Sign off" shows In progress and "Signed off by Dana Whitfield", and the stand-in lists `CLM-1020`. After the test pays 1,350.00 through the API, the page shows Decided and "Paid $1,350.00, signed off by Dana Whitfield at" a time, without a reload
+- [x] Browser: screenshots of a signed-off claim waiting for its payment, in light and dark mode, show rounded panels with no outlines, no one-edge borders and no gradients, and `browser_console_messages` shows no errors
+- [x] Live: after `npm run seed` and with `npm run dev` running, `uv run -m agent CLM-1003` leaves the claim waiting for sign-off. In the browser, signing off on `/claims/CLM-1003` as Dana Whitfield shows Decided and "Paid", with Dana Whitfield and the time, within five seconds (`browser_wait_for`), and the agent's service logs the report line
+- [x] Live: through Langfuse's API, `CLM-1003`'s session has a "Work claim" trace from before the sign-off and a "Carry on" trace from after it
+- [x] `npm run check` passes
 
 ## Phase 5: Work survives a restart
 

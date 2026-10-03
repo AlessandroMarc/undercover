@@ -1,12 +1,12 @@
 """Work the queue with the UnderCover Agent: uv run -m agent [--cap 5 | CLM-1001]"""
 
 import argparse
-import logging
 import sys
 
 from dotenv import load_dotenv
 
 from agent import api
+from agent.console import show_reports
 from agent.harness import checkpointer, claim_graph, model, run_queue, work_claim
 
 
@@ -40,6 +40,5 @@ def main(args: list[str]) -> None:
 
 if __name__ == "__main__":
     load_dotenv(override=True)
-    logging.basicConfig(format="%(message)s", stream=sys.stdout)
-    logging.getLogger("agent").setLevel(logging.INFO)
+    show_reports()
     main(sys.argv[1:])

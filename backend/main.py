@@ -7,9 +7,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
 from sqlalchemy import Connection, RowMapping, delete, insert, select, update
 
+from backend import agent_service
 from backend.database import (
     claim_view,
     claims,
@@ -160,14 +161,6 @@ def to_claim(row: RowMapping) -> Claim:
             "payment": payment,
         }
     )
-
-
-def pay(
-    db: Connection, claim_id: str, amount: float, signed_off_by: str | None
-) -> None:
-    """Record a payment on a claim."""
-    payment = Payment(amount=amount, paid_at=now(), signed_off_by=signed_off_by)
-    db.execute(insert(payments).values(claim_id=claim_id, **payment.model_dump()))
 
 
 def add_step(
@@ -367,14 +360,20 @@ def pay_claim(claim_id: str, request: PaymentRequest, db: Database) -> Claim:
         raise HTTPException(
             422, f"The amount must be the approved payout of {dollars(claim['payout'])}"
         )
-    pay(db, claim_id, claim["payout"], None)
+    db.execute(
+        insert(payments).values(
+            claim_id=claim_id, amount=claim["payout"], paid_at=now()
+        )
+    )
     set_status(db, claim_id, "decided")
     return to_claim(find_claim(db, claim_id))
 
 
 @app.post("/api/claims/{claim_id}/sign-off", operation_id="sign_off_claim")
-def sign_off_claim(claim_id: str, request: SignOffRequest, db: Database) -> Claim:
-    """Sign off a held payout as a handler, which pays it and decides the claim."""
+def sign_off_claim(
+    claim_id: str, request: SignOffRequest, db: Database, background: BackgroundTasks
+) -> Claim:
+    """Sign off a held payout as a handler, so the agent picks the claim up and pays."""
     claim = find_claim(db, claim_id)
     if claim["status"] != "waiting_for_sign_off":
         raise HTTPException(409, f"Claim {claim_id} is not waiting for sign-off")
@@ -388,8 +387,13 @@ def sign_off_claim(claim_id: str, request: SignOffRequest, db: Database) -> Clai
             403,
             f"{handler.name} can't sign off payouts over {dollars(approval_limit(db))}",
         )
-    pay(db, claim_id, claim["payout"], handler.name)
-    set_status(db, claim_id, "decided")
+    db.execute(
+        update(decisions)
+        .where(decisions.c.claim_id == claim_id)
+        .values(signed_off_by=handler.name, signed_off_at=now())
+    )
+    set_status(db, claim_id, "in_progress")
+    background.add_task(agent_service.resume_claim, claim_id)
     return to_claim(find_claim(db, claim_id))
 
 

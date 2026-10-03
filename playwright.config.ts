@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { AGENT_STAND_IN } from "./e2e/api";
 
 // The tests run their own backend and dashboard, on their own ports and
 // database, so they never touch the servers started by `npm run dev`.
@@ -13,7 +14,16 @@ export default defineConfig({
         "uv run -m backend.seed && uv run uvicorn backend.main:app --port 8001",
       url: "http://127.0.0.1:8001/api/health",
       // An empty DATABASE_URL keeps the tests on SQLite, whatever the shell has.
-      env: { UNDERCOVER_DB: "e2e/undercover.db", DATABASE_URL: "" },
+      env: {
+        UNDERCOVER_DB: "e2e/undercover.db",
+        DATABASE_URL: "",
+        UNDERCOVER_AGENT: AGENT_STAND_IN,
+      },
+    },
+    {
+      command: "node e2e/agent_stand_in.ts",
+      url: `${AGENT_STAND_IN}/api/health`,
+      env: { PORT: new URL(AGENT_STAND_IN).port },
     },
     {
       command: "npx vite dashboard --port 5174 --strictPort",
