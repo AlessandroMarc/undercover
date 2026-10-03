@@ -158,6 +158,10 @@ export interface Run {
   claims: RunClaim[];
 }
 
+export interface Accepted {
+  status: "accepted";
+}
+
 export interface Instructions {
   claim: string;
 }
@@ -174,7 +178,9 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
-    const body = (await response.json()) as { detail?: unknown };
+    const body = (await response.json().catch(() => ({}))) as {
+      detail?: unknown;
+    };
     const detail =
       typeof body.detail === "string" ? body.detail : "The request failed";
     throw new ApiError(response.status, detail);
@@ -207,6 +213,8 @@ export const api = {
   getInstructions: () => request<Instructions>("/api/instructions"),
   listHandlers: () => request<Handler[]>("/api/handlers"),
   getLatestDispatch: () => request<Run | null>("/api/dispatches/latest"),
+  startDispatch: (agents: number) =>
+    post<Accepted>("/api/dispatches", { agents }),
   signOff: (claimId: string, handlerId: string) =>
     post<Claim>(`${claimPath(claimId)}/sign-off`, { handler_id: handlerId }),
 };

@@ -8,6 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import Connection, RowMapping, delete, func, insert, select, update
 
+from backend import agent_service
 from backend.database import (
     claim_view,
     claims,
@@ -19,12 +20,14 @@ from backend.database import (
 )
 from backend.dependencies import Database
 from backend.models import (
+    Accepted,
     DispatchRequest,
     DispatchSummary,
     HeldPayout,
     Run,
     RunClaim,
     RunClaimsRequest,
+    StartDispatchRequest,
 )
 from backend.views import to_summary
 
@@ -216,3 +219,10 @@ def get_latest_dispatch(db: Database) -> Run | None:
     )
     run_id = db.execute(query).scalar_one_or_none()
     return None if run_id is None else find_run(db, run_id)
+
+
+@router.post("/api/dispatches", operation_id="start_dispatch", status_code=202)
+def start_dispatch(request: StartDispatchRequest) -> Accepted:
+    """Ask the agent's service to start a dispatch with up to N claim agents at once."""
+    agent_service.start_dispatch(request.agents)
+    return Accepted(status="accepted")

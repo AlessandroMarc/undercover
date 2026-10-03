@@ -322,13 +322,13 @@ Add `agent/dispatcher.py` as the design describes, `work_in_run` and `TRANSIENT`
 
 Add `start_dispatch` to the runs router and `agent_service.py`, the start form on the dispatch panel, and starts to the stand-in.
 
-- [ ] pytest, backend: `start_dispatch` with N=7 asks the agent's service once, with `{"agents": 7}`, returns 202 and writes nothing to `runs`. The service's 409 comes back as a 409 with its detail. A service that can't be reached gives 503 with "The agent's service isn't running". N of 0 or 26 returns 422 and the service isn't asked
-- [ ] `grep -rn "UNDERCOVER_AGENT\|8002" backend --include=*.py` finds them only in `backend/agent_service.py`
-- [ ] vitest: the form offers 1 to 25 with 3 chosen, and starting with 7 posts `{"agents": 7}`; a 409 and a 503 show their detail in an alert, and the button can be pressed again afterwards
-- [ ] e2e: choosing 7 and pressing "Start a dispatch" reaches the stand-in with `{"agents": 7}`
-- [ ] Browser, with `npm run dev:backend` and `npm run dev:dashboard` running but not the agent's service: pressing "Start a dispatch" shows "The agent's service isn't running", and no dispatch appears
-- [ ] Browser: with a dispatch of five claims played out with curl, finished with one held for sign-off and one left for a handler, screenshots of the panel in light and dark mode show rounded panels with no outlines, no one-edge borders and no gradients, and `browser_console_messages` shows no errors. `npm run seed` afterwards
-- [ ] `npm run check` passes
+- [x] pytest, backend: `start_dispatch` with N=7 asks the agent's service once, with `{"agents": 7}`, returns 202 and writes nothing to `runs`. The service's 409 comes back as a 409 with its detail. A service that can't be reached gives 503 with "The agent's service isn't running". N of 0 or 26 returns 422 and the service isn't asked
+- [x] `grep -rn "UNDERCOVER_AGENT\|8002" backend --include=*.py` finds them only in `backend/agent_service.py`
+- [x] vitest: the form offers 1 to 25 with 3 chosen, and starting with 7 posts `{"agents": 7}`; a 409 and a 503 show their detail in an alert, and the button can be pressed again afterwards
+- [x] e2e: choosing 7 and pressing "Start a dispatch" reaches the stand-in with `{"agents": 7}`
+- [x] Browser, with `npm run dev:backend` and `npm run dev:dashboard` running but not the agent's service: pressing "Start a dispatch" shows "The agent's service isn't running", and no dispatch appears
+- [x] Browser: with a dispatch of five claims played out with curl, finished with one held for sign-off and one left for a handler, screenshots of the panel in light and dark mode show rounded panels with no outlines, no one-edge borders and no gradients, and `browser_console_messages` shows no errors. `npm run seed` afterwards
+- [x] `npm run check` passes
 
 ## Phase 4: Evaluations
 

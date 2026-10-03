@@ -1,6 +1,6 @@
 """The shapes of the backend's requests and responses."""
 
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -13,6 +13,9 @@ RunKind = Literal["dispatch", "evaluation"]
 RunStatus = Literal["running", "finished", "stopped"]
 EvaluationSet = Literal["evaluation", "held_out"]
 MOST_AGENTS = 25
+Agents = Annotated[
+    int, Field(ge=1, le=MOST_AGENTS, description="How many claim agents work at once")
+]
 DocumentName = Literal["policy_wording", "claims_manual"]
 Benefit = Literal[
     "trip_cancellation",
@@ -284,10 +287,12 @@ class WorkTime(BaseModel):
     seconds: float
 
 
+class StartDispatchRequest(BaseModel):
+    agents: Agents
+
+
 class DispatchRequest(BaseModel):
-    agents: int = Field(
-        ge=1, le=MOST_AGENTS, description="How many claim agents work at once"
-    )
+    agents: Agents
     model: str = Field(min_length=1)
     reasoning_effort: str = Field(min_length=1, description="Or none")
 
@@ -332,3 +337,7 @@ class Run(BaseModel):
     summary: DispatchSummary | None
     model_cost: float
     claims: list[RunClaim]
+
+
+class Accepted(BaseModel):
+    status: Literal["accepted"]

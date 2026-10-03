@@ -22,3 +22,15 @@ it("falls back to a general message when the reason isn't text", async () => {
   stubApi({ "GET /api/instructions": new Refusal(422, [{ msg: "bad" }]) });
   await expect(api.getInstructions()).rejects.toThrow("The request failed");
 });
+
+it("falls back to a general message when the body isn't JSON", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() =>
+      Promise.resolve(new Response("Internal Server Error", { status: 500 })),
+    ),
+  );
+  await expect(api.getInstructions()).rejects.toEqual(
+    new ApiError(500, "The request failed"),
+  );
+});

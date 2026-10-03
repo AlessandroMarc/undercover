@@ -32,6 +32,17 @@ export function stubApi(routes: Routes) {
   return fetchMock;
 }
 
+// The bodies of the requests sent to "METHOD /path", in order.
+export function sent(fetchMock: ReturnType<typeof stubApi>, route: string) {
+  return fetchMock.mock.calls
+    .filter(([path, init]) => `${init?.method ?? "GET"} ${path}` === route)
+    .map(([, init]) =>
+      typeof init?.body === "string"
+        ? (JSON.parse(init.body) as unknown)
+        : undefined,
+    );
+}
+
 export function renderAt(path: string) {
   render(
     <MemoryRouter initialEntries={[path]}>

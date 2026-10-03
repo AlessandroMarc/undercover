@@ -1,11 +1,16 @@
-"""The agent's service, as the backend calls it: once after each sign-off."""
+"""The agent's service, as the backend calls it: after each sign-off, and to start a
+dispatch or an evaluation."""
 
 import logging
 import os
+from http import HTTPStatus
+from typing import Any
 
 import httpx
+from fastapi import HTTPException
 
 AGENT_URL = os.getenv("UNDERCOVER_AGENT", "http://127.0.0.1:8002")
+NOT_RUNNING = "The agent's service isn't running"
 
 agent = httpx.Client(base_url=f"{AGENT_URL}/api", timeout=10)
 
@@ -20,3 +25,20 @@ def resume_claim(claim_id: str) -> None:
         log.warning(
             "The agent didn't pick up %s after its sign-off: %s", claim_id, error
         )
+
+
+def start(path: str, body: dict[str, Any]) -> None:
+    """Ask the agent's service to start a run, passing on its refusal while one is
+    running, or say it isn't running when it can't be reached."""
+    try:
+        response = agent.post(path, json=body)
+    except (httpx.ConnectError, httpx.ConnectTimeout) as error:
+        raise HTTPException(HTTPStatus.SERVICE_UNAVAILABLE, NOT_RUNNING) from error
+    if response.status_code == HTTPStatus.CONFLICT:
+        raise HTTPException(HTTPStatus.CONFLICT, response.json()["detail"])
+    response.raise_for_status()
+
+
+def start_dispatch(agents: int) -> None:
+    """Ask the agent's service to start a dispatch with up to N claim agents."""
+    start("/dispatches", {"agents": agents})

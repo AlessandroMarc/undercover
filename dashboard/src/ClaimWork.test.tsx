@@ -16,6 +16,7 @@ import {
   panel,
   policy,
   renderAt,
+  sent,
   stubApi,
 } from "./testing";
 import { REFRESH_MS } from "./useLoad";
@@ -269,7 +270,9 @@ it("lets a handler sign off a held payment", async () => {
   const panel = await decisionPanel();
   expect(panel.getByText(/waits for a handler's sign-off/)).toBeDefined();
   const button = panel.getByRole("button", { name: "Sign off" });
-  expect(button).toHaveProperty("disabled", true);
+  expect(button.getAttribute("aria-disabled")).toBe("true");
+  fireEvent.click(button);
+  expect(sent(fetchMock, "POST /api/claims/CLM-1002/sign-off")).toEqual([]);
 
   const select = panel.getByRole("combobox", { name: "Handler" });
   expect(await within(select).findByText("Dana Whitfield")).toBeDefined();

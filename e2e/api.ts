@@ -26,3 +26,14 @@ export async function resumed(request: APIRequestContext): Promise<string[]> {
   await expect(response).toBeOK();
   return (await response.json()) as string[];
 }
+
+export interface Started {
+  path: string;
+  body: unknown;
+}
+
+export async function started(request: APIRequestContext): Promise<Started[]> {
+  const response = await request.get(`${AGENT_STAND_IN}/api/started`);
+  await expect(response).toBeOK();
+  return (await response.json()) as Started[];
+}

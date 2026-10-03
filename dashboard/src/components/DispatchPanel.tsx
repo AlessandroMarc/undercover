@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "react-router";
 import { api, type DispatchSummary, type Run, type RunClaim } from "../api";
 import { duration, modelCost, money, time } from "../format";
@@ -6,9 +6,12 @@ import { claimPage } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
 import { DecisionChip, RunChip, StatusChip } from "./Chips";
 import { Message } from "./Message";
+import { ActionForm } from "./ActionForm";
+import { AgentsChoice, FIRST_CHOICE } from "./AgentsChoice";
 
 export function DispatchPanel() {
   const { data: dispatch, error } = useLoad(api.getLatestDispatch, REFRESH_MS);
+  const [agents, setAgents] = useState(FIRST_CHOICE);
 
   return (
     <section className="panel run" aria-labelledby="dispatch-title">
@@ -16,6 +19,12 @@ export function DispatchPanel() {
         <h2 id="dispatch-title">Dispatch</h2>
         {dispatch && <RunChip status={dispatch.status} />}
       </div>
+      <ActionForm
+        label="Start a dispatch"
+        action={() => api.startDispatch(agents)}
+      >
+        <AgentsChoice agents={agents} onChange={setAgents} />
+      </ActionForm>
       {dispatch === undefined && <Message error={error} />}
       {dispatch === null && <p className="muted">No dispatch yet.</p>}
       {dispatch && <DispatchDetails dispatch={dispatch} />}

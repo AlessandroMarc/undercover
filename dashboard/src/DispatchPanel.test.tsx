@@ -1,11 +1,20 @@
-import { act, cleanup, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { Run, RunClaim } from "./api";
 import {
+  Refusal,
   type Routes,
   summary as claimSummary,
   panel,
   renderAt,
+  sent,
   stubApi,
 } from "./testing";
 import { REFRESH_MS } from "./useLoad";
@@ -93,6 +102,9 @@ function showQueue(dispatch: Run | null) {
 
 const dispatchPanel = () => panel("Dispatch");
 
+const started = (fetchMock: ReturnType<typeof stubApi>) =>
+  sent(fetchMock, "POST /api/dispatches");
+
 it("says when there's no dispatch yet", async () => {
   showQueue(null);
   const panel = await dispatchPanel();
@@ -166,4 +178,62 @@ it("follows a dispatch as it works", async () => {
   await act(() => vi.advanceTimersByTimeAsync(REFRESH_MS));
   expect(panel.getByText("Finished")).toBeDefined();
   expect(panel.queryByText("Waiting")).toBeNull();
+});
+
+function startWith(agents: string) {
+  const choice = screen.getByRole("combobox", { name: "Claim agents at once" });
+  fireEvent.change(choice, { target: { value: agents } });
+  fireEvent.click(screen.getByRole("button", { name: "Start a dispatch" }));
+}
+
+it("offers 1 to 25 claim agents at once, with 3 chosen", async () => {
+  showQueue(null);
+  const choice = await screen.findByRole("combobox", {
+    name: "Claim agents at once",
+  });
+  const options = within(choice).getAllByRole("option");
+  expect(options.map((option) => option.textContent)).toEqual(
+    Array.from({ length: 25 }, (_, index) => String(index + 1)),
+  );
+  expect((choice as HTMLSelectElement).value).toBe("3");
+});
+
+it("starts a dispatch with the claim agents chosen", async () => {
+  const routes: Routes = {
+    "GET /api/claims": [claimSummary],
+    "GET /api/dispatches/latest": null,
+    "POST /api/dispatches": { status: "accepted" },
+  };
+  const fetchMock = stubApi(routes);
+  renderAt("/");
+  await screen.findByText("No dispatch yet.");
+  startWith("7");
+  await waitFor(() => {
+    expect(started(fetchMock)).toEqual([{ agents: 7 }]);
+  });
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it.each([
+  [409, "A dispatch or an evaluation is already running"],
+  [503, "The agent's service isn't running"],
+])("shows a refusal with status %i", async (status, detail) => {
+  const routes: Routes = {
+    "GET /api/claims": [claimSummary],
+    "GET /api/dispatches/latest": null,
+    "POST /api/dispatches": new Refusal(status, detail),
+  };
+  const fetchMock = stubApi(routes);
+  renderAt("/");
+  await screen.findByText("No dispatch yet.");
+  startWith("3");
+  expect((await screen.findByRole("alert")).textContent).toBe(detail);
+  const button = screen.getByRole("button", { name: "Start a dispatch" });
+  await waitFor(() => {
+    expect(button.getAttribute("aria-disabled")).toBe("false");
+  });
+  fireEvent.click(button);
+  await waitFor(() => {
+    expect(started(fetchMock)).toHaveLength(2);
+  });
 });
