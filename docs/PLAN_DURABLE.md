@@ -247,20 +247,20 @@ Bring in the payout rules as `backend/payout.py` and the `calculate_payout` oper
 
 Add SQLAlchemy with `uv add sqlalchemy`. Rewrite `backend/database.py` and every query with SQLAlchemy Core, as the design says, and point the backend at Supabase when `DATABASE_URL` is set. Add `npm run seed`, and make `npm run dev` pass `.env` to the backend. Test helpers that change the database go through the backend's engine.
 
-- [ ] `grep -rn "sqlite3\|rowid" backend agent` finds nothing
-- [ ] pytest, without connecting: with `DATABASE_URL` set to a Postgres address, the engine uses `postgresql+psycopg`, a pool of 4 with no overflow, and `search_path` set to `undercover`. Without it, the engine is SQLite at `UNDERCOVER_DB`
-- [ ] `DATABASE_URL=postgresql://nobody:x@127.0.0.1:1/none uv run pytest -q` passes: the tests remove it and never connect
-- [ ] pytest: the backend seeds an empty SQLite file on startup, and two runs started in the same second come back from `get_latest_run` in the order they started
-- [ ] `uv run -m backend.seed` still prints `Seeded 25 claims, 50 policies, 49 customers and 3 handlers into undercover.db`
-- [ ] `npm run seed` prints `Seeded 25 claims, 50 policies, 49 customers and 3 handlers into the undercover schema on Postgres`, and a second run prints the same
-- [ ] Supabase MCP: `list_tables` for `undercover` shows `settings`, `documents`, `handlers`, `customers`, `policies`, `claims`, `decisions`, `payments`, `steps`, `runs` and `todos`, and none of them is in `public`. `select status, count(*) from undercover.claims group by status` gives 25 `waiting`
-- [ ] With `npm run dev` running, the pilot's read criteria hold against Supabase: `curl -s localhost:8000/api/claims` returns 25 claims, the first `CLM-1001` for Maya Patel, and `curl -s localhost:8000/api/claims/CLM-1001` returns its story, 3 items and 4 documents
-- [ ] Walked through with curl on Supabase: starting `CLM-1004` and declining it gives `decided`. Supabase MCP shows its row in `undercover.decisions`. `npm run seed` puts it back to `waiting`
-- [ ] Supabase MCP, with `npm run dev` running and the queue page open for 30 seconds: `select count(*) from pg_stat_activity where usename = 'postgres'` is at most 5, the backend's 4 and `pg_net`'s 1
-- [ ] Supabase MCP: `get_advisors` for security lists nothing about the `undercover` schema
-- [ ] Browser: the queue shows 25 claims and `/claims/CLM-1002` shows its items and policy, with no errors in `browser_console_messages`
-- [ ] Live: after `npm run seed`, `uv run -m agent CLM-1001` decides the claim, and Supabase MCP shows its decision and steps in `undercover`
-- [ ] `npm run check` passes, both with `.env` in place and with it moved out of the way
+- [x] `grep -rn "sqlite3\|rowid" backend agent` finds nothing
+- [x] pytest, without connecting: with `DATABASE_URL` set to a Postgres address, the engine uses `postgresql+psycopg`, a pool of 4 with no overflow, and `search_path` set to `undercover`. Without it, the engine is SQLite at `UNDERCOVER_DB`
+- [x] `DATABASE_URL=postgresql://nobody:x@127.0.0.1:1/none uv run pytest -q` passes: the tests remove it and never connect
+- [x] pytest: the backend seeds an empty SQLite file on startup, and two runs started in the same second come back from `get_latest_run` in the order they started
+- [x] `uv run -m backend.seed` still prints `Seeded 25 claims, 50 policies, 49 customers and 3 handlers into undercover.db`
+- [x] `npm run seed` prints `Seeded 25 claims, 50 policies, 49 customers and 3 handlers into the undercover schema on Postgres`, and a second run prints the same
+- [x] Supabase MCP: `list_tables` for `undercover` shows `settings`, `documents`, `handlers`, `customers`, `policies`, `claims`, `decisions`, `payments`, `steps`, `runs` and `todos`, and none of them is in `public`. `select status, count(*) from undercover.claims group by status` gives 25 `waiting`
+- [x] With `npm run dev` running, the pilot's read criteria hold against Supabase: `curl -s localhost:8000/api/claims` returns 25 claims, the first `CLM-1001` for Maya Patel, and `curl -s localhost:8000/api/claims/CLM-1001` returns its story, 3 items and 4 documents
+- [x] Walked through with curl on Supabase: starting `CLM-1004` and declining it gives `decided`. Supabase MCP shows its row in `undercover.decisions`. `npm run seed` puts it back to `waiting`
+- [x] Supabase MCP, with `npm run dev` running and the queue page open for 30 seconds: `select count(*) from pg_stat_activity where usename = 'postgres'` is at most 5, the backend's 4 and `pg_net`'s 1
+- [x] Supabase MCP: `get_advisors` for security lists nothing about the `undercover` schema
+- [x] Browser: the queue shows 25 claims and `/claims/CLM-1002` shows its items and policy, with no errors in `browser_console_messages`
+- [x] Live: after `npm run seed`, `uv run -m agent CLM-1001` decides the claim, and Supabase MCP shows its decision and steps in `undercover`
+- [x] `npm run check` passes, both with `.env` in place and with it moved out of the way
 
 ## Phase 3: The claim agent as a graph that saves its progress
 

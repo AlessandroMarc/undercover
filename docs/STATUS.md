@@ -2,17 +2,18 @@
 
 The claims pilot in `docs/PLAN.md` and the harness in `docs/PLAN_HARNESS.md` are built: all six phases of each are done.
 
-The plan for durable state in `docs/PLAN_DURABLE.md` is under way: phase 1 of 6, the payout rules and tracing, is done.
+The plan for durable state in `docs/PLAN_DURABLE.md` is under way: phases 1 and 2 of 6, the payout rules and tracing, and our records on Supabase, are done.
 
 ## Running it
 
-- `npm run dev` starts the backend on port 8000 and the dashboard on http://localhost:5173.
-- `uv run -m backend.seed` rebuilds the database from `data/`, putting every claim back in the queue. Run it after pulling a change that adds to the database, such as the plans in `settings`: the backend only seeds a database that is missing.
+- `npm run dev` starts the backend on port 8000 and the dashboard on http://localhost:5173. It passes `.env` to the backend, so it needs a `.env`, and with `DATABASE_URL` there the backend uses Supabase.
+- `npm run seed` rebuilds the database `npm run dev` uses from `data/`, putting every claim back in the queue. `uv run -m backend.seed` alone never reads `.env` and rebuilds the SQLite file `undercover.db`, as the end-to-end tests do. The backend only seeds a database with no tables, so reseed after pulling a change to the tables: an older `undercover.db` lacks columns such as `runs.number`.
 - `uv run -m agent` works the whole queue with the queue agent. `uv run -m agent --cap 5` works at most five claims and leaves the rest waiting. `uv run -m agent CLM-1001` works one claim with the claim agent alone. Each prints a report line per claim, and a queue run ends with its summary. All use the real model through OpenRouter.
 
 ## Built
 
-- `backend/`: SQLite database seeded from `data/` (never `data/evals/`), at `undercover.db` or the path in `UNDERCOVER_DB`, created on startup when missing. A test checks that every operation follows the API rules.
+- `backend/`: the database is seeded from `data/` (never `data/evals/`) and created on startup when it has no tables. A test checks that every operation follows the API rules.
+  - Database: SQLAlchemy Core, with the tables and every query written once in `backend/database.py` for both databases. With `DATABASE_URL` set, it is the Supabase Postgres database, through psycopg and the session pooler, with every table in the `undercover` schema (`search_path` is set on each connection, keeping any settings already in the URL) and a pool of at most 4 connections. Otherwise it is SQLite at `undercover.db` or the path in `UNDERCOVER_DB`, with a connection per request. Each request runs in one transaction, committed before the response is sent. The tests and the end-to-end tests always use SQLite and never touch the network.
   - Read operations: `health`, `list_claims`, `get_claim`, `get_policy`, `get_claim_history`, `list_handlers`, `list_steps`, `get_instructions`, `search_documents`, `read_section`, `get_latest_run`.
   - Payouts: `calculate_payout` works out the payout on a claim with UnderCover's payout rules in `backend/payout.py`, brought in from `labs/week2day1_payout.py`, and records nothing. Seeding stores `plans.json` in `settings`, and the approval limit comes from there too, so the rules read nothing from `data/`. Every input of the operation is required, including each field of a line.
   - Workflow operations: `start_claim`, `record_step`, `record_decision`, `pay_claim`, `sign_off_claim`, `fail_claim`, `start_run`, `write_todos`, `finish_run`.

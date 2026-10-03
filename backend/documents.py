@@ -1,24 +1,27 @@
 """The policy wording and the claims manual, split into numbered sections."""
 
 import re
-import sqlite3
 
+from sqlalchemy import Connection, select
+
+from backend.database import documents
 from backend.models import DocumentName, Section, SectionMatch
 
 HEADING = re.compile(r"^## (\d+)\. (.+)$", re.MULTILINE)
 
 
-def titles(db: sqlite3.Connection) -> dict[DocumentName, str]:
+def titles(db: Connection) -> dict[DocumentName, str]:
     """Return the title of each document, the policy wording first."""
-    rows = db.execute("SELECT name, title FROM documents ORDER BY rowid").fetchall()
-    return {row["name"]: row["title"] for row in rows}
+    query = select(documents.c.name, documents.c.title).order_by(documents.c.position)
+    return {row["name"]: row["title"] for row in db.execute(query).mappings()}
 
 
-def sections(db: sqlite3.Connection, document: DocumentName) -> list[Section]:
+def sections(db: Connection, document: DocumentName) -> list[Section]:
     """Split one document into its sections at the numbered headings."""
-    row = db.execute(
-        "SELECT title, text FROM documents WHERE name = ?", (document,)
-    ).fetchone()
+    query = select(documents.c.title, documents.c.text).where(
+        documents.c.name == document
+    )
+    row = db.execute(query).mappings().one()
     text = row["text"]
     headings = list(HEADING.finditer(text))
     ends = [heading.start() for heading in headings[1:]] + [len(text)]
@@ -34,7 +37,7 @@ def sections(db: sqlite3.Connection, document: DocumentName) -> list[Section]:
     ]
 
 
-def search(db: sqlite3.Connection, query: str) -> list[SectionMatch]:
+def search(db: Connection, query: str) -> list[SectionMatch]:
     """Find the sections whose title or text contains the query, ignoring case."""
     wanted = query.lower()
     matches = []
@@ -54,7 +57,7 @@ def search(db: sqlite3.Connection, query: str) -> list[SectionMatch]:
     return matches
 
 
-def contents(db: sqlite3.Connection) -> str:
+def contents(db: Connection) -> str:
     """List the numbered sections of both documents, without their text."""
     parts = []
     for document, title in titles(db).items():

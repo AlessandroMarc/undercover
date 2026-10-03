@@ -1,7 +1,7 @@
-import sqlite3
-from contextlib import closing
-
 import pytest
+from sqlalchemy import update
+
+from backend.database import engine, settings
 
 
 def line(description, amount, kind="item", **extra):
@@ -132,9 +132,9 @@ def test_nothing_below_zero(client):
     assert result["payout"] == 0.0
 
 
-def test_sign_off_follows_the_limit_in_settings(client, database):
-    with closing(sqlite3.connect(database)) as db, db:
-        db.execute("UPDATE settings SET payout_approval_limit = 500")
+def test_sign_off_follows_the_limit_in_settings(client):
+    with engine().begin() as db:
+        db.execute(update(settings).values(payout_approval_limit=500))
     lines = [
         line("Suitcase", 280),
         line("Wool suit", 420),

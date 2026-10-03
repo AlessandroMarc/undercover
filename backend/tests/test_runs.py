@@ -1,5 +1,7 @@
 import pytest
 
+from backend import main
+
 
 def start_run(client, cap=5):
     return client.post("/api/runs", json={"cap": cap})
@@ -82,3 +84,17 @@ def test_finish_needs_a_summary_and_a_known_run(client):
     unknown = client.post("/api/runs/RUN-9/finish", json={"summary": "Done."})
     assert unknown.status_code == 404
     assert unknown.json()["detail"] == "Run RUN-9 not found"
+
+
+def test_runs_started_in_the_same_second_keep_their_order(client, monkeypatch):
+    monkeypatch.setattr(main, "now", lambda: "2026-10-02T12:00:00+00:00")
+    first = start_run(client).json()
+    client.post(f"/api/runs/{first['run_id']}/finish", json={"summary": "Done."})
+    second = start_run(client).json()
+    assert client.get("/api/runs/latest").json()["run_id"] == second["run_id"]
+
+
+def test_an_empty_to_do_list_clears_it(client):
+    run_id = start_run(client).json()["run_id"]
+    write(client, run_id, ("CLM-1001", "to_do"))
+    assert write(client, run_id).json()["todos"] == []

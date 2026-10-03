@@ -1,7 +1,4 @@
-from fastapi.testclient import TestClient
-
 from backend import seed
-from backend.main import app
 
 
 def test_list_claims(client):
@@ -68,9 +65,3 @@ def test_seed_command(capsys):
         "Seeded 25 claims, 50 policies, 49 customers and 3 handlers "
         "into undercover.db\n"
     )
-
-
-def test_startup_seeds_a_missing_database(database):
-    database.unlink()
-    with TestClient(app) as client:
-        assert len(client.get("/api/claims").json()) == 25

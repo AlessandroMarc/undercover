@@ -1,8 +1,7 @@
-from contextlib import closing
-
 import pytest
+from sqlalchemy import select
 
-from backend.database import connect
+from backend.database import documents, engine
 from backend.documents import sections
 
 
@@ -14,7 +13,7 @@ from backend.documents import sections
     ],
 )
 def test_documents_split_into_numbered_sections(document, count, first, last):
-    with closing(connect()) as db:
+    with engine().connect() as db:
         found = sections(db, document)
     assert [s.number for s in found] == list(range(1, count + 1))
     assert (found[0].title, found[-1].title) == (first, last)
@@ -96,8 +95,9 @@ def test_instructions_for_the_queue_and_a_claim(client):
 
 
 def test_both_documents_are_seeded():
-    with closing(connect()) as db:
-        rows = db.execute("SELECT * FROM documents ORDER BY rowid").fetchall()
+    with engine().connect() as db:
+        query = select(documents).order_by(documents.c.position)
+        rows = db.execute(query).mappings().all()
     assert [(row["name"], row["title"]) for row in rows] == [
         ("policy_wording", "Policy wording"),
         ("claims_manual", "Claims manual"),

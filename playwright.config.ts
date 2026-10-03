@@ -12,7 +12,8 @@ export default defineConfig({
       command:
         "uv run -m backend.seed && uv run uvicorn backend.main:app --port 8001",
       url: "http://127.0.0.1:8001/api/health",
-      env: { UNDERCOVER_DB: "e2e/undercover.db" },
+      // An empty DATABASE_URL keeps the tests on SQLite, whatever the shell has.
+      env: { UNDERCOVER_DB: "e2e/undercover.db", DATABASE_URL: "" },
     },
     {
       command: "npx vite dashboard --port 5174 --strictPort",

@@ -1,8 +1,7 @@
-import sqlite3
-from contextlib import closing
-
 import pytest
+from sqlalchemy import update
 
+from backend.database import engine, handlers
 from backend.tests.claim_requests import decide, pay, sign_off, start
 
 
@@ -155,9 +154,9 @@ def test_sign_off_needs_a_claim_waiting_for_it(client):
     assert sign_off(client, "CLM-1001", "HND-01").status_code == 409
 
 
-def test_sign_off_needs_a_handler_who_can_approve(client, database):
-    with closing(sqlite3.connect(database)) as db, db:
-        db.execute("UPDATE handlers SET can_approve_over_limit = 0")
+def test_sign_off_needs_a_handler_who_can_approve(client):
+    with engine().begin() as db:
+        db.execute(update(handlers).values(can_approve_over_limit=False))
     start(client, "CLM-1002")
     decide(client, "CLM-1002", "approve", 1350.0)
     response = sign_off(client, "CLM-1002", "HND-02")

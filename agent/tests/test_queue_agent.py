@@ -1,25 +1,27 @@
 import logging
-import sqlite3
-from contextlib import closing
 from functools import partial
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
+from sqlalchemy import update
 
 from agent import __main__ as cli
 from agent import api, harness
 from agent.tests.stub_model import call, decide, pay, stub
 from agent.tools import RunContext
+from backend.database import claims as claims_table
+from backend.database import engine
 
 
-def leave_waiting(database, *claim_ids):
+def leave_waiting(*claim_ids):
     """Leave every claim but the ones named for a handler, out of the agent's way."""
-    with closing(sqlite3.connect(database)) as db, db:
-        db.execute("UPDATE claims SET status = 'left_for_handler'")
-        db.executemany(
-            "UPDATE claims SET status = 'waiting' WHERE claim_id = ?",
-            [(claim_id,) for claim_id in claim_ids],
+    with engine().begin() as db:
+        db.execute(update(claims_table).values(status="left_for_handler"))
+        db.execute(
+            update(claims_table)
+            .where(claims_table.c.claim_id.in_(claim_ids))
+            .values(status="waiting")
         )
 
 
@@ -53,9 +55,9 @@ def asked(model):
     return [m.text for m in model.prompts[-1] if isinstance(m, HumanMessage)]
 
 
-def test_a_whole_run(client, database, caplog):
+def test_a_whole_run(client, caplog):
     caplog.set_level(logging.INFO, logger="agent")
-    leave_waiting(database, "CLM-1001", "CLM-1002", "CLM-1003")
+    leave_waiting("CLM-1001", "CLM-1002", "CLM-1003")
     ids = ["CLM-1001", "CLM-1002", "CLM-1003"]
     summary = "Worked 3 claims: 1 approved, 1 referred and 1 declined."
     queue_model = stub(
@@ -95,8 +97,8 @@ def test_a_whole_run(client, database, caplog):
     ]
 
 
-def test_each_claim_in_a_run_is_traced_in_its_own_session(client, database, traces):
-    leave_waiting(database, "CLM-1001", "CLM-1003")
+def test_each_claim_in_a_run_is_traced_in_its_own_session(client, traces):
+    leave_waiting("CLM-1001", "CLM-1003")
     queue_model = stub(work("CLM-1001"), work("CLM-1003"), done())
     claim_model = stub(*decide("decline", 0), *decide("refer", 0))
     harness.run_queue(None, queue_model, claim_model)
@@ -110,8 +112,8 @@ def test_each_claim_in_a_run_is_traced_in_its_own_session(client, database, trac
     ]
 
 
-def test_the_cap(client, database):
-    leave_waiting(database, "CLM-1001", "CLM-1002", "CLM-1003", "CLM-1004")
+def test_the_cap(client):
+    leave_waiting("CLM-1001", "CLM-1002", "CLM-1003", "CLM-1004")
     queue_model = stub(work("CLM-1001"), work("CLM-1002"), work("CLM-1003"), done())
     claim_model = stub(*decide("refer", 0), *decide("refer", 0))
     harness.run_queue(2, queue_model, claim_model)
@@ -128,8 +130,8 @@ def test_the_cap(client, database):
     assert latest(client)["cap"] == 2
 
 
-def test_the_cap_holds_when_claims_are_handed_over_together(client, database):
-    leave_waiting(database, "CLM-1001", "CLM-1002", "CLM-1003")
+def test_the_cap_holds_when_claims_are_handed_over_together(client):
+    leave_waiting("CLM-1001", "CLM-1002", "CLM-1003")
     together = [work(i).tool_calls[0] for i in ("CLM-1001", "CLM-1002", "CLM-1003")]
     queue_model = stub(AIMessage(content="", tool_calls=together), done())
     claim_model = stub(*decide("refer", 0), *decide("refer", 0), *decide("refer", 0))
@@ -140,8 +142,8 @@ def test_the_cap_holds_when_claims_are_handed_over_together(client, database):
     assert [c["status"] for c in claims(client).values()].count("decided") == 2
 
 
-def test_a_claim_that_cant_be_started_leaves_the_cap_alone(client, database):
-    leave_waiting(database, "CLM-1001")
+def test_a_claim_that_cant_be_started_leaves_the_cap_alone(client):
+    leave_waiting("CLM-1001")
     queue_model = stub(work("CLM-1003"), work("CLM-1001"), done())
     harness.run_queue(1, queue_model, stub(*decide("refer", 0)))
 
@@ -152,8 +154,8 @@ def test_a_claim_that_cant_be_started_leaves_the_cap_alone(client, database):
     assert client.get("/api/claims/CLM-1003").json()["attempts"] == 0
 
 
-def test_each_claim_in_a_run_starts_clean_and_leaves_nothing_behind(database):
-    leave_waiting(database, "CLM-1001", "CLM-1003")
+def test_each_claim_in_a_run_starts_clean_and_leaves_nothing_behind():
+    leave_waiting("CLM-1001", "CLM-1003")
     claim_model = stub(*decide("decline", 0), *decide("refer", 0))
     work_claim = partial(harness.work_claim, agent=harness.claim_agent(claim_model))
     run = RunContext(api.start_run(2)["run_id"], 2, work_claim)
@@ -173,15 +175,15 @@ def test_each_claim_in_a_run_starts_clean_and_leaves_nothing_behind(database):
     assert {config["checkpoint_ns"] for config in kept} == {""}
 
 
-def test_a_cap_above_the_queue_is_the_queue(client, database):
-    leave_waiting(database, "CLM-1001")
+def test_a_cap_above_the_queue_is_the_queue(client):
+    leave_waiting("CLM-1001")
     claim_model = stub(*decide("refer", 0))
     harness.run_queue(5, stub(work("CLM-1001"), done()), claim_model)
     assert latest(client)["cap"] == 1
 
 
-def test_a_failed_claim_does_not_stop_the_run_and_is_tried_again(client, database):
-    leave_waiting(database, "CLM-1001", "CLM-1002", "CLM-1003")
+def test_a_failed_claim_does_not_stop_the_run_and_is_tried_again(client):
+    leave_waiting("CLM-1001", "CLM-1002", "CLM-1003")
     queue_model = stub(
         work("CLM-1001"), work("CLM-1002"), work("CLM-1003"), work("CLM-1001"), done()
     )
@@ -209,8 +211,8 @@ def test_a_failed_claim_does_not_stop_the_run_and_is_tried_again(client, databas
     assert latest(client)["status"] == "finished"
 
 
-def test_a_claim_that_fails_twice_is_left_for_a_handler(client, database):
-    leave_waiting(database, "CLM-1001", "CLM-1002")
+def test_a_claim_that_fails_twice_is_left_for_a_handler(client):
+    leave_waiting("CLM-1001", "CLM-1002")
     queue_model = stub(work("CLM-1001"), work("CLM-1002"), work("CLM-1001"), done())
     claim_model = stub(
         RuntimeError("Timed out"),
@@ -228,8 +230,8 @@ def test_a_claim_that_fails_twice_is_left_for_a_handler(client, database):
     assert latest(client)["status"] == "finished"
 
 
-def test_the_harness_names_missed_claims(client, database):
-    leave_waiting(database, "CLM-1001", "CLM-1002")
+def test_the_harness_names_missed_claims(client):
+    leave_waiting("CLM-1001", "CLM-1002")
     queue_model = stub(
         work("CLM-1001"),
         work("CLM-1002"),
@@ -252,8 +254,8 @@ def test_the_harness_names_missed_claims(client, database):
     assert latest(client)["summary"] == "Worked both claims."
 
 
-def test_the_harness_names_the_oldest_claims_first(client, database):
-    leave_waiting(database, "CLM-1002", "CLM-1008")
+def test_the_harness_names_the_oldest_claims_first(client):
+    leave_waiting("CLM-1002", "CLM-1008")
     queue_model = stub(done(), done(), done())
     harness.run_queue(1, queue_model, stub())
     assert asked(queue_model)[1].startswith(
@@ -261,8 +263,8 @@ def test_the_harness_names_the_oldest_claims_first(client, database):
     )
 
 
-def test_the_harness_reminds_twice_at_most(client, database):
-    leave_waiting(database, "CLM-1001", "CLM-1002")
+def test_the_harness_reminds_twice_at_most(client):
+    leave_waiting("CLM-1001", "CLM-1002")
     queue_model = stub(done("Done."), done("Still done."), done("Done for good."))
     harness.run_queue(1, queue_model, stub())
 
@@ -276,8 +278,8 @@ def test_the_harness_reminds_twice_at_most(client, database):
     assert claims(client)["CLM-1001"]["status"] == "waiting"
 
 
-def test_a_claim_left_in_progress_is_put_back(client, database):
-    leave_waiting(database, "CLM-1001")
+def test_a_claim_left_in_progress_is_put_back(client):
+    leave_waiting("CLM-1001")
     client.post("/api/claims/CLM-1001/start", json={"thread_id": "crashed"})
     harness.run_queue(None, stub(work("CLM-1001"), done()), stub(*decide("refer", 0)))
 
@@ -287,8 +289,8 @@ def test_a_claim_left_in_progress_is_put_back(client, database):
     assert (claim["status"], claim["attempts"]) == ("decided", 2)
 
 
-def test_a_failure_of_the_queue_agent_finishes_the_run(client, database):
-    leave_waiting(database, "CLM-1001")
+def test_a_failure_of_the_queue_agent_finishes_the_run(client):
+    leave_waiting("CLM-1001")
     queue_model = stub(work("CLM-1001"), RuntimeError("The provider is down"))
     with pytest.raises(RuntimeError, match="The provider is down"):
         harness.run_queue(None, queue_model, stub(*decide("refer", 0)))
@@ -299,16 +301,16 @@ def test_a_failure_of_the_queue_agent_finishes_the_run(client, database):
     assert "in_progress" not in {c["status"] for c in claims(client).values()}
 
 
-def test_nothing_waiting(client, database, caplog):
+def test_nothing_waiting(client, caplog):
     caplog.set_level(logging.INFO, logger="agent")
-    leave_waiting(database)
+    leave_waiting()
     harness.run_queue(None, stub(), stub())
     assert caplog.messages == ["No claims are waiting"]
     assert latest(client) is None
 
 
-def test_an_empty_summary_is_filled_in(client, database):
-    leave_waiting(database, "CLM-1001")
+def test_an_empty_summary_is_filled_in(client):
+    leave_waiting("CLM-1001")
     harness.run_queue(None, stub(work("CLM-1001"), done("")), stub(*decide("refer", 0)))
     assert latest(client)["summary"] == harness.NO_SUMMARY
 
