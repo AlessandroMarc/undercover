@@ -3,7 +3,7 @@
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -19,6 +19,7 @@ from backend.database import (
     engine,
     handlers,
     is_seeded,
+    model_calls,
     payments,
     policies,
     runs,
@@ -26,6 +27,7 @@ from backend.database import (
     settings,
     steps,
     todos,
+    work_times,
 )
 from backend.documents import contents, search, sections, titles
 from backend.models import (
@@ -38,6 +40,8 @@ from backend.models import (
     FinishRequest,
     Handler,
     Instructions,
+    ModelCall,
+    ModelCallRequest,
     Payment,
     PaymentRequest,
     Payout,
@@ -56,11 +60,14 @@ from backend.models import (
     StepRequest,
     Todo,
     TodosRequest,
+    WorkTime,
+    WorkTimeRequest,
 )
 from backend.payout import needs_sign_off, work_out_payout
 
 INSTRUCTIONS = Path(__file__).parent / "instructions"
 ATTEMPTS = 2
+RUN_NOT_FOUND = "Run {run_id} not found"
 
 
 @asynccontextmanager
@@ -84,9 +91,14 @@ def database() -> Iterator[Connection]:
 Database = Annotated[Connection, Depends(database, scope="function")]
 
 
+def stamp(moment: datetime) -> str:
+    """Write a moment in UTC to the second, as every record has it."""
+    return moment.isoformat(timespec="seconds")
+
+
 def now() -> str:
     """Return the current time in UTC, to the second."""
-    return datetime.now(UTC).isoformat(timespec="seconds")
+    return stamp(datetime.now(UTC))
 
 
 def dollars(amount: float) -> str:
@@ -163,6 +175,23 @@ def to_claim(row: RowMapping) -> Claim:
     )
 
 
+def started_thread(db: Connection, claim_id: str) -> str:
+    """Return the thread of a claim that has been started, or raise a 404 or a 409."""
+    thread_id = find_claim(db, claim_id)["thread_id"]
+    if thread_id is None:
+        raise HTTPException(409, f"Claim {claim_id} has not been started")
+    return thread_id
+
+
+def check_run(db: Connection, run_id: str | None) -> None:
+    """Check that the run named, if any, exists, or raise a 404."""
+    if run_id is None:
+        return
+    query = select(runs.c.run_id).where(runs.c.run_id == run_id)
+    if db.execute(query).first() is None:
+        raise HTTPException(404, RUN_NOT_FOUND.format(run_id=run_id))
+
+
 def add_step(
     db: Connection, claim_id: str, thread_id: str, kind: str, content: str
 ) -> Step:
@@ -185,7 +214,7 @@ def find_run(db: Connection, run_id: str) -> Run:
     """Return one run with its to-do list, or raise a 404."""
     row = db.execute(select(runs).where(runs.c.run_id == run_id)).mappings().first()
     if row is None:
-        raise HTTPException(404, f"Run {run_id} not found")
+        raise HTTPException(404, RUN_NOT_FOUND.format(run_id=run_id))
     query = (
         select(todos.c.content, todos.c.status)
         .where(todos.c.run_id == run_id)
@@ -291,10 +320,48 @@ def start_claim(claim_id: str, request: StartRequest, db: Database) -> Claim:
 @app.post("/api/claims/{claim_id}/steps", operation_id="record_step")
 def record_step(claim_id: str, request: StepRequest, db: Database) -> Step:
     """Record one step of the agent's work on a claim."""
-    thread_id = find_claim(db, claim_id)["thread_id"]
-    if thread_id is None:
-        raise HTTPException(409, f"Claim {claim_id} has not been started")
+    thread_id = started_thread(db, claim_id)
     return add_step(db, claim_id, thread_id, request.kind, request.content)
+
+
+@app.post("/api/claims/{claim_id}/model-calls", operation_id="record_model_call")
+def record_model_call(
+    claim_id: str, request: ModelCallRequest, db: Database
+) -> ModelCall:
+    """Record the tokens and the cost of one model call on a started claim."""
+    thread_id = started_thread(db, claim_id)
+    check_run(db, request.run_id)
+    query = (
+        insert(model_calls)
+        .values(
+            claim_id=claim_id,
+            thread_id=thread_id,
+            **request.model_dump(),
+            created_at=now(),
+        )
+        .returning(model_calls)
+    )
+    return ModelCall(**db.execute(query).mappings().one())
+
+
+@app.post("/api/claims/{claim_id}/work-times", operation_id="record_work_time")
+def record_work_time(claim_id: str, request: WorkTimeRequest, db: Database) -> WorkTime:
+    """Record one spell of the agent's work on a started claim, ending now."""
+    thread_id = started_thread(db, claim_id)
+    check_run(db, request.run_id)
+    started = datetime.now(UTC) - timedelta(seconds=request.seconds)
+    query = (
+        insert(work_times)
+        .values(
+            claim_id=claim_id,
+            thread_id=thread_id,
+            run_id=request.run_id,
+            started_at=stamp(started),
+            seconds=request.seconds,
+        )
+        .returning(work_times)
+    )
+    return WorkTime(**db.execute(query).mappings().one())
 
 
 @app.get("/api/claims/{claim_id}/steps", operation_id="list_steps")

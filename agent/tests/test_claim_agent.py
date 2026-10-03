@@ -14,7 +14,7 @@ from backend.database import engine, settings
 
 
 def work(claim_id, model, saver=None):
-    return harness.work_claim(claim_id, graph_on(model, saver))
+    return harness.work_claim(claim_id, None, graph_on(model, saver))
 
 
 def state_of(graph, client, claim_id):
@@ -86,7 +86,7 @@ def test_uses_the_claim_instructions_from_the_backend(client):
 def test_pauses_before_a_payout_over_the_limit(client):
     model = stub(*decide("approve", 1350.0))
     graph = graph_on(model)
-    report = harness.work_claim("CLM-1002", graph)
+    report = harness.work_claim("CLM-1002", None, graph)
     assert report == "CLM-1002  approve  $1,350.00, waiting for sign-off"
     assert len(model.prompts) == 2
 
@@ -108,7 +108,7 @@ def test_the_graph_follows_the_backend_on_the_limit(client):
 @pytest.mark.parametrize("decision", ["decline", "refer"])
 def test_declines_and_refers(client, decision):
     graph = graph_on(stub(*decide(decision, 0)))
-    report = harness.work_claim("CLM-1003", graph)
+    report = harness.work_claim("CLM-1003", None, graph)
     assert report == f"CLM-1003  {decision}  $0.00"
     claim = claim_of(client, "CLM-1003")
     assert (claim["status"], claim["payment"]) == ("decided", None)
@@ -225,7 +225,7 @@ def test_working_a_claim_saves_each_step_on_its_thread(client, monkeypatch):
         return invoke(start, config, **kwargs)
 
     monkeypatch.setattr(graph, "invoke", spy)
-    harness.work_claim("CLM-1003", graph)
+    harness.work_claim("CLM-1003", None, graph)
     [(config, kwargs)] = runs
     assert kwargs["durability"] == "sync"
     thread_id = claim_of(client, "CLM-1003")["thread_id"]
@@ -317,8 +317,8 @@ def test_a_claim_that_isnt_waiting_is_not_started(client):
 def test_each_claim_starts_clean(client):
     model = stub(*decide("decline", 0), *decide("refer", 0))
     graph = graph_on(model)
-    harness.work_claim("CLM-1001", graph)
-    harness.work_claim("CLM-1003", graph)
+    harness.work_claim("CLM-1001", None, graph)
+    harness.work_claim("CLM-1003", None, graph)
     firsts = [prompt for prompt in model.prompts if len(prompt) == 2]
     assert [prompt[1].content for prompt in firsts] == [
         "Claim CLM-1001",

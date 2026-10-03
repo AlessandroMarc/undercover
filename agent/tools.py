@@ -18,9 +18,10 @@ from agent import api
 
 @dataclass
 class ClaimContext:
-    """The claim a claim agent is working on."""
+    """The claim a claim agent is working on, and the run it works in, if any."""
 
     claim_id: str
+    run_id: str | None
 
 
 def keep_last(_: Any, new: Any) -> Any:

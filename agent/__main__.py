@@ -33,7 +33,7 @@ def main(args: list[str]) -> None:
             run_queue(options.cap, model(), graph)
             return
         try:
-            work_claim(options.claim_id, graph)
+            work_claim(options.claim_id, None, graph)
         except api.Refused as refusal:
             parser.exit(1, f"{options.claim_id}  not started: {refusal}\n")
 

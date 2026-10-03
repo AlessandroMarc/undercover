@@ -169,6 +169,29 @@ def fail_claim(claim_id: str, reason: str) -> dict[str, Any]:
     return _call("POST", f"/claims/{claim_id}/failure", json={"reason": reason})
 
 
+def record_model_call(
+    claim_id: str,
+    run_id: str | None,
+    input_tokens: int,
+    output_tokens: int,
+    cost: float,
+) -> dict[str, Any]:
+    body = {
+        "run_id": run_id,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cost": cost,
+    }
+    return _call("POST", f"/claims/{claim_id}/model-calls", json=body)
+
+
+def record_work_time(
+    claim_id: str, run_id: str | None, seconds: float
+) -> dict[str, Any]:
+    body = {"run_id": run_id, "seconds": seconds}
+    return _call("POST", f"/claims/{claim_id}/work-times", json=body)
+
+
 def start_run(cap: int) -> dict[str, Any]:
     return _call("POST", "/runs", json={"cap": cap})
 

@@ -78,9 +78,9 @@ def test_command_line_works_one_claim(monkeypatch, capsys, graph):
     worked = []
     monkeypatch.setattr(cli, "work_claim", lambda *args: worked.append(args))
     cli.main(["CLM-1001"])
-    assert worked == [("CLM-1001", graph)]
+    assert worked == [("CLM-1001", None, graph)]
 
-    def refuse(claim_id, claim_graph):
+    def refuse(claim_id, run_id, claim_graph):
         raise api.Refused(409, f"Claim {claim_id} is not waiting")
 
     monkeypatch.setattr(cli, "work_claim", refuse)
@@ -96,7 +96,7 @@ def test_model_name(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.delenv("MODEL_NAME", raising=False)
     default = harness.model()
-    assert default.model_name == "deepseek/deepseek-v4.1-flash"
+    assert default.model_name == "openai/gpt-6-luna"
     assert default.reasoning_effort == "low"
     assert default.request_timeout == 120
     assert default.max_retries == 5

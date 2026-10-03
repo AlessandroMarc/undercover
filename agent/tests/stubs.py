@@ -10,10 +10,13 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import harness
 
+# What OpenRouter reports for each reply.
+USAGE = {"prompt_tokens": 1200, "completion_tokens": 300, "cost": 0.0042}
+
 
 class StubModel(GenericFakeChatModel):
-    """A chat model that gives scripted replies, or raises a scripted error,
-    and keeps the prompts it was sent."""
+    """A chat model that gives scripted replies, with OpenRouter's token usage, or
+    raises a scripted error, and keeps the prompts it was sent."""
 
     prompts: list[list[BaseMessage]] = []
 
@@ -26,7 +29,10 @@ class StubModel(GenericFakeChatModel):
         if isinstance(reply, BaseException):
             raise reply
         message = AIMessage(content=reply) if isinstance(reply, str) else reply
-        return ChatResult(generations=[ChatGeneration(message=message)])
+        return ChatResult(
+            generations=[ChatGeneration(message=message)],
+            llm_output={"token_usage": USAGE},
+        )
 
 
 CALL_IDS = itertools.count()

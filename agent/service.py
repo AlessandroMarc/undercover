@@ -54,5 +54,5 @@ def resume_claim(
     signed_off = claim["decision"] and claim["decision"]["signed_off_by"]
     if claim["status"] != api.Status.IN_PROGRESS or not signed_off:
         raise HTTPException(409, f"Claim {claim_id} has no sign-off waiting to be paid")
-    background.add_task(carry_on, claim_id, graph)
+    background.add_task(carry_on, claim_id, None, graph)
     return {"status": "accepted"}

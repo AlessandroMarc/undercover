@@ -138,8 +138,10 @@ def test_each_claim_in_a_run_starts_clean_and_saves_its_own_progress(client):
     leave_waiting("CLM-1001", "CLM-1003")
     claim_model = stub(*decide("decline", 0), *decide("refer", 0))
     claim_saver = InMemorySaver()
-    work_claim = partial(harness.work_claim, graph=graph_on(claim_model, claim_saver))
-    run = RunContext(api.start_run(2)["run_id"], 2, work_claim)
+    run_id = api.start_run(2)["run_id"]
+    graph = graph_on(claim_model, claim_saver)
+    work_claim = partial(harness.work_claim, run_id=run_id, graph=graph)
+    run = RunContext(run_id, 2, work_claim)
     queue_agent = harness.queue_agent(
         stub(work("CLM-1001"), work("CLM-1003"), done()), 2
     )

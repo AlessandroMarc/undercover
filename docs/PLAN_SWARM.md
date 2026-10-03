@@ -274,17 +274,17 @@ API calls run against `npm run dev` on Supabase after `npm run seed`. Tables and
 
 Make GPT-6 Luna the default model. Add the `model_calls` and `work_times` tables, `record_model_call` and `record_work_time` in `main.py` with the other claim operations, and the run's id in `ClaimContext`. Record each model call's tokens and cost in the claim graph's `agent` node, and each spell of work in the harness. Tag each claim's trace with its run's id. The queue run still exists in this phase, so its claims record its id. The stub model's replies carry a `token_usage` like OpenRouter's.
 
-- [ ] pytest: with no `MODEL_NAME`, `model()` is `openai/gpt-6-luna` with reasoning effort `low`, a 120 second timeout and 5 retries; with `MODEL_NAME=openrouter/free` it has no reasoning effort
-- [ ] pytest, backend: `record_model_call` on a started claim records the tokens, the cost, the claim's thread, the time and the run, with a run's id and with null. A claim that hasn't started returns 409, `CLM-9999` and an unknown run return 404, and negative tokens or cost return 422
-- [ ] pytest, backend: `record_work_time` records the seconds, the run and a start equal to the recording time less the seconds, with the same 404, 409 and 422 rules
-- [ ] The shared OpenAPI test passes
-- [ ] Stub model test: working `CLM-1001` with no run records one model call per reply, with the stub's tokens and cost and no run, and one spell of work on the claim's thread
-- [ ] Stub model test, a queue run of two claims: every model call and spell of both claims carries the run's id, and each claim's root run has `langfuse_tags` equal to `[run_id]`. `CLM-1001` worked alone has no tags
-- [ ] Stub model test: a claim whose first attempt fails after one model call, worked again in the same run, has both attempts' model calls and spells under the run
-- [ ] Stub model test: `CLM-1002` approved for 1,350.00 pauses; after a 1 second wait it is signed off and carried on with no run. It has two spells, which together come to well under the wait, and the second has no run
-- [ ] `npm run seed`, then Supabase MCP: `model_calls` and `work_times` are in `undercover` and empty
-- [ ] With `npm run dev` running: after `start_claim` on `CLM-1004` with curl, `record_model_call` with 1,200 input tokens, 300 output tokens and a cost of 0.0042, and `record_work_time` with 12.5 seconds, both return 200 and Supabase MCP shows the rows with no run. `npm run seed` afterwards
-- [ ] `npm run check` passes
+- [x] pytest: with no `MODEL_NAME`, `model()` is `openai/gpt-6-luna` with reasoning effort `low`, a 120 second timeout and 5 retries; with `MODEL_NAME=openrouter/free` it has no reasoning effort
+- [x] pytest, backend: `record_model_call` on a started claim records the tokens, the cost, the claim's thread, the time and the run, with a run's id and with null. A claim that hasn't started returns 409, `CLM-9999` and an unknown run return 404, and negative tokens or cost return 422
+- [x] pytest, backend: `record_work_time` records the seconds, the run and a start equal to the recording time less the seconds, with the same 404, 409 and 422 rules
+- [x] The shared OpenAPI test passes
+- [x] Stub model test: working `CLM-1001` with no run records one model call per reply, with the stub's tokens and cost and no run, and one spell of work on the claim's thread
+- [x] Stub model test, a queue run of two claims: every model call and spell of both claims carries the run's id, and each claim's root run has `langfuse_tags` equal to `[run_id]`. `CLM-1001` worked alone has no tags
+- [x] Stub model test: a claim whose first attempt fails after one model call, worked again in the same run, has both attempts' model calls and spells under the run
+- [x] Stub model test: `CLM-1002` approved for 1,350.00 pauses; the harness's clock is moved on an hour, and it is signed off and carried on with no run. It has two spells, which together come to under a second, and the second has no run
+- [x] `npm run seed`, then Supabase MCP: `model_calls` and `work_times` are in `undercover` and empty
+- [x] With `npm run dev` running: after `start_claim` on `CLM-1004` with curl, `record_model_call` with 1,200 input tokens, 300 output tokens and a cost of 0.0042, and `record_work_time` with 12.5 seconds, both return 200 and Supabase MCP shows the rows with no run. `npm run seed` afterwards
+- [x] `npm run check` passes
 
 ## Phase 2: The dispatcher in place of the queue agent
 

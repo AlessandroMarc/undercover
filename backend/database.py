@@ -123,6 +123,28 @@ runs = Table(
     Column("finished_at", Text),
     Column("summary", Text),
 )
+model_calls = Table(
+    "model_calls",
+    metadata,
+    Column("model_call_id", Integer, primary_key=True),
+    Column("claim_id", Text, ForeignKey("claims.claim_id"), nullable=False),
+    Column("thread_id", Text, nullable=False),
+    Column("run_id", Text, ForeignKey("runs.run_id")),
+    Column("input_tokens", Integer, nullable=False),
+    Column("output_tokens", Integer, nullable=False),
+    Column("cost", Float, nullable=False),
+    Column("created_at", Text, nullable=False),
+)
+work_times = Table(
+    "work_times",
+    metadata,
+    Column("work_time_id", Integer, primary_key=True),
+    Column("claim_id", Text, ForeignKey("claims.claim_id"), nullable=False),
+    Column("thread_id", Text, nullable=False),
+    Column("run_id", Text, ForeignKey("runs.run_id")),
+    Column("started_at", Text, nullable=False),
+    Column("seconds", Float, nullable=False),
+)
 todos = Table(
     "todos",
     metadata,

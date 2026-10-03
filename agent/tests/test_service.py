@@ -37,7 +37,7 @@ def test_a_sign_off_picks_the_claim_up_and_pays_it_once(
 ):
     model = stub(*decide("approve", 1350.0))
     graph = graph_on(model, InMemorySaver())
-    harness.work_claim("CLM-1002", graph)
+    harness.work_claim("CLM-1002", None, graph)
     signed = client.post("/api/claims/CLM-1002/sign-off", json={"handler_id": "HND-01"})
     assert agent_calls == ["/api/claims/CLM-1002/resume"]
 
@@ -63,7 +63,7 @@ def test_a_sign_off_picks_the_claim_up_and_pays_it_once(
 
 def test_a_claim_waiting_for_sign_off_is_not_picked_up(client, serve):
     graph = graph_on(stub(*decide("approve", 1350.0)))
-    harness.work_claim("CLM-1002", graph)
+    harness.work_claim("CLM-1002", None, graph)
     before = steps_of(client, "CLM-1002")
     response = resume(serve(graph), "CLM-1002")
     assert response.status_code == 409
