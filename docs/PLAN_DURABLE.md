@@ -329,17 +329,17 @@ Complete `carry_on` for a claim stopped partway, and make a queue run first fini
 
 Run the trial the brief describes, then bring `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/CODE_STANDARDS.md` and `docs/STATUS.md` up to date.
 
-- [ ] Live: after `npm run seed` and with `npm run dev` running, `uv run -m agent --cap 5` works five claims and finishes the run with its summary. At least one waits for sign-off (on September 30, `CLM-1008` and `CLM-1011` did)
-- [ ] Live, in the browser: signing off a held claim as Dana Whitfield shows it Decided and paid, with the handler and the time, within five seconds
-- [ ] Live: Supabase MCP, checked several times during the run and the sign-off: `select count(*) from pg_stat_activity where usename = 'postgres'` never shows more than 12
-- [ ] Live: through Langfuse's API, the held claim's session has traces from before and after the sign-off
-- [ ] Live: afterwards the queue shows Waiting 20 and In progress 0
-- [ ] `docs/SPEC.md`: its section on working the queue describes the pause for a sign-off, the agent picking the claim up after it, carrying on after a restart without a new attempt, and nothing decided or paid twice. Its Rules are unchanged
-- [ ] `docs/TECH_STACK.md` names SQLAlchemy Core with Supabase and SQLite in the tests, the claim graph with the Postgres checkpointer and `durability="sync"`, Langfuse, the agent's service and `UNDERCOVER_AGENT`, and the entry points `run_queue(cap, llm, graph)`, `work_claim(claim_id, graph)` and `carry_on(claim_id, graph)`
-- [ ] `docs/PROCESS.md`: `npm run dev` starts the backend, the agent's service and the dashboard; `npm run seed` reseeds Supabase; the tests need no network
-- [ ] `docs/CODE_STANDARDS.md`: the agent has four parts, and the backend reaches the agent's service only through `backend/agent_service.py`
-- [ ] `docs/STATUS.md` describes what's built, how to seed, run and sign off, and the time and decisions of the live run
-- [ ] `npm run check` passes, both with `.env` in place and with it moved out of the way
+- [x] Live: after `npm run seed` and with `npm run dev` running, `uv run -m agent --cap 5` works five claims and finishes the run with its summary. At least one waits for sign-off (on September 30, `CLM-1008` and `CLM-1011` did)
+- [x] Live, in the browser: signing off a held claim as Dana Whitfield shows it Decided and paid, with the handler and the time, within five seconds
+- [x] Live: Supabase MCP, checked several times during the run and the sign-off: `select count(*) from pg_stat_activity where usename = 'postgres'` never shows more than 12
+- [x] Live: through Langfuse's API, the held claim's session has traces from before and after the sign-off
+- [x] Live: afterwards the queue shows Waiting 20 and In progress 0
+- [x] `docs/SPEC.md`: its section on working the queue describes the pause for a sign-off, the agent picking the claim up after it, carrying on after a restart without a new attempt, and nothing decided or paid twice. Its Rules are unchanged
+- [x] `docs/TECH_STACK.md` names SQLAlchemy Core with Supabase and SQLite in the tests, the claim graph with the Postgres checkpointer and `durability="sync"`, Langfuse, the agent's service and `UNDERCOVER_AGENT`, and the entry points `run_queue(cap, llm, graph)`, `work_claim(claim_id, graph)` and `carry_on(claim_id, graph)`
+- [x] `docs/PROCESS.md`: `npm run dev` starts the backend, the agent's service and the dashboard; `npm run seed` reseeds Supabase; the tests need no network
+- [x] `docs/CODE_STANDARDS.md`: the agent has four parts, and the backend reaches the agent's service only through `backend/agent_service.py`
+- [x] `docs/STATUS.md` describes what's built, how to seed, run and sign off, and the time and decisions of the live run
+- [x] `npm run check` passes, both with `.env` in place and with it moved out of the way
 
 ## Not in this plan
 

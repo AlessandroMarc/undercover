@@ -1,14 +1,13 @@
 # Status
 
-The claims pilot in `docs/PLAN.md` and the harness in `docs/PLAN_HARNESS.md` are built: all six phases of each are done.
-
-The plan for durable state in `docs/PLAN_DURABLE.md` is under way: phases 1 to 5 of 6 are done: the payout rules and tracing, our records on Supabase, the claim agent as a graph that saves its progress, a sign-off picking the claim back up, and work surviving a restart.
+The claims pilot in `docs/PLAN.md`, the harness in `docs/PLAN_HARNESS.md` and durable state in `docs/PLAN_DURABLE.md` are built: all six phases of each are done.
 
 ## Running it
 
 - `npm run dev` starts the backend on port 8000, the agent's service on port 8002 and the dashboard on http://localhost:5173. It passes `.env` to the backend and the agent's service, so it needs a `.env`, and with `DATABASE_URL` there the backend uses Supabase.
 - `npm run seed` rebuilds the database `npm run dev` uses from `data/`, putting every claim back in the queue. `uv run -m backend.seed` alone never reads `.env` and rebuilds the SQLite file `undercover.db`, as the end-to-end tests do. The backend only seeds a database with no tables, so reseed after pulling a change to the tables: an older `undercover.db` lacks columns such as `runs.number`.
-- `uv run -m agent` works the whole queue with the queue agent. `uv run -m agent --cap 5` works at most five claims and leaves the rest waiting. `uv run -m agent CLM-1001` works one claim with the claim agent alone. Each prints a report line per claim, and a queue run ends with its summary. All use the real model through OpenRouter.
+- `uv run -m agent` works the whole queue with the queue agent, after carrying on any claim left in progress. `uv run -m agent --cap 5` works at most five claims and leaves the rest waiting. `uv run -m agent CLM-1001` works one claim with the claim agent alone. Each prints a report line per claim, and a queue run ends with its summary. All use the real model through OpenRouter and save the claim graph's progress in Supabase.
+- A payout over the limit waits for a handler to sign it off on its claim page. With `npm run dev` running, the agent's service then pays it within a second or two; otherwise the next `uv run -m agent` does.
 
 ## Built
 
@@ -21,7 +20,7 @@ The plan for durable state in `docs/PLAN_DURABLE.md` is under way: phases 1 to 5
   - Runs: a run has a cap, a to-do list that `write_todos` replaces whole, and a summary recorded by `finish_run`.
   - Documents: seeding stores the policy wording and the claims manual in a `documents` table with their titles, and the backend splits both into their numbered sections. `read_section` returns one section with its document's title, and `search_documents` finds the sections that mention a word or phrase.
   - Instructions: `backend/instructions/queue.md` for running the queue and `claim.md` for working a claim. Each gives the agent its goal, what it has to work from and what done looks like, and leaves the steps to the agent and to the manual. `get_instructions` serves both, with the claim instructions followed by the contents of the wording and the manual.
-- `agent/`: `api.py` is the agent's only way to the backend, with one function per operation, at `UNDERCOVER_API` in the environment or `http://127.0.0.1:8000`. `tools.py` holds every tool. `harness.py` builds and runs the agents. `uv run -m agent` loads `.env` and prints each claim's report line and the run's summary. The default model is `deepseek/deepseek-v4.1-flash` with low reasoning effort, a 120 second timeout and 5 retries, or the model in `MODEL_NAME`.
+- `agent/`, in four parts: `api.py` is the agent's only way to the backend, with one function per operation, at `UNDERCOVER_API` in the environment or `http://127.0.0.1:8000`. `tools.py` holds every tool and the contexts and state they read. `harness.py` builds and runs the agents. `service.py` is the agent's service. `uv run -m agent` loads `.env` and prints each claim's report line and the run's summary. The default model is `deepseek/deepseek-v4.1-flash` with low reasoning effort, a 120 second timeout and 5 retries, or the model in `MODEL_NAME`.
   - The claim agent is a hand-written LangGraph graph, built by `claim_graph(llm, saver)`, with a node that calls the model (`agent`), a `ToolNode` (`tools`), `wait_for_sign_off` and `pay`. Its state holds the messages, the model calls so far, and the decision and status the backend returned from `record_decision`. After a decision a decline or a referral ends the graph, an approval the backend can pay goes to `pay`, and one the backend holds for sign-off pauses at `wait_for_sign_off` with `interrupt()`; the graph never compares a payout with the limit itself. The agent node records every message and tool call as a step on the claim, and the tool node records every tool result plus a `reading` step for each section read. The backend's refusals and calls with bad arguments go back to the model, any other error stops the graph, and the agent node stops after 30 model calls, counted across restarts. Tools run one at a time, so two decisions in one reply can't race.
   - The claim agent has seven tools named after backend operations: `get_claim`, `get_policy`, `get_claim_history`, `search_documents`, `read_section`, `calculate_payout` and `record_decision`. They act on the claim in the agent's `ClaimContext`, so a claim agent can't touch another claim. It has no tool to pay: the graph pays.
   - Progress: `checkpointer()` saves the graph's state after every step (`durability="sync"`) with LangGraph's `PostgresSaver` on a pool of at most 4 connections to `DATABASE_URL`, with its tables in the `undercover` schema beside the backend's. The agent is synchronous throughout, since async Postgres connections don't work with Windows' default event loop. The tests use an `InMemorySaver`.
@@ -36,6 +35,10 @@ The plan for durable state in `docs/PLAN_DURABLE.md` is under way: phases 1 to 5
   - The agent's instructions (`/instructions`): for running the queue and for working a claim, read only.
 - `e2e/`: tests of the three pages, the agent's steps appearing on a claim page, a handler's sign-off reaching a stand-in for the agent's service (`e2e/agent_stand_in.ts`, on port 8003), the to-do list being ticked off on the queue, and a claim that fails twice being left for a handler. Playwright runs its own backend on port 8001 with `e2e/undercover.db`, and its own dashboard on port 5174, so it can run next to `npm run dev`.
 
+## Supabase
+
+The backend's tables and the checkpointer's are in the `undercover` schema. Row Level Security is off on them, and Supabase's table listing warns about that, but the schema isn't exposed through Supabase's Data API: the `anon`, `authenticated` and `service_role` roles have no access to it, and Supabase's security advisor reports nothing. The backend and the agent connect as `postgres`, the tables' owner.
+
 ## Review of the harness
 
 On September 30, 2026, the head of engineering's review (`docs/HUMAN_REVIEW_HARNESS.md`) found that the harness was unfit for a PR:
@@ -49,6 +52,15 @@ The agent was rebuilt as `api.py`, `tools.py` and `harness.py`, and the instruct
 These problems passed every check. Each phase was built, checked against its criteria and committed, and nobody read the code the way a reviewer reads a PR. `docs/CODE_STANDARDS.md` now sets the structural rules the review found broken. `docs/PROCESS.md` now requires a review by a fresh subagent before every commit, and a design in every plan.
 
 ## Last live run
+
+On October 2, 2026, after `npm run seed` and with `npm run dev` running, `uv run -m agent --cap 5` with `deepseek/deepseek-v4.1-flash` worked the five longest-waiting claims in 2 minutes 42 seconds, with the same decisions as on September 30:
+- CLM-1001 was approved and paid $420.00, the payout `calculate_payout` worked out.
+- CLM-1008 was approved for $2,240.00 and CLM-1011 for $1,150.00, both waiting for sign-off. Signed off on the dashboard during the run, CLM-1008 was paid by the agent's service in the same second, with Dana Whitfield and the time on the payment.
+- CLM-1018 was referred and CLM-1010 declined.
+
+During the run and the sign-off, Supabase showed at most 9 connections as `postgres`, one of them Supabase's own `pg_net`. CLM-1008's Langfuse session holds a "Work claim" trace from before the sign-off and a "Carry on" trace from after it. Afterwards the queue showed Waiting 20, In progress 0, Waiting for sign-off 1 and Decided 4.
+
+Earlier the same day, a run capped at one claim was killed with `kill -9` partway through CLM-1001. The next run finished the stopped run with "The run stopped before it finished." and carried CLM-1001 on from its last saved step on the same thread, as attempt 1, deciding and paying it once. In another trial, with the agent's service down, a sign-off left CLM-1003 in progress and the next run paid it. In one of these runs the queue agent's summary said a $420.00 approval was waiting for sign-off when it had been paid; the report lines and the backend's records were right, but the summary is the model's own writing.
 
 On September 30, 2026, after reseeding, `uv run -m agent --cap 5` with `deepseek/deepseek-v4.1-flash` and the instructions rewritten as goals worked the five longest-waiting claims in 2 minutes 9 seconds. The decisions were the same as on September 29:
 - CLM-1001 was approved and paid $420.00.

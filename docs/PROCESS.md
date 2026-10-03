@@ -1,12 +1,14 @@
 # Process
 
-`uv sync` and `npm install` at the repo root install everything, including a git pre-commit hook. `npm run dev` starts the backend and the dashboard.
+`uv sync` and `npm install` at the repo root install everything, including a git pre-commit hook. `npm run dev` starts the backend, the agent's service and the dashboard, passing them `.env`. `npm run seed` rebuilds the database `npm run dev` uses, on Supabase when `DATABASE_URL` is in `.env`.
 
 `npm run check` runs every check:
 
 - Python: ruff (lint and format), pyright, and pytest with 80% coverage
 - TypeScript: ESLint, Prettier, tsc, and vitest with 80% coverage
 - Playwright end-to-end tests
+
+The checks need no network and never read `.env`: the tests use SQLite, a stub model, and stand-ins for Langfuse and the agent's service. Tables and connections on Supabase can be checked through the Supabase MCP server, which is read-only.
 
 The pre-commit hook runs the format, lint, type and unit test checks on every commit.
 
@@ -42,6 +44,7 @@ The checks show that the code works, but not that it is fit to merge. Every code
 ## Rules
 
 - Add tests with each change. Tests never call a model; use a stub model.
+- Before a live run with the real model, reseed with `npm run seed`, and cap a queue run at five claims.
 - Outside a plan, commit each change once you have checked and reviewed it.
 - Run `npm run check` before you hand work over.
 - Never use `git commit --no-verify`.
