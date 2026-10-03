@@ -64,6 +64,24 @@ def read_section(
 
 
 @tool
+def calculate_payout(
+    benefit: Annotated[api.Benefit, "The benefit the claim is paid under"],
+    lines: Annotated[
+        list[api.Line],
+        "The covered items and expenses, one for each line of the claim, with any "
+        "excluded ones left out",
+    ],
+    paid_by_others: Annotated[
+        float, "What a carrier, hotel or anyone else has paid or refunded, or 0"
+    ],
+    runtime: ToolRuntime[ClaimContext],
+) -> str:
+    """Work out the payout on your claim with UnderCover's payout rules."""
+    claim_id = runtime.context.claim_id
+    return json.dumps(api.calculate_payout(claim_id, benefit, lines, paid_by_others))
+
+
+@tool
 def record_decision(
     decision: api.DecisionKind,
     payout: Annotated[float, "In US dollars, and 0 for a decline or a referral"],
@@ -114,6 +132,7 @@ CLAIM_TOOLS = [
     get_claim_history,
     search_documents,
     read_section,
+    calculate_payout,
     record_decision,
     pay_claim,
 ]

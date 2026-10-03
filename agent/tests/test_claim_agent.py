@@ -1,4 +1,5 @@
 import itertools
+import json
 import logging
 
 import pytest
@@ -114,6 +115,52 @@ def test_reading_a_section_is_recorded(client):
     assert steps[5] == ("tool_call", 'search_documents(query="wild animal")')
     assert steps[6][1].startswith('search_documents: [{"document": "claims_manual"')
     assert [s for s in steps if s[0] == "reading"] == [steps[2]]
+
+
+def test_working_out_the_payout(client):
+    lines = [
+        {
+            "description": "Hotel",
+            "amount": 245,
+            "quantity": 1,
+            "kind": "hotel",
+            "nights": 1,
+            "hours": 0,
+        },
+        {
+            "description": "Meals",
+            "amount": 95,
+            "quantity": 1,
+            "kind": "expense",
+            "nights": 0,
+            "hours": 0,
+        },
+        {
+            "description": "Taxis",
+            "amount": 80,
+            "quantity": 1,
+            "kind": "expense",
+            "nights": 0,
+            "hours": 0,
+        },
+    ]
+    model = stub(
+        call("calculate_payout", benefit="trip_delay", lines=lines, paid_by_others=0),
+        *decide("approve", 420.0, pay(420.0)),
+    )
+    assert work("CLM-1001", model) == "CLM-1001  approve  $420.00"
+    result = steps_of(client, "CLM-1001")[1]
+    assert result["kind"] == "tool_result"
+    content = result["content"].removeprefix("calculate_payout: ")
+    assert json.loads(content)["payout"] == 420.0
+
+
+def test_a_claim_is_traced_in_the_session_of_its_thread(client, traces):
+    work("CLM-1001", stub(*decide("refer", 0)))
+    thread_id = client.get("/api/claims/CLM-1001").json()["thread_id"]
+    assert [(t["langfuse_session_id"], t["langfuse_trace_name"]) for t in traces] == [
+        (f"CLM-1001:{thread_id}", "Work claim")
+    ]
 
 
 def test_a_section_with_bad_arguments_goes_back_to_the_model(client):

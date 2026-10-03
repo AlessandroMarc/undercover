@@ -4,6 +4,7 @@ import os
 from typing import Any, Literal, TypedDict
 
 import httpx
+from pydantic import BaseModel, Field
 
 BACKEND_URL = os.getenv("UNDERCOVER_API", "http://127.0.0.1:8000")
 
@@ -12,11 +13,57 @@ backend = httpx.Client(base_url=f"{BACKEND_URL}/api", timeout=30)
 DecisionKind = Literal["approve", "decline", "refer"]
 DocumentName = Literal["policy_wording", "claims_manual"]
 StepKind = Literal["tool_call", "tool_result", "message", "reading"]
+Benefit = Literal[
+    "trip_cancellation",
+    "trip_interruption",
+    "trip_delay",
+    "baggage_delay",
+    "baggage",
+    "passport",
+    "emergency_medical",
+]
 
 
 class Todo(TypedDict):
     content: str
     status: Literal["to_do", "in_progress", "done", "left_for_handler"]
+
+
+LineKind = Literal[
+    "item", "electronics", "cash", "expense", "hotel", "meals_without_receipts"
+]
+
+
+class Line(BaseModel):
+    """One covered item or expense on a claim."""
+
+    description: str = Field(description="What the item or expense is")
+    amount: float = Field(
+        description="The total claimed for the line in US dollars, before any limits. "
+        "For several items, the total for all of them"
+    )
+    quantity: int = Field(
+        ge=1,
+        description="How many separate items the line holds, such as 3 for three "
+        "shirts. A pair or a set is one item, and an expense is 1",
+    )
+    kind: LineKind = Field(
+        description="item: a belonging, or a pair or set that counts as one item. "
+        "electronics: only a phone, tablet, laptop, camera or its lens, e-reader or "
+        "smartwatch; any other device is an item. "
+        "cash: cash that was lost or stolen. "
+        "expense: any other cost with a receipt, such as a medical bill, a meal, a "
+        "taxi, a fee or a prepaid trip cost. "
+        "hotel: a hotel during a trip delay. "
+        "meals_without_receipts: meals during a trip delay with no receipts."
+    )
+    nights: int = Field(
+        description="For a hotel, the number of nights, and 0 otherwise"
+    )
+    hours: float = Field(
+        description="For meals without receipts, the length of the delay in hours, "
+        "and 0 otherwise"
+    )
 
 
 class Refused(Exception):
@@ -57,6 +104,17 @@ def search_documents(query: str) -> list[dict[str, Any]]:
 
 def read_section(document: DocumentName, number: int) -> dict[str, Any]:
     return _call("GET", f"/documents/{document}/sections/{number}")
+
+
+def calculate_payout(
+    claim_id: str, benefit: Benefit, lines: list[Line], paid_by_others: float
+) -> dict[str, Any]:
+    body = {
+        "benefit": benefit,
+        "lines": [line.model_dump() for line in lines],
+        "paid_by_others": paid_by_others,
+    }
+    return _call("POST", f"/claims/{claim_id}/payout", json=body)
 
 
 def start_claim(claim_id: str, thread_id: str) -> dict[str, Any]:

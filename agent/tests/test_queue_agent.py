@@ -95,6 +95,21 @@ def test_a_whole_run(client, database, caplog):
     ]
 
 
+def test_each_claim_in_a_run_is_traced_in_its_own_session(client, database, traces):
+    leave_waiting(database, "CLM-1001", "CLM-1003")
+    queue_model = stub(work("CLM-1001"), work("CLM-1003"), done())
+    claim_model = stub(*decide("decline", 0), *decide("refer", 0))
+    harness.run_queue(None, queue_model, claim_model)
+    threads = [
+        client.get(f"/api/claims/{i}").json()["thread_id"]
+        for i in ("CLM-1001", "CLM-1003")
+    ]
+    assert [t["langfuse_session_id"] for t in traces] == [
+        f"CLM-1001:{threads[0]}",
+        f"CLM-1003:{threads[1]}",
+    ]
+
+
 def test_the_cap(client, database):
     leave_waiting(database, "CLM-1001", "CLM-1002", "CLM-1003", "CLM-1004")
     queue_model = stub(work("CLM-1001"), work("CLM-1002"), work("CLM-1003"), done())

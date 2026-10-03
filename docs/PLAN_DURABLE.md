@@ -226,22 +226,22 @@ API calls run against `npm run dev` on a freshly seeded database: SQLite with `u
 
 Bring in the payout rules as `backend/payout.py` and the `calculate_payout` operation, seed `plans.json` into `settings`, and give the claim agent the `calculate_payout` tool. Rewrite the claim instructions for it. Trace each claim agent run in Langfuse, invoked in a fresh `contextvars.Context` so it is a root run in the claim's session. Move the OpenAPI rules check into a shared test helper, `api_rules.py` beside the root `conftest.py`, and extend it to the models inside a request body.
 
-- [ ] `curl -s -X POST localhost:8000/api/claims/CLM-1007/payout` with a smartphone line of 1,099.00 (`kind` `electronics`, quantity 1, nights and hours 0), benefit `baggage` and 0 paid by others returns payout 50.0, the steps "Smartphone, limited to $150.00" (150.0) and "Less the deductible" (-100.0), and `needs_sign_off` false
-- [ ] The same for `CLM-1003` with one `expense` line of 3,800.00 under `emergency_medical` returns 3,750.0 with `needs_sign_off` true
-- [ ] `CLM-1002` with a suitcase of 280.00, a wool suit of 420.00 and four shirts of 120.00 (quantity 4), all `item`, under `baggage` with 100.00 paid by others, returns 550.0, including the step "Wool suit, limited to $300.00"
-- [ ] `CLM-1001` with a hotel of 245.00 for one night and two `expense` lines of 95.00 and 80.00 under `trip_delay` returns 420.0 with no deductible
-- [ ] A line without `nights` returns 422, a benefit of `pets` returns 422, and `CLM-9999` returns 404
-- [ ] pytest covers every rule in the design, with a test for each kind of line, the deductible applying only to baggage and emergency medical, the cap at the trip cost, and a payout that would fall below zero. With the limit in `settings` changed to 500, a payout of 550.00 needs sign-off
-- [ ] `grep -rn "data" backend/payout.py` finds nothing, and `grep -rn 1000 backend --include=*.py` finds nothing outside `backend/tests/`
-- [ ] The shared OpenAPI test passes, and fails on a request model with an optional field nested in its body (checked with a model defined in the test)
-- [ ] A pytest test checks that the claim agent's tools are exactly `get_claim`, `get_policy`, `get_claim_history`, `search_documents`, `read_section`, `calculate_payout`, `record_decision` and `pay_claim`, each named after a backend operation, and none takes a claim id
-- [ ] Stub model test: the stub calls `calculate_payout` for `CLM-1001` with the lines above, and the tool result recorded on the claim holds payout 420.0
-- [ ] `curl -s localhost:8000/api/instructions` shows the claim instructions naming `calculate_payout`
-- [ ] Stub model test, with a recording callback handler in place of Langfuse's: working `CLM-1001` starts one root run named "Work claim" with the session id `CLM-1001:` followed by the claim's thread id
-- [ ] The same inside a queue run with two claims: each claim agent's run is a root run with its own claim's session, not a child of the queue agent's run
-- [ ] Live: after reseeding and with `npm run dev` running, `uv run -m agent CLM-1001` decides the claim. Its steps include a `calculate_payout(...)` call, and the decision's payout equals the payout the tool returned
-- [ ] Live: through Langfuse's API, the session `CLM-1001:<thread id>` has a trace named "Work claim" with at least two model calls and the tool calls between them
-- [ ] `npm run check` passes
+- [x] `curl -s -X POST localhost:8000/api/claims/CLM-1007/payout` with a smartphone line of 1,099.00 (`kind` `electronics`, quantity 1, nights and hours 0), benefit `baggage` and 0 paid by others returns payout 50.0, the steps "Smartphone, limited to $150.00" (150.0) and "Less the deductible" (-100.0), and `needs_sign_off` false
+- [x] The same for `CLM-1003` with one `expense` line of 3,800.00 under `emergency_medical` returns 3,750.0 with `needs_sign_off` true
+- [x] `CLM-1002` with a suitcase of 280.00, a wool suit of 420.00 and four shirts of 120.00 (quantity 4), all `item`, under `baggage` with 100.00 paid by others, returns 550.0, including the step "Wool suit, limited to $300.00"
+- [x] `CLM-1001` with a hotel of 245.00 for one night and two `expense` lines of 95.00 and 80.00 under `trip_delay` returns 420.0 with no deductible
+- [x] A line without `nights` returns 422, a benefit of `pets` returns 422, and `CLM-9999` returns 404
+- [x] pytest covers every rule in the design, with a test for each kind of line, the deductible applying only to baggage and emergency medical, the cap at the trip cost, and a payout that would fall below zero. With the limit in `settings` changed to 500, a payout of 550.00 needs sign-off
+- [x] `grep -rn "data" backend/payout.py` finds nothing, and `grep -rn 1000 backend --include=*.py` finds nothing outside `backend/tests/`
+- [x] The shared OpenAPI test passes, and fails on a request model with an optional field nested in its body (checked with a model defined in the test)
+- [x] A pytest test checks that the claim agent's tools are exactly `get_claim`, `get_policy`, `get_claim_history`, `search_documents`, `read_section`, `calculate_payout`, `record_decision` and `pay_claim`, each named after a backend operation, and none takes a claim id
+- [x] Stub model test: the stub calls `calculate_payout` for `CLM-1001` with the lines above, and the tool result recorded on the claim holds payout 420.0
+- [x] `curl -s localhost:8000/api/instructions` shows the claim instructions naming `calculate_payout`
+- [x] Stub model test, with a recording callback handler in place of Langfuse's: working `CLM-1001` starts one root run named "Work claim" with the session id `CLM-1001:` followed by the claim's thread id
+- [x] The same inside a queue run with two claims: each claim agent's run is a root run with its own claim's session, not a child of the queue agent's run
+- [x] Live: after reseeding and with `npm run dev` running, `uv run -m agent CLM-1001` decides the claim. Its steps include a `calculate_payout(...)` call, and the decision's payout equals the payout the tool returned
+- [x] Live: through Langfuse's API, the session `CLM-1001:<thread id>` has a trace named "Work claim" with at least two model calls and the tool calls between them
+- [x] `npm run check` passes
 
 ## Phase 2: Our records on Supabase
 

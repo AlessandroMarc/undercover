@@ -25,6 +25,9 @@ from backend.models import (
     Instructions,
     Payment,
     PaymentRequest,
+    Payout,
+    PayoutRequest,
+    Plans,
     Policy,
     PreviousClaim,
     Run,
@@ -38,6 +41,7 @@ from backend.models import (
     Todo,
     TodosRequest,
 )
+from backend.payout import needs_sign_off, work_out_payout
 
 INSTRUCTIONS = Path(__file__).parent / "instructions"
 ATTEMPTS = 2
@@ -78,6 +82,11 @@ def approval_limit(db: sqlite3.Connection) -> float:
     return db.execute("SELECT payout_approval_limit FROM settings").fetchone()[0]
 
 
+def plans(db: sqlite3.Connection) -> Plans:
+    """Return the plans and add-ons, and the benefits the deductible applies to."""
+    return Plans(**json.loads(db.execute("SELECT plans FROM settings").fetchone()[0]))
+
+
 def find_claim(db: sqlite3.Connection, claim_id: str) -> sqlite3.Row:
     """Return one claim's row, or raise a 404."""
     row = db.execute(
@@ -86,6 +95,16 @@ def find_claim(db: sqlite3.Connection, claim_id: str) -> sqlite3.Row:
     if row is None:
         raise HTTPException(404, f"Claim {claim_id} not found")
     return row
+
+
+def find_policy(db: sqlite3.Connection, policy_id: str) -> Policy:
+    """Return one policy, or raise a 404."""
+    row = db.execute(
+        "SELECT record FROM policies WHERE policy_id = ?", (policy_id,)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, f"Policy {policy_id} not found")
+    return Policy(**json.loads(row["record"]))
 
 
 def to_summary(row: sqlite3.Row) -> ClaimSummary:
@@ -188,12 +207,7 @@ def get_claim(claim_id: str, db: Database) -> Claim:
 @app.get("/api/policies/{policy_id}", operation_id="get_policy")
 def get_policy(policy_id: str, db: Database) -> Policy:
     """Get a policy: the plan, add-ons, purchase date, trip and travelers."""
-    row = db.execute(
-        "SELECT record FROM policies WHERE policy_id = ?", (policy_id,)
-    ).fetchone()
-    if row is None:
-        raise HTTPException(404, f"Policy {policy_id} not found")
-    return Policy(**json.loads(row["record"]))
+    return find_policy(db, policy_id)
 
 
 @app.get("/api/customers/{customer_id}/claims", operation_id="get_claim_history")
@@ -280,7 +294,7 @@ def record_decision(claim_id: str, request: DecisionRequest, db: Database) -> Cl
     if find_claim(db, claim_id)["status"] != "in_progress":
         raise HTTPException(409, f"Claim {claim_id} is not in progress")
     payout = round(request.payout, 2)
-    held = request.decision == "approve" and payout > approval_limit(db)
+    held = request.decision == "approve" and needs_sign_off(payout, approval_limit(db))
     db.execute(
         "INSERT INTO decisions VALUES (?, ?, ?, ?, ?, ?)",
         (claim_id, request.decision, payout, request.section, request.reason, now()),
@@ -290,6 +304,13 @@ def record_decision(claim_id: str, request: DecisionRequest, db: Database) -> Cl
         ("waiting_for_sign_off" if held else "decided", claim_id),
     )
     return to_claim(find_claim(db, claim_id))
+
+
+@app.post("/api/claims/{claim_id}/payout", operation_id="calculate_payout")
+def calculate_payout(claim_id: str, request: PayoutRequest, db: Database) -> Payout:
+    """Work out an approval's payout with UnderCover's payout rules; records nothing."""
+    policy = find_policy(db, to_claim(find_claim(db, claim_id)).policy_id)
+    return work_out_payout(policy, plans(db), request, approval_limit(db))
 
 
 @app.post("/api/claims/{claim_id}/payment", operation_id="pay_claim")

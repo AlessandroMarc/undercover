@@ -15,6 +15,7 @@ def test_claim_tools_are_named_after_backend_operations(client):
         "get_claim_history",
         "search_documents",
         "read_section",
+        "calculate_payout",
         "record_decision",
         "pay_claim",
     ]

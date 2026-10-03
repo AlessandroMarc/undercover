@@ -13,7 +13,8 @@ DOCUMENTS = {"policy_wording": "Policy wording", "claims_manual": "Claims manual
 
 SCHEMA = """
 CREATE TABLE settings (
-    payout_approval_limit REAL NOT NULL
+    payout_approval_limit REAL NOT NULL,
+    plans TEXT NOT NULL
 );
 CREATE TABLE documents (
     name TEXT PRIMARY KEY,
@@ -123,7 +124,8 @@ def seed(path: Path) -> dict[str, int]:
     with closing(sqlite3.connect(path)) as connection, connection:
         connection.executescript(SCHEMA)
         connection.execute(
-            "INSERT INTO settings VALUES (?)", (company["payout_approval_limit"],)
+            "INSERT INTO settings VALUES (?, ?)",
+            (company["payout_approval_limit"], json.dumps(load("plans.json"))),
         )
         connection.executemany(
             "INSERT INTO documents VALUES (?, ?, ?)",

@@ -1,5 +1,6 @@
 """The harness: a queue agent works the run, and a claim agent works each claim."""
 
+import contextvars
 import json
 import logging
 import os
@@ -21,6 +22,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
+from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import Runtime
@@ -44,6 +46,7 @@ REMINDERS = 2
 NO_DECISION = "The agent finished without recording a decision"
 NO_SUMMARY = "The run finished without a summary."
 STOPPED = "The run stopped before this claim was finished"
+WORK_CLAIM = "Work claim"
 
 
 def model() -> ChatOpenAI:
@@ -100,6 +103,15 @@ class RecordSteps(AgentMiddleware[AgentState, ClaimContext]):
         return result
 
 
+def tracing(claim: dict[str, Any], name: str) -> RunnableConfig:
+    """Trace a claim agent's run in Langfuse, in the session of the claim's thread."""
+    session = f"{claim['claim_id']}:{claim['thread_id']}"
+    return {
+        "callbacks": [CallbackHandler()],
+        "metadata": {"langfuse_session_id": session, "langfuse_trace_name": name},
+    }
+
+
 def ask(text: str) -> InputAgentState:
     """Give an agent one message from the user."""
     return {"messages": [HumanMessage(text)]}
@@ -143,20 +155,40 @@ def claim_agent(llm: BaseChatModel) -> ClaimAgent:
     )
 
 
-def work_claim(claim_id: str, agent: ClaimAgent) -> str:
-    """Work one claim from a clean start, as a new attempt, and report how it ended."""
-    api.start_claim(claim_id, str(uuid.uuid4()))
-    reason = NO_DECISION
+def run_claim_agent(
+    agent: ClaimAgent, start: InputAgentState, claim: dict[str, Any], name: str
+) -> str:
+    """Run the claim agent on its claim, traced in the claim's session, and return
+    the reason to give if it leaves the claim undecided."""
     try:
-        agent.invoke(ask(f"Claim {claim_id}"), context=ClaimContext(claim_id))
+        # A fresh context makes this a root run even inside the queue agent's tool,
+        # which Langfuse needs to put it in the claim's session.
+        contextvars.Context().run(
+            agent.invoke,
+            start,
+            tracing(claim, name),
+            context=ClaimContext(claim["claim_id"]),
+        )
     except Exception as error:  # a claim that fails must not stop the run
-        reason = describe(error)
+        return describe(error)
+    return NO_DECISION
+
+
+def settle(claim_id: str, reason: str) -> str:
+    """Fail a claim the agent left in progress, and report how the claim ended."""
     claim = api.get_claim(claim_id)
     if claim["status"] == "in_progress":
         claim = api.fail_claim(claim_id, reason)
     line = report(claim, reason)
     log.info(line)
     return line
+
+
+def work_claim(claim_id: str, agent: ClaimAgent) -> str:
+    """Work one claim from a clean start, as a new attempt, and report how it ended."""
+    claim = api.start_claim(claim_id, str(uuid.uuid4()))
+    reason = run_claim_agent(agent, ask(f"Claim {claim_id}"), claim, WORK_CLAIM)
+    return settle(claim_id, reason)
 
 
 def waiting() -> list[str]:
