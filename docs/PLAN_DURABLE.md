@@ -28,7 +28,7 @@ The agent, in four parts:
 
 The agent reaches the backend only through `api.py`, and the backend reaches the agent only through `agent_service.py`. Neither imports the other. Inside the agent: `service` and `__main__` use `harness`, `harness` uses `tools` and `api`, and `tools` uses `api`.
 
-The dashboard changes only its types in `api.ts` and the decision panel. The end-to-end tests gain a stand-in for the agent's service, `e2e/agent_stand_in.mjs`.
+The dashboard changes only its types in `api.ts` and the decision panel. The end-to-end tests gain a stand-in for the agent's service, `e2e/agent_stand_in.ts`.
 
 ### How a claim is worked
 
@@ -205,7 +205,7 @@ Rules the backend enforces:
 
 ### End-to-end tests
 
-- Playwright starts a stand-in for the agent's service, `e2e/agent_stand_in.mjs`, on port 8003. It answers `GET /api/health` and `POST /api/claims/{claim_id}/resume` with 202, and lists the claims it was asked to resume at `GET /api/resumed`. The end-to-end backend gets `UNDERCOVER_AGENT=http://127.0.0.1:8003`, so the tests never reach the service `npm run dev` starts.
+- Playwright starts a stand-in for the agent's service, `e2e/agent_stand_in.ts`, run by Node's own TypeScript support, on port 8003. It answers `GET /api/health` and `POST /api/claims/{claim_id}/resume` with 202, and lists the claims it was asked to resume at `GET /api/resumed`. The end-to-end backend gets `UNDERCOVER_AGENT=http://127.0.0.1:8003`, so the tests never reach the service `npm run dev` starts.
 - `e2e/api.ts` names the stand-in's address once.
 - The sign-off test signs off `CLM-1020` on the dashboard, checks the claim is In progress and that the stand-in was asked to resume it, then plays the agent by paying through the API.
 

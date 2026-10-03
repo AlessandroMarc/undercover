@@ -13,9 +13,7 @@ from typing import Any, cast
 from langchain.agents import create_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
-    InputAgentState,
     ModelCallLimitMiddleware,
-    ToolCallRequest,
     ToolErrorMiddleware,
 )
 from langchain.tools import ToolException
@@ -36,6 +34,7 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
+from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.runtime import Runtime
 from langgraph.types import Command, interrupt
 from psycopg import Connection, sql
@@ -50,7 +49,8 @@ log = logging.getLogger(__name__)
 
 ClaimGraph = CompiledStateGraph[ClaimState, ClaimContext, Any, Any]
 QueueAgent = CompiledStateGraph[Any, RunContext, Any, Any]
-Start = InputAgentState | Command | None
+Messages = dict[str, list[BaseMessage]]
+Start = Messages | Command | None
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
@@ -65,7 +65,10 @@ NO_SUMMARY = "The run finished without a summary."
 RUN_STOPPED = "The run stopped before it finished."
 WORK_CLAIM = "Work claim"
 CARRY_ON = "Carry on"
+AGENT = "agent"
+TOOLS = "tools"
 PAUSE = "wait_for_sign_off"
+PAY = "pay"
 
 
 class TooManyModelCalls(Exception):
@@ -178,7 +181,7 @@ def pay(state: ClaimState, runtime: Runtime[ClaimContext]) -> dict[str, Any]:
 def after_agent(state: ClaimState) -> str:
     """Run the tools the model asked for, or stop: it finished without a decision."""
     reply = state["messages"][-1]
-    return "tools" if isinstance(reply, AIMessage) and reply.tool_calls else END
+    return TOOLS if isinstance(reply, AIMessage) and reply.tool_calls else END
 
 
 def after_tools(state: ClaimState) -> str:
@@ -186,11 +189,11 @@ def after_tools(state: ClaimState) -> str:
     a sign-off if the backend holds it, or stop."""
     decision, status = state["decision"], state["status"]
     if not decision:
-        return "agent"
+        return AGENT
     if status == api.Status.WAITING_FOR_SIGN_OFF:
         return PAUSE
     if decision["decision"] == api.APPROVE and status == api.Status.IN_PROGRESS:
-        return "pay"
+        return PAY
     return END
 
 
@@ -199,20 +202,20 @@ def claim_graph(llm: BaseChatModel, saver: BaseCheckpointSaver[Any]) -> ClaimGra
     instructions = SystemMessage(api.get_instructions()["claim"])
     builder = StateGraph(ClaimState, context_schema=ClaimContext)
     builder.add_node(
-        "agent",
+        AGENT,
         partial(call_model, llm=llm.bind_tools(CLAIM_TOOLS), instructions=instructions),
     )
     builder.add_node(
-        "tools",
+        TOOLS,
         ToolNode(CLAIM_TOOLS, handle_tool_errors=refusal, wrap_tool_call=record_result),
     )
     builder.add_node(PAUSE, wait_for_sign_off)
-    builder.add_node("pay", pay)
-    builder.add_edge(START, "agent")
-    builder.add_conditional_edges("agent", after_agent, ["tools", END])
-    builder.add_conditional_edges("tools", after_tools, ["agent", PAUSE, "pay", END])
-    builder.add_edge(PAUSE, "pay")
-    builder.add_edge("pay", END)
+    builder.add_node(PAY, pay)
+    builder.add_edge(START, AGENT)
+    builder.add_conditional_edges(AGENT, after_agent, [TOOLS, END])
+    builder.add_conditional_edges(TOOLS, after_tools, [AGENT, PAUSE, PAY, END])
+    builder.add_edge(PAUSE, PAY)
+    builder.add_edge(PAY, END)
     return builder.compile(checkpointer=saver)
 
 
@@ -232,9 +235,14 @@ def claim_config(claim: dict[str, Any], name: str) -> RunnableConfig:
     }
 
 
-def ask(text: str) -> InputAgentState:
+def ask(text: str) -> Messages:
     """Give an agent one message from the user."""
     return {"messages": [HumanMessage(text)]}
+
+
+def begin(claim_id: str) -> Messages:
+    """Give a claim agent its first message, naming the claim it works on."""
+    return ask(f"Claim {claim_id}")
 
 
 def describe(error: Exception) -> str:
@@ -295,7 +303,7 @@ def settle(claim_id: str, error: str | None) -> str:
 def work_claim(claim_id: str, graph: ClaimGraph) -> str:
     """Work one claim from a clean start, as a new attempt, and report how it ended."""
     claim = api.start_claim(claim_id, str(uuid.uuid4()))
-    error = run_claim_graph(graph, ask(f"Claim {claim_id}"), claim, WORK_CLAIM)
+    error = run_claim_graph(graph, begin(claim_id), claim, WORK_CLAIM)
     return settle(claim_id, error)
 
 
@@ -310,7 +318,7 @@ def carry_on(claim_id: str, graph: ClaimGraph) -> str:
     if saved.next == (PAUSE,):
         start = Command(resume=True)
     elif saved.created_at is None and claim["decision"] is None:
-        start = ask(f"Claim {claim_id}")
+        start = begin(claim_id)
     error = run_claim_graph(graph, start, claim, CARRY_ON)
     return settle(claim_id, error)
 

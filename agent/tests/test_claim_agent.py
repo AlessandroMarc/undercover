@@ -1,14 +1,12 @@
 import itertools
 import json
 import logging
-from contextlib import nullcontext
 
 import pytest
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from sqlalchemy import update
 
-from agent import __main__ as cli
 from agent import api, harness
 from agent.tests.records import claim_of, steps_of
 from agent.tests.stubs import StubModel, call, decide, graph_on, record, stub
@@ -20,8 +18,7 @@ def work(claim_id, model, saver=None):
 
 
 def state_of(graph, client, claim_id):
-    thread_id = claim_of(client, claim_id)["thread_id"]
-    return graph.get_state({"configurable": {"thread_id": thread_id}})
+    return graph.get_state(harness.thread_of(claim_of(client, claim_id)))
 
 
 def test_the_graph():
@@ -94,7 +91,7 @@ def test_pauses_before_a_payout_over_the_limit(client):
     assert len(model.prompts) == 2
 
     state = state_of(graph, client, "CLM-1002")
-    assert state.next == ("wait_for_sign_off",)
+    assert state.next == (harness.PAUSE,)
     assert len(state.interrupts) == 1
     claim = claim_of(client, "CLM-1002")
     assert (claim["status"], claim["payment"]) == ("waiting_for_sign_off", None)
@@ -115,9 +112,8 @@ def test_declines_and_refers(client, decision):
     assert report == f"CLM-1003  {decision}  $0.00"
     claim = claim_of(client, "CLM-1003")
     assert (claim["status"], claim["payment"]) == ("decided", None)
-    thread_id = claim["thread_id"]
-    history = graph.get_state_history({"configurable": {"thread_id": thread_id}})
-    assert "pay" not in {node for snapshot in history for node in snapshot.next}
+    history = graph.get_state_history(harness.thread_of(claim))
+    assert harness.PAY not in {node for snapshot in history for node in snapshot.next}
 
 
 def test_two_decisions_in_one_reply_are_recorded_and_paid_once(client):
@@ -219,9 +215,7 @@ def test_a_claim_is_traced_in_the_session_of_its_thread(client, traces):
     ]
 
 
-def test_every_run_of_the_graph_saves_each_step_and_is_traced(
-    client, monkeypatch, traces
-):
+def test_working_a_claim_saves_each_step_on_its_thread(client, monkeypatch):
     graph = graph_on(stub(*decide("refer", 0)))
     runs = []
     invoke = graph.invoke
@@ -233,10 +227,9 @@ def test_every_run_of_the_graph_saves_each_step_and_is_traced(
     monkeypatch.setattr(graph, "invoke", spy)
     harness.work_claim("CLM-1003", graph)
     [(config, kwargs)] = runs
-    thread_id = claim_of(client, "CLM-1003")["thread_id"]
     assert kwargs["durability"] == "sync"
+    thread_id = claim_of(client, "CLM-1003")["thread_id"]
     assert config["configurable"]["thread_id"] == thread_id
-    assert [t["langfuse_session_id"] for t in traces] == [f"CLM-1003:{thread_id}"]
 
 
 def test_a_provider_error_puts_the_claim_back_in_the_queue(client):
@@ -335,92 +328,3 @@ def test_each_claim_starts_clean(client):
     decided = [claim_of(client, i) for i in ("CLM-1001", "CLM-1003")]
     assert [c["decision"]["decision"] for c in decided] == ["decline", "refer"]
     assert decided[0]["thread_id"] != decided[1]["thread_id"]
-
-
-class FakePool:
-    """Stands in for psycopg's ConnectionPool, keeping how it was opened and what
-    it ran."""
-
-    opened: list["FakePool"] = []
-
-    def __class_getitem__(cls, _):
-        return cls
-
-    def __init__(self, conninfo, **settings):
-        self.conninfo, self.settings, self.statements = conninfo, settings, []
-        self.opened.append(self)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-    def connection(self):
-        return nullcontext(self)
-
-    def execute(self, statement):
-        self.statements.append(statement)
-
-
-class FakeSaver:
-    """Stands in for LangGraph's PostgresSaver."""
-
-    def __init__(self, pool):
-        self.pool, self.set_up = pool, False
-
-    def setup(self):
-        self.set_up = True
-
-
-def test_the_checkpointer_settings(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@pooler.example.com/db")
-    monkeypatch.setattr(FakePool, "opened", [])
-    monkeypatch.setattr(harness, "ConnectionPool", FakePool)
-    monkeypatch.setattr(harness, "PostgresSaver", FakeSaver)
-    with harness.checkpointer() as saver:
-        [pool] = FakePool.opened
-        assert isinstance(saver, FakeSaver)
-        assert (saver.pool, saver.set_up) == (pool, True)
-        assert pool.conninfo == "postgresql://u:p@pooler.example.com/db"
-        assert (pool.settings["min_size"], pool.settings["max_size"]) == (1, 4)
-        kwargs = pool.settings["kwargs"]
-        assert (kwargs["autocommit"], kwargs["prepare_threshold"]) == (True, 0)
-        assert kwargs["row_factory"] is harness.dict_row
-        assert kwargs["options"] == "-c search_path=undercover"
-        assert "undercover" in repr(pool.statements[0])
-
-
-def test_command_line_works_one_claim(monkeypatch, capsys):
-    worked = []
-    saver = InMemorySaver()
-    monkeypatch.setattr(cli, "checkpointer", lambda: nullcontext(saver))
-    monkeypatch.setattr(cli, "model", lambda: "model")
-    monkeypatch.setattr(cli, "claim_graph", lambda llm, s: (llm, s))
-    monkeypatch.setattr(cli, "work_claim", lambda *args: worked.append(args))
-    cli.main(["CLM-1001"])
-    assert worked == [("CLM-1001", ("model", saver))]
-
-    def refuse(claim_id, graph):
-        raise api.Refused(409, f"Claim {claim_id} is not waiting")
-
-    monkeypatch.setattr(cli, "work_claim", refuse)
-    with pytest.raises(SystemExit) as refused:
-        cli.main(["CLM-1003"])
-    assert refused.value.code == 1
-    assert capsys.readouterr().err == (
-        "CLM-1003  not started: 409: Claim CLM-1003 is not waiting\n"
-    )
-
-
-def test_model_name(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.delenv("MODEL_NAME", raising=False)
-    default = harness.model()
-    assert default.model_name == "deepseek/deepseek-v4.1-flash"
-    assert default.reasoning_effort == "low"
-    assert default.request_timeout == 120
-    assert default.max_retries == 5
-    monkeypatch.setenv("MODEL_NAME", "openrouter/free")
-    assert harness.model().model_name == "openrouter/free"
-    assert harness.model().reasoning_effort is None

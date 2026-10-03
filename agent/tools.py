@@ -24,7 +24,8 @@ class ClaimContext:
 
 
 def keep_last(_: Any, new: Any) -> Any:
-    """Keep the newest value, even when two tool calls set it in the same step."""
+    """Keep the newest value, even when two tool calls set it in the same step. With
+    it, LangGraph starts the key empty, as {} or "", so the key is always there."""
     return new
 
 

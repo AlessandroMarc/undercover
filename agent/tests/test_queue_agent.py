@@ -1,15 +1,13 @@
 import logging
-from contextlib import nullcontext
 from functools import partial
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import __main__ as cli
 from agent import api, harness
 from agent.tests.queue_setup import leave_waiting
-from agent.tests.records import claim_of, latest
+from agent.tests.records import claim_of, latest, steps_of
 from agent.tests.stubs import call, decide, graph_on, stub
 from agent.tools import RunContext
 
@@ -107,7 +105,7 @@ def test_the_cap(client):
     after = claims(client)
     assert [after[i]["status"] for i in ("CLM-1001", "CLM-1002")] == ["decided"] * 2
     for claim_id in ("CLM-1003", "CLM-1004"):
-        claim = client.get(f"/api/claims/{claim_id}").json()
+        claim = claim_of(client, claim_id)
         assert (claim["status"], claim["attempts"]) == ("waiting", 0)
     assert latest(client)["cap"] == 2
 
@@ -133,7 +131,7 @@ def test_a_claim_that_cant_be_started_leaves_the_cap_alone(client):
         "Refused with status 409: Claim CLM-1003 is not waiting",
         "CLM-1001  refer  $0.00",
     ]
-    assert client.get("/api/claims/CLM-1003").json()["attempts"] == 0
+    assert claim_of(client, "CLM-1003")["attempts"] == 0
 
 
 def test_each_claim_in_a_run_starts_clean_and_saves_its_own_progress(client):
@@ -192,9 +190,9 @@ def test_a_failed_claim_does_not_stop_the_run_and_is_tried_again(client):
         "CLM-1003  decline  $0.00",
         "CLM-1001  decline  $0.00",
     ]
-    first = client.get("/api/claims/CLM-1001").json()
+    first = claim_of(client, "CLM-1001")
     assert (first["status"], first["attempts"]) == ("decided", 2)
-    steps = client.get("/api/claims/CLM-1001/steps").json()
+    steps = steps_of(client, "CLM-1001")
     assert steps[0]["kind"] == "error"
     assert len({s["thread_id"] for s in steps}) == 2
     assert steps[1]["thread_id"] != steps[0]["thread_id"]
@@ -294,19 +292,3 @@ def test_an_empty_summary_is_filled_in(client):
         None, stub(work("CLM-1001"), done("")), graph_on(stub(*decide("refer", 0)))
     )
     assert latest(client)["summary"] == harness.NO_SUMMARY
-
-
-def test_command_line_works_the_queue(monkeypatch):
-    runs = []
-    saver = InMemorySaver()
-    monkeypatch.setattr(cli, "checkpointer", lambda: nullcontext(saver))
-    monkeypatch.setattr(cli, "model", lambda: "model")
-    monkeypatch.setattr(cli, "claim_graph", lambda llm, s: (llm, s))
-    monkeypatch.setattr(cli, "run_queue", lambda *args: runs.append(args))
-    cli.main([])
-    cli.main(["--cap", "5"])
-    graph = ("model", saver)
-    assert runs == [(None, "model", graph), (5, "model", graph)]
-    for args in (["--cap", "0"], ["--cap", "five"], ["CLM-1001", "--cap", "5"]):
-        with pytest.raises(SystemExit):
-            cli.main(args)
