@@ -1,6 +1,7 @@
 """The UnderCover backend's API: one function for each operation the agent uses."""
 
 import os
+from enum import StrEnum
 from typing import Any, Literal, TypedDict
 
 import httpx
@@ -11,6 +12,7 @@ BACKEND_URL = os.getenv("UNDERCOVER_API", "http://127.0.0.1:8000")
 backend = httpx.Client(base_url=f"{BACKEND_URL}/api", timeout=30)
 
 DecisionKind = Literal["approve", "decline", "refer"]
+APPROVE: DecisionKind = "approve"
 DocumentName = Literal["policy_wording", "claims_manual"]
 StepKind = Literal["tool_call", "tool_result", "message", "reading"]
 Benefit = Literal[
@@ -22,6 +24,16 @@ Benefit = Literal[
     "passport",
     "emergency_medical",
 ]
+
+
+class Status(StrEnum):
+    """Where a claim stands."""
+
+    WAITING = "waiting"
+    IN_PROGRESS = "in_progress"
+    WAITING_FOR_SIGN_OFF = "waiting_for_sign_off"
+    DECIDED = "decided"
+    LEFT_FOR_HANDLER = "left_for_handler"
 
 
 class Todo(TypedDict):

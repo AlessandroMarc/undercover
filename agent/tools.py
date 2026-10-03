@@ -3,11 +3,15 @@ backend operations they are named after, and work_claim hands a claim to a claim
 """
 
 import json
+import operator
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Annotated
+from typing import Annotated, Any, TypedDict
 
 from langchain.tools import ToolException, ToolRuntime, tool
+from langchain_core.messages import AnyMessage, ToolMessage
+from langgraph.graph.message import add_messages
+from langgraph.types import Command
 
 from agent import api
 
@@ -17,6 +21,21 @@ class ClaimContext:
     """The claim a claim agent is working on."""
 
     claim_id: str
+
+
+def keep_last(_: Any, new: Any) -> Any:
+    """Keep the newest value, even when two tool calls set it in the same step."""
+    return new
+
+
+class ClaimState(TypedDict):
+    """What the claim graph keeps for one claim, saved after every step. The decision
+    and the claim's status are as the backend recorded them, and empty until then."""
+
+    messages: Annotated[list[AnyMessage], add_messages]
+    model_calls: Annotated[int, operator.add]
+    decision: Annotated[dict[str, Any], keep_last]
+    status: Annotated[str, keep_last]
 
 
 @dataclass
@@ -88,16 +107,17 @@ def record_decision(
     section: Annotated[str, "The sections of the wording and the manual relied on"],
     reason: Annotated[str, "Two or three plain sentences for a colleague"],
     runtime: ToolRuntime[ClaimContext],
-) -> str:
-    """Record the decision on your claim, once; an approval over the limit waits."""
+) -> Command:
+    """Record the decision on your claim, once, which ends your work on it."""
     claim_id = runtime.context.claim_id
-    return json.dumps(api.record_decision(claim_id, decision, payout, section, reason))
-
-
-@tool
-def pay_claim(amount: float, runtime: ToolRuntime[ClaimContext]) -> str:
-    """Pay your approved claim its payout, unless it needs a handler's sign-off."""
-    return json.dumps(api.pay_claim(runtime.context.claim_id, amount))
+    claim = api.record_decision(claim_id, decision, payout, section, reason)
+    message = ToolMessage(json.dumps(claim), tool_call_id=runtime.tool_call_id)
+    update = {
+        "messages": [message],
+        "decision": claim["decision"],
+        "status": claim["status"],
+    }
+    return Command(update=update)
 
 
 @tool
@@ -134,6 +154,5 @@ CLAIM_TOOLS = [
     read_section,
     calculate_payout,
     record_decision,
-    pay_claim,
 ]
 QUEUE_TOOLS = [list_claims, write_todos, work_claim]

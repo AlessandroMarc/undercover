@@ -34,16 +34,17 @@ test("the claim page shows the agent at work", async ({ page, request }) => {
     section: "Section 7, Emergency Medical",
     reason: "The treatment was necessary and covered.",
   });
+  const decision = page.locator("section", {
+    has: page.getByRole("heading", { name: "Decision" }),
+  });
+  await expect(decision.getByText("Approved")).toBeVisible();
+  await expect(heading.getByText("In progress")).toBeVisible();
   await post(request, "/api/claims/CLM-1003/payment", { amount: 500 });
   await post(request, "/api/claims/CLM-1003/steps", {
     kind: "message",
     content: "Approved and paid $500.00.",
   });
   await expect(heading.getByText("Decided")).toBeVisible();
-  const decision = page.locator("section", {
-    has: page.getByRole("heading", { name: "Decision" }),
-  });
-  await expect(decision.getByText("Approved")).toBeVisible();
   await expect(decision.getByText("Paid $500.00")).toBeVisible();
   await expect(page.getByText("Approved and paid $500.00.")).toBeVisible();
 });

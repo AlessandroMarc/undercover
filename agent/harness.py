@@ -1,15 +1,16 @@
-"""The harness: a queue agent works the run, and a claim agent works each claim."""
+"""The harness: a queue agent works the run, and a claim graph works each claim."""
 
 import contextvars
 import json
 import logging
 import os
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from functools import partial
 from typing import Any, cast
 
-from langchain.agents import AgentState, create_agent
+from langchain.agents import create_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
     InputAgentState,
@@ -18,27 +19,42 @@ from langchain.agents.middleware import (
     ToolErrorMiddleware,
 )
 from langchain.tools import ToolException
-from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from langchain_core.runnables import RunnableConfig
+from langchain_core.language_models import BaseChatModel, LanguageModelInput
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
+from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_openai import ChatOpenAI
 from langfuse.langchain import CallbackHandler
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.prebuilt import ToolNode
 from langgraph.runtime import Runtime
-from langgraph.types import Command
+from langgraph.types import Command, interrupt
+from psycopg import Connection, sql
+from psycopg.rows import DictRow, dict_row
+from psycopg_pool import ConnectionPool
 from pydantic import SecretStr
 
 from agent import api
-from agent.tools import CLAIM_TOOLS, QUEUE_TOOLS, ClaimContext, RunContext
+from agent.tools import CLAIM_TOOLS, QUEUE_TOOLS, ClaimContext, ClaimState, RunContext
 
 log = logging.getLogger(__name__)
 
-ClaimAgent = CompiledStateGraph[Any, ClaimContext, Any, Any]
+ClaimGraph = CompiledStateGraph[ClaimState, ClaimContext, Any, Any]
 QueueAgent = CompiledStateGraph[Any, RunContext, Any, Any]
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
+SCHEMA = "undercover"
+CONNECTIONS = 4
 CLAIM_MODEL_CALLS = 30
 QUEUE_MODEL_CALLS_PER_CLAIM = 6
 QUEUE_MODEL_CALLS_TO_PLAN = 12
@@ -47,6 +63,10 @@ NO_DECISION = "The agent finished without recording a decision"
 NO_SUMMARY = "The run finished without a summary."
 STOPPED = "The run stopped before this claim was finished"
 WORK_CLAIM = "Work claim"
+
+
+class TooManyModelCalls(Exception):
+    """The claim agent made as many model calls as it may without finishing."""
 
 
 def model() -> ChatOpenAI:
@@ -62,53 +82,148 @@ def model() -> ChatOpenAI:
     )
 
 
-def refusal(error: Exception, request: ToolCallRequest) -> str | None:
-    """Show the model why a tool was refused; let any other error stop the agent."""
+@contextmanager
+def checkpointer() -> Iterator[PostgresSaver]:
+    """Save the claim graph's progress in Postgres at DATABASE_URL, in our own schema,
+    with at most CONNECTIONS connections."""
+    settings = {
+        "autocommit": True,
+        "prepare_threshold": 0,
+        "row_factory": dict_row,
+        "options": f"-c search_path={SCHEMA}",
+    }
+    with ConnectionPool[Connection[DictRow]](
+        os.environ["DATABASE_URL"],
+        min_size=1,
+        max_size=CONNECTIONS,
+        kwargs=settings,
+    ) as pool:
+        with pool.connection() as connection:
+            create = sql.SQL("CREATE SCHEMA IF NOT EXISTS {}")
+            connection.execute(create.format(sql.Identifier(SCHEMA)))
+        saver = PostgresSaver(pool)
+        saver.setup()
+        yield saver
+
+
+def refusal(error: Exception) -> str:
+    """Show the model why a tool was refused, and let any other error stop the agent."""
     if isinstance(error, api.Refused):
         return f"Refused with status {error}"
     if isinstance(error, ToolException):
         return f"Refused: {error}"
-    return None
+    raise error
 
 
-class RecordSteps(AgentMiddleware[AgentState, ClaimContext]):
-    """Record each step of a claim agent's work on its claim, for the dashboard,
-    including any step a tool gives as its artifact, such as a section it read."""
-
-    def after_model(
-        self, state: AgentState, runtime: Runtime[ClaimContext]
-    ) -> dict[str, Any] | None:
-        claim_id = runtime.context.claim_id
-        message = state["messages"][-1]
-        if message.text:
-            api.record_step(claim_id, "message", message.text)
-        if isinstance(message, AIMessage):
-            for call in message.tool_calls:
-                args = ", ".join(
-                    f"{k}={json.dumps(v)}" for k, v in call["args"].items()
-                )
-                api.record_step(claim_id, "tool_call", f"{call['name']}({args})")
-
-    def wrap_tool_call(
-        self,
-        request: ToolCallRequest,
-        handler: Callable[[ToolCallRequest], ToolMessage | Command],
-    ) -> ToolMessage | Command:
-        result = handler(request)
-        if isinstance(result, ToolMessage):
-            claim_id = cast(ClaimContext, request.runtime.context).claim_id
-            api.record_step(claim_id, "tool_result", f"{result.name}: {result.text}")
-            if result.artifact:
-                api.record_step(claim_id, *result.artifact)
-        return result
+def record_reply(claim_id: str, reply: BaseMessage) -> None:
+    """Record the model's reply on the claim: its text, then each tool it calls."""
+    if reply.text:
+        api.record_step(claim_id, "message", reply.text)
+    if isinstance(reply, AIMessage):
+        for call in reply.tool_calls:
+            args = ", ".join(f"{k}={json.dumps(v)}" for k, v in call["args"].items())
+            api.record_step(claim_id, "tool_call", f"{call['name']}({args})")
 
 
-def tracing(claim: dict[str, Any], name: str) -> RunnableConfig:
-    """Trace a claim agent's run in Langfuse, in the session of the claim's thread."""
+def record_result(
+    request: ToolCallRequest,
+    execute: Callable[[ToolCallRequest], ToolMessage | Command],
+) -> ToolMessage | Command:
+    """Run a tool and record its result on the claim, then any step it gives as its
+    artifact, such as a section it read."""
+    result = execute(request)
+    if isinstance(result, ToolMessage):
+        message = result
+    else:
+        message = cast(dict[str, Any], result.update)["messages"][0]
+    claim_id = cast(ClaimContext, request.runtime.context).claim_id
+    api.record_step(claim_id, "tool_result", f"{message.name}: {message.text}")
+    if message.artifact:
+        api.record_step(claim_id, *message.artifact)
+    return result
+
+
+def call_model(
+    state: ClaimState,
+    runtime: Runtime[ClaimContext],
+    llm: Runnable[LanguageModelInput, BaseMessage],
+    instructions: SystemMessage,
+) -> dict[str, Any]:
+    """Ask the model for its next step, up to CLAIM_MODEL_CALLS times in all, and
+    record its reply on the claim."""
+    calls = state["model_calls"]
+    if calls >= CLAIM_MODEL_CALLS:
+        message = f"The claim agent made {calls} model calls without finishing"
+        raise TooManyModelCalls(message)
+    reply = llm.invoke([instructions, *state["messages"]])
+    record_reply(runtime.context.claim_id, reply)
+    return {"messages": [reply], "model_calls": 1}
+
+
+def wait_for_sign_off(state: ClaimState, runtime: Runtime[ClaimContext]) -> None:
+    """Pause until a handler signs off the payout. On resume this runs again from the
+    top, so nothing comes before the interrupt."""
+    interrupt({"claim_id": runtime.context.claim_id})
+
+
+def pay(state: ClaimState, runtime: Runtime[ClaimContext]) -> dict[str, Any]:
+    """Pay the approved payout, which the backend refuses unless it may be paid."""
+    claim = api.pay_claim(runtime.context.claim_id, state["decision"]["payout"])
+    return {"status": claim["status"]}
+
+
+def after_agent(state: ClaimState) -> str:
+    """Run the tools the model asked for, or stop: it finished without a decision."""
+    reply = state["messages"][-1]
+    return "tools" if isinstance(reply, AIMessage) and reply.tool_calls else END
+
+
+def after_tools(state: ClaimState) -> str:
+    """Go back to the model until a decision is recorded, then pay an approval, after
+    a sign-off if the backend holds it, or stop."""
+    decision, status = state["decision"], state["status"]
+    if not decision:
+        return "agent"
+    if status == api.Status.WAITING_FOR_SIGN_OFF:
+        return "wait_for_sign_off"
+    if decision["decision"] == api.APPROVE and status == api.Status.IN_PROGRESS:
+        return "pay"
+    return END
+
+
+def claim_graph(llm: BaseChatModel, saver: BaseCheckpointSaver[Any]) -> ClaimGraph:
+    """Build the claim agent's graph, which saves its progress after every step."""
+    instructions = SystemMessage(api.get_instructions()["claim"])
+    builder = StateGraph(ClaimState, context_schema=ClaimContext)
+    builder.add_node(
+        "agent",
+        partial(call_model, llm=llm.bind_tools(CLAIM_TOOLS), instructions=instructions),
+    )
+    builder.add_node(
+        "tools",
+        ToolNode(CLAIM_TOOLS, handle_tool_errors=refusal, wrap_tool_call=record_result),
+    )
+    builder.add_node("wait_for_sign_off", wait_for_sign_off)
+    builder.add_node("pay", pay)
+    builder.add_edge(START, "agent")
+    builder.add_conditional_edges("agent", after_agent, ["tools", END])
+    builder.add_conditional_edges(
+        "tools", after_tools, ["agent", "wait_for_sign_off", "pay", END]
+    )
+    builder.add_edge("wait_for_sign_off", "pay")
+    builder.add_edge("pay", END)
+    return builder.compile(checkpointer=saver)
+
+
+def claim_config(claim: dict[str, Any], name: str) -> RunnableConfig:
+    """Run on the claim's thread, traced in Langfuse in the session of that thread."""
     session = f"{claim['claim_id']}:{claim['thread_id']}"
     return {
+        "configurable": {"thread_id": claim["thread_id"]},
         "callbacks": [CallbackHandler()],
         "metadata": {"langfuse_session_id": session, "langfuse_trace_name": name},
+        # One tool call at a time, so two decisions in one reply can't race.
+        "max_concurrency": 1,
     }
 
 
@@ -126,81 +241,75 @@ def describe(error: Exception) -> str:
 def report(claim: dict[str, Any], reason: str) -> str:
     """Say in one line how a claim ended: its decision and payout, or why it failed."""
     claim_id, status, decision = claim["claim_id"], claim["status"], claim["decision"]
-    if status == "waiting":
+    if status == api.Status.WAITING:
         return f"{claim_id}  failed: {reason}, back in the queue"
-    if status == "left_for_handler":
+    if status == api.Status.LEFT_FOR_HANDLER:
         return f"{claim_id}  failed: {reason}, left for a handler"
     line = f"{claim_id}  {decision['decision']}  ${decision['payout']:,.2f}"
-    if status == "waiting_for_sign_off":
+    if status == api.Status.WAITING_FOR_SIGN_OFF:
         return f"{line}, waiting for sign-off"
-    if decision["decision"] == "approve" and claim["payment"] is None:
-        return f"{line}, not paid"
+    if decision["decision"] == api.APPROVE and claim["payment"] is None:
+        return f"{line}, not paid yet"
     return line
 
 
-def claim_agent(llm: BaseChatModel) -> ClaimAgent:
-    """Build the claim agent, which works one claim from a clean start each time."""
-    middleware: list[AgentMiddleware[Any, Any]] = [
-        ModelCallLimitMiddleware(run_limit=CLAIM_MODEL_CALLS, exit_behavior="error"),
-        RecordSteps(),
-        ToolErrorMiddleware(refusal),
-    ]
-    return create_agent(
-        llm,
-        tools=CLAIM_TOOLS,
-        system_prompt=api.get_instructions()["claim"],
-        middleware=middleware,
-        context_schema=ClaimContext,
-        checkpointer=False,
-    )
+def undecided(claim: dict[str, Any]) -> bool:
+    """Say whether a claim is in progress without a decision."""
+    return claim["status"] == api.Status.IN_PROGRESS and claim["decision"] is None
 
 
-def run_claim_agent(
-    agent: ClaimAgent, start: InputAgentState, claim: dict[str, Any], name: str
-) -> str:
-    """Run the claim agent on its claim, traced in the claim's session, and return
-    the reason to give if it leaves the claim undecided."""
+def run_claim_graph(
+    graph: ClaimGraph, start: InputAgentState, claim: dict[str, Any], name: str
+) -> str | None:
+    """Run the claim graph on the claim's thread, saving each step, and say what went
+    wrong, if anything."""
     try:
         # A fresh context makes this a root run even inside the queue agent's tool,
         # which Langfuse needs to put it in the claim's session.
         contextvars.Context().run(
-            agent.invoke,
+            graph.invoke,
             start,
-            tracing(claim, name),
+            claim_config(claim, name),
             context=ClaimContext(claim["claim_id"]),
+            durability="sync",
         )
     except Exception as error:  # a claim that fails must not stop the run
         return describe(error)
-    return NO_DECISION
+    return None
 
 
-def settle(claim_id: str, reason: str) -> str:
-    """Fail a claim the agent left in progress, and report how the claim ended."""
+def settle(claim_id: str, error: str | None) -> str:
+    """Fail a claim the agent left undecided, and report how the claim ended. An
+    error after the decision is logged, and the claim keeps its decision."""
     claim = api.get_claim(claim_id)
-    if claim["status"] == "in_progress":
+    reason = error or NO_DECISION
+    if undecided(claim):
         claim = api.fail_claim(claim_id, reason)
+    elif error:
+        log.warning("%s  %s", claim_id, error)
     line = report(claim, reason)
     log.info(line)
     return line
 
 
-def work_claim(claim_id: str, agent: ClaimAgent) -> str:
+def work_claim(claim_id: str, graph: ClaimGraph) -> str:
     """Work one claim from a clean start, as a new attempt, and report how it ended."""
     claim = api.start_claim(claim_id, str(uuid.uuid4()))
-    reason = run_claim_agent(agent, ask(f"Claim {claim_id}"), claim, WORK_CLAIM)
-    return settle(claim_id, reason)
+    error = run_claim_graph(graph, ask(f"Claim {claim_id}"), claim, WORK_CLAIM)
+    return settle(claim_id, error)
 
 
 def waiting() -> list[str]:
     """Return the ids of the claims waiting in the queue, oldest submitted first."""
     claims = sorted(api.list_claims(), key=lambda claim: claim["submitted_on"])
-    return [claim["claim_id"] for claim in claims if claim["status"] == "waiting"]
+    return [c["claim_id"] for c in claims if c["status"] == api.Status.WAITING]
 
 
 def recover() -> None:
-    """Put back in the queue any claim left in progress by a run that stopped."""
+    """Put back in the queue any undecided claim left in progress by a run that
+    stopped."""
     for claim in api.list_claims():
-        if claim["status"] == "in_progress":
+        if undecided(claim):
             api.fail_claim(claim["claim_id"], STOPPED)
 
 
@@ -217,7 +326,7 @@ def queue_agent(llm: BaseChatModel, cap: int) -> QueueAgent:
     calls = QUEUE_MODEL_CALLS_PER_CLAIM * cap + QUEUE_MODEL_CALLS_TO_PLAN
     middleware: list[AgentMiddleware[Any, Any]] = [
         ModelCallLimitMiddleware(run_limit=calls, exit_behavior="error"),
-        ToolErrorMiddleware(refusal),
+        ToolErrorMiddleware(lambda error, _: refusal(error)),
     ]
     return create_agent(
         llm,
@@ -250,7 +359,7 @@ def work_queue(run: RunContext, agent: QueueAgent) -> str:
     return state["messages"][-1].text or NO_SUMMARY
 
 
-def run_queue(cap: int | None, llm: BaseChatModel, claim_llm: BaseChatModel) -> None:
+def run_queue(cap: int | None, llm: BaseChatModel, graph: ClaimGraph) -> None:
     """Work the queue with a queue agent, up to cap claims or every waiting claim."""
     recover()
     count = len(waiting())
@@ -259,7 +368,7 @@ def run_queue(cap: int | None, llm: BaseChatModel, claim_llm: BaseChatModel) -> 
         return
     cap = min(cap or count, count)
     run_id = api.start_run(cap)["run_id"]
-    run = RunContext(run_id, cap, partial(work_claim, agent=claim_agent(claim_llm)))
+    run = RunContext(run_id, cap, partial(work_claim, graph=graph))
     try:
         summary = work_queue(run, queue_agent(llm, cap))
     except Exception as error:

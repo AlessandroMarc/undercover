@@ -19,5 +19,4 @@ UnderCover's payout rules are built into `calculate_payout`. Which lines of the 
 ## When you are done
 
 - You have recorded one decision with `record_decision`, which can't be changed afterwards. An approval's payout is the one `calculate_payout` worked out for the lines you judged covered. For a referral, the reason says what is needed and who should look at it.
-- If you approved the claim, you have paid it with `pay_claim`. A payout over the approval limit waits for a handler's sign-off, so a refusal saying so is expected, and the payment should not be tried again.
-- Your last reply is short, in plain text, and gives the decision, the payout and the reason.
+- Recording the decision is the last thing you do, so its reason carries your explanation. The system pays an approved claim, after a handler's sign-off when the payout is over the approval limit.

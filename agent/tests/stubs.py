@@ -1,10 +1,14 @@
-"""A stub model, so that tests never call a real model, and replies to script it."""
+"""A stub model, so that tests never call a real model, replies to script it, and
+the claim graph on it."""
 
 import itertools
 
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
+from langgraph.checkpoint.memory import InMemorySaver
+
+from agent import harness
 
 
 class StubModel(GenericFakeChatModel):
@@ -48,15 +52,12 @@ def record(decision, payout):
     )
 
 
-def pay(amount, text=""):
-    return call("pay_claim", text=text, amount=amount)
+def decide(decision, payout):
+    """The replies of a claim agent that reads its claim and decides it, which ends
+    its work on the claim."""
+    return [call("get_claim"), record(decision, payout)]
 
 
-def decide(decision, payout, *extra):
-    """The replies of a claim agent that reads its claim and decides it."""
-    return [
-        call("get_claim"),
-        record(decision, payout),
-        *extra,
-        AIMessage(content=f"Decision: {decision}."),
-    ]
+def graph_on(model, saver=None):
+    """The claim graph on a stub model, saving its progress in memory."""
+    return harness.claim_graph(model, saver or InMemorySaver())

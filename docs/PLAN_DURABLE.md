@@ -266,26 +266,26 @@ Add SQLAlchemy with `uv add sqlalchemy`. Rewrite `backend/database.py` and every
 
 Add `uv add psycopg-pool`. Replace the claim agent's `create_agent` and middleware with the graph in the design, and save its progress with the Postgres checkpointer. Remove the `pay_claim` tool and update the claim instructions. In the backend, keep an approval within the limit in progress until it is paid, treat a repeated decision or payment as done, have `pay_claim` return the claim, and have `fail_claim` refuse a claim with a decision. The sign-off itself still pays until phase 4, which leaves a paused thread behind. Nothing picks it up yet.
 
-- [ ] A pytest test checks the graph's nodes, `agent`, `tools`, `wait_for_sign_off` and `pay`, and its edges, against the table in the design
-- [ ] A pytest test checks that the claim agent's tools are exactly `get_claim`, `get_policy`, `get_claim_history`, `search_documents`, `read_section`, `calculate_payout` and `record_decision`
-- [ ] pytest, backend: approving `CLM-1001` for 420.00 leaves it `in_progress`, and paying it returns the claim `decided` with the payment. The same decision again returns the claim with one decision, and a payout of 400.00 returns 409. Paying 420.00 again returns the claim with one payment, and 400.00 returns 409
-- [ ] pytest, backend: `fail_claim` on an approval in progress returns 409 and changes nothing
-- [ ] Stub model test, within the limit: the stub reads the claim, works out the payout and approves 420.00. The graph pays it, with no `pay_claim` tool call in the steps, the model is called no more after the decision, and the report is `CLM-1001  approve  $420.00`
-- [ ] Stub model test, over the limit: the stub approves `CLM-1002` for 1,350.00. The report is `CLM-1002  approve  $1,350.00, waiting for sign-off`, `get_state` shows `next` as `("wait_for_sign_off",)` with one interrupt, and there is no payment
-- [ ] Stub model test: with the limit in `settings` raised to 2,000, the same approval is paid straight away, since the graph follows the backend
-- [ ] Stub model tests for a decline and a referral: both are `decided`, with no payment and no `pay` step in the state history
-- [ ] Stub model test: an approval with payout 0 goes back to the model as a refusal, the graph returns to the agent, and the stub's next, valid decision is paid
-- [ ] The harness's tests of steps and refusals pass on the graph: the steps in order, the reading step, a read of section 15 and a read of a `handbook` going back to the model
-- [ ] Stub model test: a stub that calls `get_claim` over and over stops after 30 model calls with `failed: TooManyModelCalls: ...`, and the claim is back in the queue
-- [ ] Stub model test: a provider error puts the claim back in the queue, and working it again starts a new attempt on a new thread, whose first prompt holds only the claim instructions and the message naming the claim. After a second failure it is left for a handler
-- [ ] Stub model test: when paying raises `RuntimeError`, the claim stays `in_progress` with its decision and no `error` step, and the report ends `, not paid yet`
-- [ ] Stub model test, a queue run with two claims: each claim's checkpoints are in the claim graph's saver under its own thread id, at the top level, and the queue agent's saver holds only the run's thread
-- [ ] A test checks that every invoke of the claim graph passes `durability="sync"` and the Langfuse handler
-- [ ] `curl -s localhost:8000/api/instructions | grep -c pay_claim` prints 0
-- [ ] e2e: in the agent-at-work test, `CLM-1003` stays In progress after its approval, and shows Decided and "Paid $500.00" after its payment
-- [ ] Live: with `npm run dev` running, `uv run -m agent CLM-1001` after `npm run seed` approves and pays the claim, with no `pay_claim` call in its steps. Supabase MCP shows `checkpoints`, `checkpoint_blobs`, `checkpoint_writes` and `checkpoint_migrations` in `undercover`, and rows in `undercover.checkpoints` for the claim's thread id
-- [ ] Live: after `npm run seed`, `uv run -m agent CLM-1003` prints a report that ends `, waiting for sign-off`. Supabase MCP shows a write on the channel `__interrupt__` in `undercover.checkpoint_writes` for its thread
-- [ ] `npm run check` passes
+- [x] A pytest test checks the graph's nodes, `agent`, `tools`, `wait_for_sign_off` and `pay`, and its edges, against the table in the design
+- [x] A pytest test checks that the claim agent's tools are exactly `get_claim`, `get_policy`, `get_claim_history`, `search_documents`, `read_section`, `calculate_payout` and `record_decision`
+- [x] pytest, backend: approving `CLM-1001` for 420.00 leaves it `in_progress`, and paying it returns the claim `decided` with the payment. The same decision again returns the claim with one decision, and a payout of 400.00 returns 409. Paying 420.00 again returns the claim with one payment, and 400.00 returns 409
+- [x] pytest, backend: `fail_claim` on an approval in progress returns 409 and changes nothing
+- [x] Stub model test, within the limit: the stub reads the claim, works out the payout and approves 420.00. The graph pays it, with no `pay_claim` tool call in the steps, the model is called no more after the decision, and the report is `CLM-1001  approve  $420.00`
+- [x] Stub model test, over the limit: the stub approves `CLM-1002` for 1,350.00. The report is `CLM-1002  approve  $1,350.00, waiting for sign-off`, `get_state` shows `next` as `("wait_for_sign_off",)` with one interrupt, and there is no payment
+- [x] Stub model test: with the limit in `settings` raised to 2,000, the same approval is paid straight away, since the graph follows the backend
+- [x] Stub model tests for a decline and a referral: both are `decided`, with no payment and no `pay` step in the state history
+- [x] Stub model test: an approval with payout 0 goes back to the model as a refusal, the graph returns to the agent, and the stub's next, valid decision is paid
+- [x] The harness's tests of steps and refusals pass on the graph: the steps in order, the reading step, a read of section 15 and a read of a `handbook` going back to the model
+- [x] Stub model test: a stub that calls `get_claim` over and over stops after 30 model calls with `failed: TooManyModelCalls: ...`, and the claim is back in the queue
+- [x] Stub model test: a provider error puts the claim back in the queue, and working it again starts a new attempt on a new thread, whose first prompt holds only the claim instructions and the message naming the claim. After a second failure it is left for a handler
+- [x] Stub model test: when paying raises `RuntimeError`, the claim stays `in_progress` with its decision and no `error` step, and the report ends `, not paid yet`
+- [x] Stub model test, a queue run with two claims: each claim's checkpoints are in the claim graph's saver under its own thread id, at the top level, and the queue agent's saver holds only the run's thread
+- [x] A test checks that every invoke of the claim graph passes `durability="sync"` and the Langfuse handler
+- [x] `curl -s localhost:8000/api/instructions | grep -c pay_claim` prints 0
+- [x] e2e: in the agent-at-work test, `CLM-1003` stays In progress after its approval, and shows Decided and "Paid $500.00" after its payment
+- [x] Live: with `npm run dev` running, `uv run -m agent CLM-1001` after `npm run seed` approves and pays the claim, with no `pay_claim` call in its steps. Supabase MCP shows `checkpoints`, `checkpoint_blobs`, `checkpoint_writes` and `checkpoint_migrations` in `undercover`, and rows in `undercover.checkpoints` for the claim's thread id
+- [x] Live: after `npm run seed`, `uv run -m agent CLM-1003` prints a report that ends `, waiting for sign-off`. Supabase MCP shows a write on the channel `__interrupt__` in `undercover.checkpoint_writes` for its thread
+- [x] `npm run check` passes
 
 ## Phase 4: A sign-off picks the claim back up
 

@@ -84,20 +84,47 @@ def test_invalid_decisions(client, decision, payout, section):
 def test_approve_and_pay_within_the_limit(client):
     start(client, "CLM-1001")
     claim = decide(client, "CLM-1001", "approve", 420.0).json()
-    assert claim["status"] == "decided"
+    assert claim["status"] == "in_progress"
     assert claim["decision"]["payout"] == 420.0
     assert claim["payment"] is None
     response = pay(client, "CLM-1001", 420.0)
     assert response.status_code == 200
-    assert response.json()["amount"] == 420.0
-    assert response.json()["signed_off_by"] is None
+    assert response.json()["status"] == "decided"
+    assert response.json()["payment"]["amount"] == 420.0
+    assert response.json()["payment"]["signed_off_by"] is None
     assert client.get("/api/claims/CLM-1001").json()["payment"]["amount"] == 420.0
-    assert pay(client, "CLM-1001", 420.0).status_code == 409
+
+
+def test_a_repeated_decision_is_done_and_a_different_one_refused(client):
+    start(client, "CLM-1001")
+    first = decide(client, "CLM-1001", "approve", 420.0).json()
+    again = decide(client, "CLM-1001", "approve", 420.0)
+    assert again.status_code == 200
+    assert again.json()["decision"] == first["decision"]
+    different = decide(client, "CLM-1001", "approve", 400.0)
+    assert different.status_code == 409
+    assert different.json()["detail"] == "Claim CLM-1001 has already been decided"
+    assert decide(client, "CLM-1001", "decline", 0).status_code == 409
+    pay(client, "CLM-1001", 420.0)
+    assert decide(client, "CLM-1001", "approve", 420.0).json()["status"] == "decided"
+
+
+def test_a_repeated_payment_is_done_and_a_different_one_refused(client):
+    start(client, "CLM-1001")
+    decide(client, "CLM-1001", "approve", 420.0)
+    paid = pay(client, "CLM-1001", 420.0).json()["payment"]
+    again = pay(client, "CLM-1001", 420.0)
+    assert again.status_code == 200
+    assert again.json()["payment"] == paid
+    different = pay(client, "CLM-1001", 400.0)
+    assert different.status_code == 409
+    assert different.json()["detail"] == "Claim CLM-1001 has already been paid"
 
 
 def test_queue_shows_the_decision(client):
     start(client, "CLM-1001")
     decide(client, "CLM-1001", "approve", 420.0)
+    pay(client, "CLM-1001", 420.0)
     first = client.get("/api/claims").json()[0]
     assert (first["status"], first["decision"], first["payout"]) == (
         "decided",
@@ -119,8 +146,9 @@ def test_payment_must_match_the_payout(client):
 
 def test_exactly_the_limit_needs_no_sign_off(client):
     start(client, "CLM-1002")
-    assert decide(client, "CLM-1002", "approve", 1000.0).json()["status"] == "decided"
-    assert pay(client, "CLM-1002", 1000.0).status_code == 200
+    claim = decide(client, "CLM-1002", "approve", 1000.0).json()
+    assert claim["status"] == "in_progress"
+    assert pay(client, "CLM-1002", 1000.0).json()["status"] == "decided"
 
 
 def test_over_the_limit_waits_for_sign_off(client):
@@ -143,7 +171,8 @@ def test_sign_off(client):
     assert claim["status"] == "decided"
     assert claim["payment"]["amount"] == 1350.0
     assert claim["payment"]["signed_off_by"] == "Dana Whitfield"
-    assert pay(client, "CLM-1002", 1350.0).status_code == 409
+    assert pay(client, "CLM-1002", 1350.0).json()["payment"] == claim["payment"]
+    assert pay(client, "CLM-1002", 1300.0).status_code == 409
     assert sign_off(client, "CLM-1002", "HND-01").status_code == 409
 
 

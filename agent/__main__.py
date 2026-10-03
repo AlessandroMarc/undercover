@@ -7,7 +7,7 @@ import sys
 from dotenv import load_dotenv
 
 from agent import api
-from agent.harness import claim_agent, model, run_queue, work_claim
+from agent.harness import checkpointer, claim_graph, model, run_queue, work_claim
 
 
 def positive(text: str) -> int:
@@ -27,13 +27,15 @@ def main(args: list[str]) -> None:
     choice.add_argument("claim_id", nargs="?", help="work this one claim")
     choice.add_argument("--cap", type=positive, help="the most claims the run works")
     options = parser.parse_args(args)
-    if not options.claim_id:
-        run_queue(options.cap, model(), model())
-        return
-    try:
-        work_claim(options.claim_id, claim_agent(model()))
-    except api.Refused as refusal:
-        parser.exit(1, f"{options.claim_id}  not started: {refusal}\n")
+    with checkpointer() as saver:
+        graph = claim_graph(model(), saver)
+        if not options.claim_id:
+            run_queue(options.cap, model(), graph)
+            return
+        try:
+            work_claim(options.claim_id, graph)
+        except api.Refused as refusal:
+            parser.exit(1, f"{options.claim_id}  not started: {refusal}\n")
 
 
 if __name__ == "__main__":

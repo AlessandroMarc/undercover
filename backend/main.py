@@ -164,11 +164,10 @@ def to_claim(row: RowMapping) -> Claim:
 
 def pay(
     db: Connection, claim_id: str, amount: float, signed_off_by: str | None
-) -> Payment:
+) -> None:
     """Record a payment on a claim."""
     payment = Payment(amount=amount, paid_at=now(), signed_off_by=signed_off_by)
     db.execute(insert(payments).values(claim_id=claim_id, **payment.model_dump()))
-    return payment
 
 
 def add_step(
@@ -315,11 +314,15 @@ def list_steps(claim_id: str, db: Database) -> list[Step]:
 
 @app.post("/api/claims/{claim_id}/decision", operation_id="record_decision")
 def record_decision(claim_id: str, request: DecisionRequest, db: Database) -> Claim:
-    """Record the decision on a claim; an approval over the limit waits for sign-off."""
-    if find_claim(db, claim_id)["status"] != "in_progress":
-        raise HTTPException(409, f"Claim {claim_id} is not in progress")
+    """Record a claim's decision once; an approval waits to be paid or signed off."""
+    claim = find_claim(db, claim_id)
     payout = round(request.payout, 2)
-    held = request.decision == "approve" and needs_sign_off(payout, approval_limit(db))
+    if claim["decision"] is not None:
+        if (claim["decision"], claim["payout"]) == (request.decision, payout):
+            return to_claim(claim)
+        raise HTTPException(409, f"Claim {claim_id} has already been decided")
+    if claim["status"] != "in_progress":
+        raise HTTPException(409, f"Claim {claim_id} is not in progress")
     db.execute(
         insert(decisions).values(
             claim_id=claim_id,
@@ -330,7 +333,10 @@ def record_decision(claim_id: str, request: DecisionRequest, db: Database) -> Cl
             decided_at=now(),
         )
     )
-    set_status(db, claim_id, "waiting_for_sign_off" if held else "decided")
+    if request.decision != "approve":
+        set_status(db, claim_id, "decided")
+    elif needs_sign_off(payout, approval_limit(db)):
+        set_status(db, claim_id, "waiting_for_sign_off")
     return to_claim(find_claim(db, claim_id))
 
 
@@ -342,23 +348,28 @@ def calculate_payout(claim_id: str, request: PayoutRequest, db: Database) -> Pay
 
 
 @app.post("/api/claims/{claim_id}/payment", operation_id="pay_claim")
-def pay_claim(claim_id: str, request: PaymentRequest, db: Database) -> Payment:
-    """Pay an approved claim its payout, unless it needs a handler's sign-off."""
+def pay_claim(claim_id: str, request: PaymentRequest, db: Database) -> Claim:
+    """Pay an approved claim its payout once, unless it needs a handler's sign-off."""
     claim = find_claim(db, claim_id)
     if claim["decision"] != "approve":
         raise HTTPException(409, f"Claim {claim_id} has not been approved")
+    amount = round(request.amount, 2)
     if claim["paid_at"] is not None:
+        if amount == claim["amount"]:
+            return to_claim(claim)
         raise HTTPException(409, f"Claim {claim_id} has already been paid")
     if claim["status"] == "waiting_for_sign_off":
         raise HTTPException(
             403,
             f"A payout over {dollars(approval_limit(db))} needs a handler's sign-off",
         )
-    if round(request.amount, 2) != claim["payout"]:
+    if amount != claim["payout"]:
         raise HTTPException(
             422, f"The amount must be the approved payout of {dollars(claim['payout'])}"
         )
-    return pay(db, claim_id, claim["payout"], None)
+    pay(db, claim_id, claim["payout"], None)
+    set_status(db, claim_id, "decided")
+    return to_claim(find_claim(db, claim_id))
 
 
 @app.post("/api/claims/{claim_id}/sign-off", operation_id="sign_off_claim")
@@ -388,6 +399,8 @@ def fail_claim(claim_id: str, request: FailureRequest, db: Database) -> Claim:
     claim = find_claim(db, claim_id)
     if claim["status"] != "in_progress":
         raise HTTPException(409, f"Claim {claim_id} is not in progress")
+    if claim["decision"] is not None:
+        raise HTTPException(409, f"Claim {claim_id} has already been decided")
     add_step(db, claim_id, claim["thread_id"], "error", request.reason)
     status = "left_for_handler" if claim["attempts"] >= ATTEMPTS else "waiting"
     set_status(db, claim_id, status)
