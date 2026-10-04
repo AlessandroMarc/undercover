@@ -9,8 +9,10 @@ export interface Loaded<T> {
   reload: () => void;
 }
 
-// Loads data once, or again every refreshMs milliseconds when that's given,
-// stopping if the data isn't found, and again whenever reload is called.
+// Loads data once, or again refreshMs milliseconds after each answer when that's
+// given, stopping if the data isn't found, and again whenever reload is called.
+// Waiting for each answer before asking again means a slow backend is never
+// sent a pile of requests, and every answer shows.
 // `load` must keep the same identity between renders, as with useCallback.
 export function useLoad<T>(
   load: () => Promise<T>,
@@ -21,31 +23,31 @@ export function useLoad<T>(
 
   useEffect(() => {
     let active = true;
-    let latest = 0;
-    const fetchNow = () => {
-      const asked = ++latest;
-      const current = () => active && asked === latest;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    function askAgain() {
+      if (refreshMs !== undefined) timer = setTimeout(fetchNow, refreshMs);
+    }
+    function fetchNow() {
       load().then(
         (data) => {
-          if (current()) setLoaded({ data });
+          if (!active) return;
+          setLoaded({ data });
+          askAgain();
         },
         (error: unknown) => {
-          if (error instanceof ApiError && error.status === 404)
-            clearInterval(timer);
-          if (current())
-            setLoaded((previous) => ({
-              data: previous.data,
-              error: error instanceof Error ? error : new Error(REQUEST_FAILED),
-            }));
+          if (!active) return;
+          setLoaded((previous) => ({
+            data: previous.data,
+            error: error instanceof Error ? error : new Error(REQUEST_FAILED),
+          }));
+          if (!(error instanceof ApiError && error.status === 404)) askAgain();
         },
       );
-    };
+    }
     fetchNow();
-    const timer =
-      refreshMs === undefined ? undefined : setInterval(fetchNow, refreshMs);
     return () => {
       active = false;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [load, refreshMs, version]);
 

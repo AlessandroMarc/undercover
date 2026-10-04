@@ -4,7 +4,7 @@ import json
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import event, select
 
 from backend.database import engine, handler_decisions, held_out_claims
 from backend.tests.judging import answer
@@ -14,6 +14,7 @@ from backend.tests.round_requests import (
     create_round,
     handler_reasons,
     improvement,
+    improver_call,
     play_out,
     propose_change,
     propose_recipe,
@@ -160,6 +161,86 @@ def test_an_approval_with_the_agents_service_down(client, agent_answers):
 def stage(client):
     open_round = improvement(client)["round"]
     return open_round["stage"], open_round["progress"]
+
+
+def whole_round(client, right, improver_cost, rejected=False):
+    """Play out a round from start to finish: the improver's spending, the first
+    evaluations the current version needs, a change rejected first if asked, an
+    approved change whose evaluations get `right` claims right, a verdict and an
+    approved recipe. Return the round's id."""
+    round_ = create_round(client).json()
+    round_id = round_["round_id"]
+    improver_call(client, round_id, improver_cost)
+    for _ in round_["first_evaluations"]:
+        play_out(client, round_id)
+    if rejected:
+        proposal = propose_change(client, round_id).json()
+        review(client, round_id, proposal["proposal_id"], "rejected")
+    proposal = propose_change(client, round_id).json()
+    review(client, round_id, proposal["proposal_id"])
+    client.post(f"{round_path(round_id)}/version")
+    for _ in range(3):
+        play_out(client, round_id, right=right)
+    client.post(f"{round_path(round_id)}/verdict")
+    recipe = propose_recipe(client, round_id).json()
+    review(client, round_id, recipe["proposal_id"])
+    client.post(f"{round_path(round_id)}/recipe")
+    client.post(f"{round_path(round_id)}/finish")
+    return round_id
+
+
+def queries_for_the_page(client):
+    """Count the queries one load of the Improvement page makes."""
+    statements = []
+
+    def count(*_):
+        statements.append(1)
+
+    event.listen(engine(), "before_cursor_execute", count)
+    try:
+        improvement(client)
+    finally:
+        event.remove(engine(), "before_cursor_execute", count)
+    return len(statements)
+
+
+def test_each_round_on_the_page_is_its_own_in_as_many_queries_after_three(client):
+    change_settings(client, spending_limit=10.0)
+    first = whole_round(client, right=ALL, improver_cost=0.01)
+    after_one = queries_for_the_page(client)
+    change_settings(client, spending_limit=11.0)
+    second = whole_round(client, right=0, improver_cost=0.02, rejected=True)
+    change_settings(client, spending_limit=12.0)
+    third = whole_round(client, right=ALL, improver_cost=0.03)
+
+    assert queries_for_the_page(client) == after_one
+    page = improvement(client)
+    shown = {r["round_id"]: r for r in page["rounds"]}
+    approved = [("change", "approved"), ("recipe", "approved")]
+    expected = [
+        (first, 10.0, 2, "kept", approved),
+        (second, 11.0, 3, "rolled_back", [("change", "rejected"), *approved]),
+        (third, 12.0, 4, "rolled_back", approved),
+    ]
+    for round_id, limit, version, verdict, reviews in expected:
+        one = shown[round_id]
+        assert (one["spending_limit"], one["version"], one["verdict"]) == (
+            limit,
+            version,
+            verdict,
+        )
+        assert [(r["kind"], r["review"]) for r in one["reviews"]] == reviews
+        # What the improver reads of the round's spending, one round at a time.
+        spent = client.get(f"{round_path(round_id)}/results").json()["spending"]
+        assert one["cost"] == pytest.approx(spent["spent"])
+    assert [
+        (v["number"], v["verdict"], v["accuracy"]) for v in page["versions_tried"]
+    ] == [
+        (2, "kept", 1.0),
+        (3, "rolled_back", 0.0),
+        (4, "rolled_back", 1.0),
+    ]
+    assert page["round"]["round_id"] == third
 
 
 def test_the_page_follows_a_round_through_its_stages(client):

@@ -64,9 +64,11 @@ from backend.round_state import (
 )
 from backend.scoreboard import (
     claims_of,
-    cost_and_time,
     expected_answers,
+    model_cost_of,
     score,
+    score_all,
+    seconds_between,
     to_run_claim,
 )
 
@@ -94,7 +96,8 @@ def find_run(db: Connection, run_id: str) -> Run:
     row = run_row(db, run_id)
     return Run(
         **row,
-        **cost_and_time(db, row),
+        model_cost=model_cost_of(db, run_id),
+        seconds=seconds_between(row["started_at"], row["finished_at"]),
         round_number=round_number(db, row["round_id"]),
         claims=[to_run_claim(claim) for claim in claims_of(db, run_id)],
     )
@@ -460,10 +463,10 @@ def list_evaluations(db: Database) -> list[Evaluation]:
         .where(runs.c.kind == RunKind.EVALUATION)
         .order_by(runs.c.number.desc())
     )
-    expected = expected_answers(db)
+    rows = list(db.execute(query).mappings())
     return [
-        Evaluation(**score(db, row, expected).model_dump(exclude={"claims"}))
-        for row in db.execute(query).mappings()
+        Evaluation(**scored.model_dump(exclude={"claims"}))
+        for scored in score_all(db, rows, expected_answers(db))
     ]
 
 

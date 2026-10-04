@@ -4,9 +4,8 @@ rounds ran on it."""
 
 from datetime import datetime
 from statistics import fmean
-from typing import Any
 
-from sqlalchemy import Connection, RowMapping, func, select
+from sqlalchemy import Connection, RowMapping, and_, func, select
 
 from backend import scoring
 from backend.database import (
@@ -19,7 +18,7 @@ from backend.database import (
     runs,
     work_times,
 )
-from backend.lookups import round_number
+from backend.lookups import round_numbers
 from backend.models import (
     ClaimGrade,
     EvaluationSet,
@@ -36,27 +35,34 @@ from backend.views import to_summary
 Expected = dict[tuple[str, str], scoring.Answer]
 
 
-def claims_of(db: Connection, run_id: str) -> list[RowMapping]:
-    """Return the rows of a run's claims, in order, with each one's model cost, its
-    seconds of work, the start of its first spell in this run and its grade."""
+def claims_of_runs(db: Connection, run_ids: list[str]) -> dict[str, list[RowMapping]]:
+    """Return the rows of each run's claims, in order, with each one's model cost,
+    its seconds of work, the start of its first spell in the run and its grade, in
+    one query for all the runs."""
     cost = (
-        select(model_calls.c.claim_id, func.sum(model_calls.c.cost).label("cost"))
-        .where(model_calls.c.run_id == run_id)
-        .group_by(model_calls.c.claim_id)
+        select(
+            model_calls.c.run_id,
+            model_calls.c.claim_id,
+            func.sum(model_calls.c.cost).label("cost"),
+        )
+        .where(model_calls.c.run_id.in_(run_ids))
+        .group_by(model_calls.c.run_id, model_calls.c.claim_id)
         .subquery()
     )
     spells = (
         select(
+            work_times.c.run_id,
             work_times.c.claim_id,
             func.min(work_times.c.started_at).label("first_started_at"),
             func.sum(work_times.c.seconds).label("seconds"),
         )
-        .where(work_times.c.run_id == run_id)
-        .group_by(work_times.c.claim_id)
+        .where(work_times.c.run_id.in_(run_ids))
+        .group_by(work_times.c.run_id, work_times.c.claim_id)
         .subquery()
     )
     query = (
         claim_view.add_columns(
+            run_claims.c.run_id,
             func.coalesce(cost.c.cost, 0).label("model_cost"),
             spells.c.first_started_at,
             func.coalesce(spells.c.seconds, 0).label("seconds"),
@@ -67,13 +73,33 @@ def claims_of(db: Connection, run_id: str) -> list[RowMapping]:
             func.coalesce(grades.c.cost, 0).label("judge_cost"),
         )
         .join(run_claims, run_claims.c.claim_id == claims.c.claim_id)
-        .outerjoin(cost, cost.c.claim_id == claims.c.claim_id)
-        .outerjoin(spells, spells.c.claim_id == claims.c.claim_id)
+        .outerjoin(
+            cost,
+            and_(
+                cost.c.run_id == run_claims.c.run_id,
+                cost.c.claim_id == claims.c.claim_id,
+            ),
+        )
+        .outerjoin(
+            spells,
+            and_(
+                spells.c.run_id == run_claims.c.run_id,
+                spells.c.claim_id == claims.c.claim_id,
+            ),
+        )
         .outerjoin(grades, grades.c.claim_id == claims.c.claim_id)
-        .where(run_claims.c.run_id == run_id)
-        .order_by(run_claims.c.position)
+        .where(run_claims.c.run_id.in_(run_ids))
+        .order_by(run_claims.c.run_id, run_claims.c.position)
     )
-    return list(db.execute(query).mappings())
+    by_run: dict[str, list[RowMapping]] = {run_id: [] for run_id in run_ids}
+    for row in db.execute(query).mappings():
+        by_run[row["run_id"]].append(row)
+    return by_run
+
+
+def claims_of(db: Connection, run_id: str) -> list[RowMapping]:
+    """Return the rows of a run's claims, in order, as claims_of_runs does."""
+    return claims_of_runs(db, [run_id])[run_id]
 
 
 def to_run_claim(row: RowMapping) -> RunClaim:
@@ -94,15 +120,21 @@ def seconds_between(started_at: str, finished_at: str | None) -> float | None:
     return (finish - start).total_seconds()
 
 
-def cost_and_time(db: Connection, row: RowMapping) -> dict[str, Any]:
-    """Return a run's model cost in all, and its seconds once it has finished."""
-    total = select(func.coalesce(func.sum(model_calls.c.cost), 0)).where(
-        model_calls.c.run_id == row["run_id"]
+def model_costs(db: Connection, run_ids: list[str]) -> dict[str, float]:
+    """Return each run's model cost in all, in one query for all the runs."""
+    query = (
+        select(model_calls.c.run_id, func.sum(model_calls.c.cost))
+        .where(model_calls.c.run_id.in_(run_ids))
+        .group_by(model_calls.c.run_id)
     )
-    return {
-        "model_cost": db.execute(total).scalar_one(),
-        "seconds": seconds_between(row["started_at"], row["finished_at"]),
-    }
+    costs = dict.fromkeys(run_ids, 0.0)
+    costs.update({run_id: cost for run_id, cost in db.execute(query)})
+    return costs
+
+
+def model_cost_of(db: Connection, run_id: str) -> float:
+    """Return one run's model cost in all, as model_costs does."""
+    return model_costs(db, [run_id])[run_id]
 
 
 def grade_of(row: RowMapping) -> ClaimGrade | None:
@@ -143,24 +175,54 @@ def expected_answers(db: Connection) -> Expected:
     }
 
 
-def score(db: Connection, row: RowMapping, expected: Expected) -> ScoredEvaluation:
+def scored_evaluation(
+    row: RowMapping,
+    copies: list[RowMapping],
+    model_cost: float,
+    round_number: int | None,
+    expected: Expected,
+) -> ScoredEvaluation:
     """Score an evaluation from its copies as they stand and the handlers'
     decisions on their originals."""
-    copies = claims_of(db, row["run_id"])
     scored = [
         scored_claim(claim, expected[row["evaluation_set"], claim["copy_of"]])
         for claim in copies
     ]
-    run = cost_and_time(db, row)
+    seconds = seconds_between(row["started_at"], row["finished_at"])
     return ScoredEvaluation(
         **row,
-        **run,
-        round_number=round_number(db, row["round_id"]),
+        model_cost=model_cost,
+        seconds=seconds,
+        round_number=round_number,
         judge_cost=sum(copy["judge_cost"] for copy in copies),
         size=len(scored),
-        measures=scoring.measures(scored, run["model_cost"], run["seconds"]),
+        measures=scoring.measures(scored, model_cost, seconds),
         claims=scored,
     )
+
+
+def score_all(
+    db: Connection, rows: list[RowMapping], expected: Expected
+) -> list[ScoredEvaluation]:
+    """Score evaluations, in three queries for them all."""
+    run_ids = [row["run_id"] for row in rows]
+    copies, costs = claims_of_runs(db, run_ids), model_costs(db, run_ids)
+    numbers = round_numbers(db, [row["round_id"] for row in rows])
+    return [
+        scored_evaluation(
+            row,
+            copies[row["run_id"]],
+            costs[row["run_id"]],
+            numbers.get(row["round_id"]),
+            expected,
+        )
+        for row in rows
+    ]
+
+
+def score(db: Connection, row: RowMapping, expected: Expected) -> ScoredEvaluation:
+    """Score one evaluation, as score_all does."""
+    return score_all(db, [row], expected)[0]
 
 
 def average(measures: list[Measures]) -> Measures | None:
@@ -175,34 +237,61 @@ def average(measures: list[Measures]) -> Measures | None:
     return Measures(**averaged)
 
 
-def round_evaluations(db: Connection, number: int) -> dict[str, list[RowMapping]]:
-    """Return the finished whole-set evaluations rounds ran on a version, oldest
-    first, on each set. The Scoreboard's own evaluations and any stopped
-    evaluation don't count."""
+# A version's evaluations, on each set.
+BySet = dict[str, list[RowMapping]]
+
+
+def round_evaluations_of(db: Connection, numbers: list[int]) -> dict[int, BySet]:
+    """Return the finished whole-set evaluations rounds ran on each version, oldest
+    first, on each set, in one query for all the versions. The Scoreboard's own
+    evaluations and any stopped evaluation don't count."""
     query = select(runs).where(
-        runs.c.version == number,
+        runs.c.version.in_(numbers),
         runs.c.kind == RunKind.EVALUATION,
         runs.c.round_id.is_not(None),
         runs.c.status == RunStatus.FINISHED,
         runs.c.tiny.is_(False),
     )
-    by_set: dict[str, list[RowMapping]] = {s: [] for s in EvaluationSet}
+    by_version: dict[int, BySet] = {
+        number: {s: [] for s in EvaluationSet} for number in numbers
+    }
     for row in db.execute(query.order_by(runs.c.number)).mappings():
-        by_set[row["evaluation_set"]].append(row)
-    return by_set
+        by_version[row["version"]][row["evaluation_set"]].append(row)
+    return by_version
+
+
+def round_evaluations(db: Connection, number: int) -> BySet:
+    """Return the finished whole-set evaluations rounds ran on a version, as
+    round_evaluations_of does."""
+    return round_evaluations_of(db, [number])[number]
+
+
+def scores_of_versions(
+    db: Connection, numbers: list[int], expected: Expected
+) -> dict[int, VersionScores]:
+    """Each version's scores on each set: the averages of the evaluations rounds
+    ran on it, in a few queries for all the versions."""
+    by_version = round_evaluations_of(db, numbers)
+    rows = [
+        row
+        for by_set in by_version.values()
+        for runs_ in by_set.values()
+        for row in runs_
+    ]
+    measures = {s.run_id: s.measures for s in score_all(db, rows, expected)}
+
+    def averaged(by_set: BySet, evaluation_set: EvaluationSet) -> Measures | None:
+        return average([measures[row["run_id"]] for row in by_set[evaluation_set]])
+
+    return {
+        number: VersionScores(
+            evaluation=averaged(by_set, EvaluationSet.EVALUATION),
+            held_out=averaged(by_set, EvaluationSet.HELD_OUT),
+        )
+        for number, by_set in by_version.items()
+    }
 
 
 def version_scores(db: Connection, number: int, expected: Expected) -> VersionScores:
-    """A version's scores on each set: the averages of the evaluations rounds ran
-    on it."""
-    by_set = round_evaluations(db, number)
-
-    def averaged(evaluation_set: EvaluationSet) -> Measures | None:
-        return average(
-            [score(db, row, expected).measures for row in by_set[evaluation_set]]
-        )
-
-    return VersionScores(
-        evaluation=averaged(EvaluationSet.EVALUATION),
-        held_out=averaged(EvaluationSet.HELD_OUT),
-    )
+    """A version's scores on each set, as scores_of_versions gives them."""
+    return scores_of_versions(db, [number], expected)[number]

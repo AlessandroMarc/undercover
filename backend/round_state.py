@@ -6,8 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import Connection, RowMapping, select, update
 
 from backend import spending
-from backend.database import now, proposals, rounds, runs, versions
-from backend.lookups import settings_number
+from backend.database import now, proposals, rounds, runs, settings, versions
 from backend.models import (
     EvaluationSet,
     ProposalKind,
@@ -54,10 +53,16 @@ def waiting_proposal(db: Connection, round_id: str) -> RowMapping | None:
     return db.execute(query).mappings().first()
 
 
+def tried_versions(db: Connection, round_ids: list[str]) -> dict[str, RowMapping]:
+    """Return the versions rounds made from an approved change, by round, in one
+    query for all the rounds."""
+    query = select(versions).where(versions.c.round_id.in_(round_ids))
+    return {row["round_id"]: row for row in db.execute(query).mappings()}
+
+
 def tried_version(db: Connection, round_id: str) -> RowMapping | None:
     """Return the version the round made from an approved change, if any."""
-    query = select(versions).where(versions.c.round_id == round_id)
-    return db.execute(query).mappings().first()
+    return tried_versions(db, [round_id]).get(round_id)
 
 
 def evaluations_of(db: Connection, round_id: str, version: int) -> list[RowMapping]:
@@ -97,9 +102,20 @@ def stage_of(db: Connection, row: RowMapping) -> tuple[RoundStage, str | None]:
     return RoundStage.IMPROVING, None
 
 
+def spending_limits(db: Connection, round_ids: list[str]) -> dict[str, float]:
+    """Return the spending limit each round works to, from its own settings, by
+    round, in one query for all the rounds."""
+    query = (
+        select(rounds.c.round_id, settings.c.spending_limit)
+        .join(settings, settings.c.number == rounds.c.settings)
+        .where(rounds.c.round_id.in_(round_ids))
+    )
+    return {round_id: limit for round_id, limit in db.execute(query)}
+
+
 def spending_limit(db: Connection, row: RowMapping) -> float:
-    """Return the spending limit the round works to, from its own settings."""
-    return settings_number(db, row["settings"]).spending_limit
+    """Return the spending limit the round works to, as spending_limits does."""
+    return spending_limits(db, [row["round_id"]])[row["round_id"]]
 
 
 def spending_of(db: Connection, row: RowMapping) -> Spending:

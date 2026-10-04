@@ -34,7 +34,7 @@ def test_create_a_dispatch(client):
     )
     assert (dispatch["model"], dispatch["reasoning_effort"]) == (
         "openai/gpt-6-luna",
-        "low",
+        "none",
     )
     assert (dispatch["evaluation_set"], dispatch["tiny"]) == (None, None)
     assert dispatch["number"] == 1

@@ -39,7 +39,7 @@ def test_a_round_is_recorded_to_what_is_in_force(client):
     round_ = created.json()
     assert (round_["number"], round_["status"]) == (1, "open")
     assert (round_["improver_model"], round_["improver_reasoning_effort"]) == (
-        "openai/gpt-6-luna",
+        "openai/gpt-6.1-sol",
         "medium",
     )
     assert round_["first_evaluations"] == ["evaluation", "held_out", "held_out"]

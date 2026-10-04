@@ -53,13 +53,14 @@ FIRST_VERSION = {
     "verdict": Verdict.KEPT,
     "verdict_reason": "the first version",
 }
-# The model the claim agent and the improver use, unless a student is on a free one.
-LUNA = "openai/gpt-6-luna"
-FIRST_MODEL = (LUNA, "low")
+# The model version 1 of the claim agent is on, with no reasoning, so a higher
+# reasoning effort is an improvement to find, unless a student is on a free model.
+FIRST_MODEL = ("openai/gpt-6-luna", "none")
 FIRST_RECIPE = {
     "number": 1,
     "recipe": (INSTRUCTIONS / "recipe.md").read_text(encoding="utf-8"),
-    "reason": "The lab's first recipe, which adds a rule for each mistake",
+    "reason": "The lab's first recipe, which tries the models and reasoning efforts "
+    "not yet tried, then adds a rule for each mistake",
     "proposed_by": "The claims team",
 }
 HELD_OUT_CLAIMS = "evals/held_out_claims.json"
@@ -537,7 +538,7 @@ def seed_models_allowed(connection: Connection) -> None:
 
 def seed_first_version(connection: Connection) -> None:
     """Make version 1 of the claim agent's configuration, from its instructions file,
-    on GPT-6 Luna at low reasoning effort, or the free model for students on free
+    on GPT-6 Luna with no reasoning, or the free model for students on free
     models."""
     model, reasoning_effort = model_or_free(*FIRST_MODEL)
     connection.execute(

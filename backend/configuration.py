@@ -29,7 +29,7 @@ from backend.models import (
     VersionStatus,
     VersionSummary,
 )
-from backend.scoreboard import expected_answers, version_scores
+from backend.scoreboard import expected_answers, scores_of_versions, version_scores
 
 router = APIRouter()
 
@@ -99,16 +99,11 @@ def get_configuration(db: Database) -> Configuration:
     current = current_version_number(db)
     query = select(versions).order_by(versions.c.number.desc())
     rows = {row["number"]: row for row in db.execute(query).mappings()}
-    expected = expected_answers(db)
+    scores = scores_of_versions(db, list(rows), expected_answers(db))
     return Configuration(
         current=current,
         versions=[
-            summary_of(
-                row,
-                rows.get(row["based_on"]),
-                current,
-                version_scores(db, number, expected),
-            )
+            summary_of(row, rows.get(row["based_on"]), current, scores[number])
             for number, row in rows.items()
         ],
     )

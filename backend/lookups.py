@@ -20,12 +20,19 @@ def run_row(db: Connection, run_id: str) -> RowMapping:
     return row
 
 
+def round_numbers(db: Connection, round_ids: list[str | None]) -> dict[str, int]:
+    """Return the numbers of the rounds with these ids, by id, in one query."""
+    query = select(rounds.c.round_id, rounds.c.number).where(
+        rounds.c.round_id.in_(round_ids)
+    )
+    return {round_id: number for round_id, number in db.execute(query)}
+
+
 def round_number(db: Connection, round_id: str | None) -> int | None:
     """Return the number of the round with this id, or none for no round."""
     if round_id is None:
         return None
-    query = select(rounds.c.number).where(rounds.c.round_id == round_id)
-    return db.execute(query).scalar_one()
+    return round_numbers(db, [round_id])[round_id]
 
 
 def version_row(db: Connection, number: int) -> RowMapping:

@@ -14,7 +14,6 @@ from backend import agent_service, spending, verdict
 from backend.database import (
     FIRST_VERSION,
     INSTRUCTIONS,
-    LUNA,
     handler_decisions,
     handlers,
     improver_calls,
@@ -76,6 +75,7 @@ from backend.models import (
     VerdictResult,
     VerdictScores,
     VersionPoint,
+    VersionScores,
     WaitingProposal,
 )
 from backend.round_state import (
@@ -85,11 +85,12 @@ from backend.round_state import (
     open_round,
     roll_back,
     round_row,
-    spending_limit,
+    spending_limits,
     spending_of,
     stage_of,
     stop,
     tried_version,
+    tried_versions,
     waiting_proposal,
 )
 from backend.scoreboard import (
@@ -97,11 +98,13 @@ from backend.scoreboard import (
     expected_answers,
     round_evaluations,
     score,
+    score_all,
+    scores_of_versions,
     version_scores,
 )
 
 # The improver's model, unless students on free models have one of their own.
-IMPROVER_MODEL = (LUNA, "medium")
+IMPROVER_MODEL = ("openai/gpt-6.1-sol", "medium")
 ROUND_OPEN = "Round {number} is open. Finish or stop it first."
 NOT_WAITING = "Proposal {proposal_id} isn't waiting for a handler: it was {review}"
 # How many of the right claims the improver reads, those the judge graded lowest.
@@ -365,40 +368,61 @@ def improver_view(db: Connection, row: RowMapping) -> ImproverView:
 # What the Improvement page shows.
 
 
-def reviews_of(db: Connection, round_id: str) -> list[RoundReviewView]:
-    """Who approved or rejected each of a round's proposals, and when."""
+def reviews_in(
+    db: Connection, round_ids: list[str]
+) -> dict[str, list[RoundReviewView]]:
+    """Who approved or rejected each of the rounds' proposals, and when, by round,
+    in one query for all the rounds."""
     query = (
         select(proposals)
-        .where(proposals.c.round_id == round_id, proposals.c.review.is_not(None))
+        .where(proposals.c.round_id.in_(round_ids), proposals.c.review.is_not(None))
         .order_by(proposals.c.reviewed_at)
     )
-    return [RoundReviewView(**row) for row in db.execute(query).mappings()]
+    reviews: dict[str, list[RoundReviewView]] = {round_id: [] for round_id in round_ids}
+    for row in db.execute(query).mappings():
+        reviews[row["round_id"]].append(RoundReviewView(**row))
+    return reviews
+
+
+def summaries_of(db: Connection, rows: list[RowMapping]) -> list[RoundSummary]:
+    """Rounds: where each has got to, what it tried, how that came out, who
+    approved or rejected what, and what it cost, in a few queries for them all."""
+    round_ids = [row["round_id"] for row in rows]
+    tried = tried_versions(db, round_ids)
+    spent = spending.spent_in(db, round_ids)
+    reviews = reviews_in(db, round_ids)
+    limits = spending_limits(db, round_ids)
+    measures = {"held_out_before", "held_out_after"}
+    summaries = []
+    for row in rows:
+        version = tried.get(row["round_id"])
+        stage, progress = (
+            stage_of(db, row) if row["status"] == RoundStatus.OPEN else (None, None)
+        )
+        summaries.append(
+            RoundSummary(
+                **{key: value for key, value in row.items() if key not in measures},
+                stage=stage,
+                progress=progress,
+                spending_limit=limits[row["round_id"]],
+                cost=spent[row["round_id"]],
+                version=version["number"] if version else None,
+                model=version["model"] if version else None,
+                reasoning_effort=version["reasoning_effort"] if version else None,
+                reason=version["reason"] if version else None,
+                verdict=version["verdict"] if version else None,
+                verdict_reason=version["verdict_reason"] if version else None,
+                held_out_before=measures_or_none(row["held_out_before"]),
+                held_out_after=measures_or_none(row["held_out_after"]),
+                reviews=reviews[row["round_id"]],
+            )
+        )
+    return summaries
 
 
 def summary_of(db: Connection, row: RowMapping) -> RoundSummary:
-    """A round: where it has got to, what it tried, how that came out, who
-    approved or rejected what, and what it cost."""
-    version = tried_version(db, row["round_id"])
-    stage, progress = (
-        stage_of(db, row) if row["status"] == RoundStatus.OPEN else (None, None)
-    )
-    measures = {"held_out_before", "held_out_after"}
-    return RoundSummary(
-        **{key: value for key, value in row.items() if key not in measures},
-        stage=stage,
-        progress=progress,
-        spending_limit=spending_limit(db, row),
-        cost=spending.spent(db, row["round_id"]),
-        version=version["number"] if version else None,
-        model=version["model"] if version else None,
-        reasoning_effort=version["reasoning_effort"] if version else None,
-        reason=version["reason"] if version else None,
-        verdict=version["verdict"] if version else None,
-        verdict_reason=version["verdict_reason"] if version else None,
-        held_out_before=measures_or_none(row["held_out_before"]),
-        held_out_after=measures_or_none(row["held_out_after"]),
-        reviews=reviews_of(db, row["round_id"]),
-    )
+    """A round, as summaries_of gives it."""
+    return summaries_of(db, [row])[0]
 
 
 def waiting_view(db: Connection, row: RowMapping) -> WaitingProposal | None:
@@ -428,23 +452,24 @@ def waiting_view(db: Connection, row: RowMapping) -> WaitingProposal | None:
     )
 
 
-def view_of(db: Connection, row: RowMapping, expected: Expected) -> RoundView:
+def view_of(
+    db: Connection, row: RowMapping, summary: RoundSummary, expected: Expected
+) -> RoundView:
     """A round in full: its summary, the proposal waiting and its evaluations."""
-    query = select(runs).where(runs.c.round_id == row["round_id"])
-    evaluations = [
-        Evaluation(**score(db, run, expected).model_dump(exclude={"claims"}))
-        for run in db.execute(query.order_by(runs.c.number)).mappings()
-    ]
+    query = (
+        select(runs).where(runs.c.round_id == row["round_id"]).order_by(runs.c.number)
+    )
+    scored = score_all(db, list(db.execute(query).mappings()), expected)
     return RoundView(
-        **summary_of(db, row).model_dump(),
+        **summary.model_dump(),
         waiting=waiting_view(db, row),
-        evaluations=evaluations,
+        evaluations=[Evaluation(**s.model_dump(exclude={"claims"})) for s in scored],
     )
 
 
-def version_point(db: Connection, row: RowMapping, expected: Expected) -> VersionPoint:
+def version_point(row: RowMapping, scores: VersionScores) -> VersionPoint:
     """A version's held-out accuracy and grade, for the chart."""
-    held_out = version_scores(db, row["number"], expected).held_out
+    held_out = scores.held_out
     return VersionPoint(
         number=row["number"],
         verdict=row["verdict"] if row["round_id"] else None,
@@ -453,12 +478,34 @@ def version_point(db: Connection, row: RowMapping, expected: Expected) -> Versio
     )
 
 
-def recipe_diff(db: Connection, row: RowMapping) -> Diff | None:
-    """What a recipe changed from the one before, or none for the first."""
-    before = db.execute(
-        select(recipes.c.recipe).where(recipes.c.number == row["number"] - 1)
-    ).scalar_one_or_none()
-    return diff(before, row["recipe"]) if before is not None else None
+def version_points(
+    db: Connection, expected: Expected
+) -> tuple[VersionPoint, list[VersionPoint]]:
+    """Version 1's held-out accuracy and grade, and each tried version's, for the
+    chart."""
+    first = version_row(db, FIRST_VERSION["number"])
+    query = select(versions).where(versions.c.round_id.is_not(None))
+    tried = list(db.execute(query.order_by(versions.c.number)).mappings())
+    numbers = [first["number"], *(row["number"] for row in tried)]
+    scores = scores_of_versions(db, numbers, expected)
+    return version_point(first, scores[first["number"]]), [
+        version_point(row, scores[row["number"]]) for row in tried
+    ]
+
+
+def recipes_newest_first(db: Connection) -> list[RowMapping]:
+    """Return every version of the recipe, newest first."""
+    query = select(recipes).order_by(recipes.c.number.desc())
+    return list(db.execute(query).mappings())
+
+
+def recipe_changes(all_recipes: list[RowMapping]) -> dict[int, Diff | None]:
+    """What each recipe changed from the one before it, or none for the first."""
+    texts = {row["number"]: row["recipe"] for row in all_recipes}
+    return {
+        number: diff(texts[number - 1], text) if number - 1 in texts else None
+        for number, text in texts.items()
+    }
 
 
 def recipe_summary(
@@ -473,29 +520,31 @@ def recipe_summary(
     )
 
 
+def recipe_summaries(db: Connection) -> list[RecipeSummary]:
+    """Every version of the recipe, newest first, with what each changed."""
+    all_recipes = recipes_newest_first(db)
+    changes = recipe_changes(all_recipes)
+    current = current_recipe(db)["number"]
+    return [recipe_summary(row, current, changes[row["number"]]) for row in all_recipes]
+
+
 def improvement_page(db: Connection) -> Improvement:
-    """Everything the Improvement page shows."""
+    """Everything the Improvement page shows, in a few queries however many rounds
+    there have been, since the page asks for it every two seconds."""
     expected = expected_answers(db)
     all_rounds = list(
         db.execute(select(rounds).order_by(rounds.c.number.desc())).mappings()
     )
-    tried = select(versions).where(versions.c.round_id.is_not(None))
-    current = current_recipe(db)["number"]
-    all_recipes = db.execute(select(recipes).order_by(recipes.c.number.desc()))
+    summaries = summaries_of(db, all_rounds)
+    first_version, versions_tried = version_points(db, expected)
     return Improvement(
-        round=view_of(db, all_rounds[0], expected) if all_rounds else None,
-        rounds=[summary_of(db, row) for row in all_rounds],
-        first_version=version_point(
-            db, version_row(db, FIRST_VERSION["number"]), expected
-        ),
-        versions_tried=[
-            version_point(db, row, expected)
-            for row in db.execute(tried.order_by(versions.c.number)).mappings()
-        ],
-        recipes=[
-            recipe_summary(row, current, recipe_diff(db, row))
-            for row in all_recipes.mappings()
-        ],
+        round=view_of(db, all_rounds[0], summaries[0], expected)
+        if all_rounds
+        else None,
+        rounds=summaries,
+        first_version=first_version,
+        versions_tried=versions_tried,
+        recipes=recipe_summaries(db),
     )
 
 
@@ -803,11 +852,11 @@ def get_improvement(db: Database) -> Improvement:
 @router.get("/api/improvement/recipes/{number}", operation_id="get_recipe")
 def get_recipe(number: int, db: Database) -> RecipeDetails:
     """Get one version of the improver's recipe, with its diff from the one before."""
-    query = select(recipes).where(recipes.c.number == number)
-    row = db.execute(query).mappings().first()
+    all_recipes = recipes_newest_first(db)
+    row = next((r for r in all_recipes if r["number"] == number), None)
     if row is None:
         raise HTTPException(404, f"Recipe {number} not found")
-    changes = recipe_diff(db, row)
+    changes = recipe_changes(all_recipes)[number]
     return RecipeDetails(
         **recipe_summary(row, current_recipe(db)["number"], changes).model_dump(),
         recipe=row["recipe"],

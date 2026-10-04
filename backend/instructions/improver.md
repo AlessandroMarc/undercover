@@ -23,6 +23,6 @@ read_results gives you the current version and its scores on both labeled sets; 
 
 ## What done looks like
 
-You have carried out one round of your recipe: a change has been proposed, evaluated, and kept or rolled back by the rule, and you have proposed a better recipe for the next round. If you find no change worth proposing, say why and end the round without one.
+You have carried out one round of your recipe: a change has been proposed, evaluated, and kept or rolled back by the rule, and you have proposed a better recipe for the next round. A model allowed, at a reasoning effort allowed for it, that neither the current version nor any earlier round's version has used is always a change worth trying. Only when none is left and you find no other change worth proposing, say why and end the round without one.
 
 ## Your recipe

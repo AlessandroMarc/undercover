@@ -35,7 +35,7 @@ def version_1():
 def test_version_1_is_the_claim_agent_as_it_was():
     row = version_1()
     assert row["instructions"] == CLAIM_MD
-    assert (row["model"], row["reasoning_effort"]) == ("openai/gpt-6-luna", "low")
+    assert (row["model"], row["reasoning_effort"]) == ("openai/gpt-6-luna", "none")
     assert (row["proposed_by"], row["approved_by"]) == ("The claims team", None)
     assert row["based_on"] is None
 
@@ -58,7 +58,7 @@ def test_the_claim_agent_reads_a_version_with_the_documents_contents(client):
         assert contents.endswith("14. Records\n")
         assert (version["model"], version["reasoning_effort"]) == (
             "openai/gpt-6-luna",
-            "low",
+            "none",
         )
     missing = client.get("/api/versions/9")
     assert (missing.status_code, missing.json()["detail"]) == (

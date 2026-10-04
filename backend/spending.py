@@ -8,21 +8,32 @@ from backend.database import grades, improver_calls, model_calls, run_claims, ru
 from backend.models import ModelAllowed, RunStatus
 
 
-def spent(db: Connection, round_id: str) -> float:
-    """Return what a round has spent so far, in US dollars."""
-    in_round = select(runs.c.run_id).where(runs.c.round_id == round_id)
+def spent_in(db: Connection, round_ids: list[str]) -> dict[str, float]:
+    """Return what each round has spent so far, in US dollars, in three queries
+    for all the rounds."""
     parts = [
-        select(func.coalesce(func.sum(improver_calls.c.cost), 0)).where(
-            improver_calls.c.round_id == round_id
-        ),
-        select(func.coalesce(func.sum(model_calls.c.cost), 0)).where(
-            model_calls.c.run_id.in_(in_round)
-        ),
-        select(func.coalesce(func.sum(grades.c.cost), 0)).where(
-            grades.c.run_id.in_(in_round)
-        ),
+        select(improver_calls.c.round_id, func.sum(improver_calls.c.cost))
+        .where(improver_calls.c.round_id.in_(round_ids))
+        .group_by(improver_calls.c.round_id),
+        select(runs.c.round_id, func.sum(model_calls.c.cost))
+        .join(runs, runs.c.run_id == model_calls.c.run_id)
+        .where(runs.c.round_id.in_(round_ids))
+        .group_by(runs.c.round_id),
+        select(runs.c.round_id, func.sum(grades.c.cost))
+        .join(runs, runs.c.run_id == grades.c.run_id)
+        .where(runs.c.round_id.in_(round_ids))
+        .group_by(runs.c.round_id),
     ]
-    return sum(db.execute(part).scalar_one() for part in parts)
+    spent = dict.fromkeys(round_ids, 0.0)
+    for part in parts:
+        for round_id, cost in db.execute(part):
+            spent[round_id] += cost
+    return spent
+
+
+def spent(db: Connection, round_id: str) -> float:
+    """Return what a round has spent so far, as spent_in does."""
+    return spent_in(db, [round_id])[round_id]
 
 
 def highest_cost_per_claim(db: Connection, model: str) -> float | None:

@@ -28,7 +28,7 @@ def test_an_evaluation_works_copies_of_its_claims(client):
     assert (evaluation["kind"], evaluation["status"]) == ("evaluation", "running")
     assert (evaluation["evaluation_set"], evaluation["tiny"]) == ("held_out", True)
     assert (evaluation["agents"], evaluation["model"]) == (5, "openai/gpt-6-luna")
-    assert evaluation["reasoning_effort"] == "low"
+    assert evaluation["reasoning_effort"] == "none"
     copies = [c["claim_id"] for c in evaluation["claims"]]
     assert copies == [f"{claim_id}-E1" for claim_id in TINY_HELD_OUT]
     assert {c["status"] for c in evaluation["claims"]} == {"waiting"}
