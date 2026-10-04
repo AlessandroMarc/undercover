@@ -5,7 +5,6 @@ import logging
 import pytest
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
-from sqlalchemy import update
 
 from agent import api, harness
 from agent.tests.records import claim_of, steps_of
@@ -18,7 +17,7 @@ from agent.tests.stubs import (
     record,
     stub,
 )
-from backend.database import engine, settings
+from backend.tests.settings_requests import change_settings
 
 
 def work(claim_id, model, saver=None):
@@ -106,8 +105,7 @@ def test_pauses_before_a_payout_over_the_limit(client):
 
 
 def test_the_graph_follows_the_backend_on_the_limit(client):
-    with engine().begin() as db:
-        db.execute(update(settings).values(payout_approval_limit=2000))
+    change_settings(client, approval_limit=2000.0)
     report = work("CLM-1002", stub(*decide("approve", 1350.0)))
     assert report == "CLM-1002  approve  $1,350.00"
     assert claim_of(client, "CLM-1002")["payment"]["amount"] == 1350.0

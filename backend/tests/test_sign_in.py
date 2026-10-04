@@ -8,6 +8,7 @@ from sqlalchemy import select
 from backend import auth
 from backend.database import engine, handlers, load, metadata
 from backend.tests.claim_requests import decide, start
+from backend.tests.settings_requests import STARTING
 from backend.tests.sign_in import DANA, OTHER_KEY, SUPABASE_URL, signed_in
 
 # Every operation a handler takes, with a body it would accept.
@@ -20,6 +21,7 @@ HANDLER_ACTIONS = {
         "/api/evaluations",
         {"evaluation_set": "held_out", "tiny": True, "agents": 5},
     ),
+    "change_settings": ("PUT", "/api/settings", STARTING),
 }
 
 NOT_SIGNED_IN = {

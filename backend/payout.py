@@ -1,7 +1,8 @@
 """UnderCover's payout rules for an approved claim.
 
 The rules come from section 10 of the policy wording, the plans and sections 6, 7
-and 10 of the claims manual. The plans and the approval limit come from settings.
+and 10 of the claims manual. The plans come from the payout rules and the approval
+limit from the settings in force.
 """
 
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from backend.models import (
     Plans,
     Policy,
 )
+from backend.money import dollars
 
 CASH_LIMIT = 100.0
 HOTEL_NIGHT_LIMIT = 350.0
@@ -83,7 +85,7 @@ def eligible_amount(line: Line, limits: Limits) -> CalculationStep:
     """Return the amount claimed for one line, or its limit if that is lower."""
     limit = limit_for(line, limits)
     if line.amount > limit:
-        return step(f"{line.description}, limited to ${limit:,.2f}", limit)
+        return step(f"{line.description}, limited to {dollars(limit)}", limit)
     return step(line.description, line.amount)
 
 

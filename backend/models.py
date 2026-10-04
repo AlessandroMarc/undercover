@@ -196,12 +196,49 @@ class Step(BaseModel):
     created_at: str
 
 
-class Settings(BaseModel):
-    approval_limit: float
+class MeasureSettings(BaseModel):
+    """A setting for each measure the rule compares: accuracy and the grade as
+    differences, cost and time per claim as fractions of the old value."""
+
+    accuracy: float = Field(ge=0)
+    grade: float = Field(ge=0)
+    cost_per_claim: float = Field(ge=0)
+    seconds_per_claim: float = Field(ge=0)
+
+
+class Objectives(BaseModel):
+    """The floors a new version must meet on the held-out set."""
+
+    accuracy: float = Field(ge=0, le=1)
+    grade: float = Field(ge=0, le=3)
+
+
+class SettingsValues(BaseModel):
+    approval_limit: float = Field(gt=0, description="In US dollars")
+    objectives: Objectives
+    noise: MeasureSettings
+    tolerance: MeasureSettings
+    spending_limit: float = Field(gt=0, description="For each round, in US dollars")
+    agents: Agents
+
+
+class Settings(SettingsValues):
+    number: int
+    changed_by: str | None
+    changed_at: str
+
+
+class ModelAllowed(BaseModel):
+    model: str
+    reasoning_efforts: list[str]
+    input_price: float = Field(description="US dollars per million input tokens")
+    output_price: float = Field(description="US dollars per million output tokens")
 
 
 class SettingsPage(BaseModel):
     current: Settings
+    changes: list[Settings]
+    models_allowed: list[ModelAllowed]
 
 
 class Section(BaseModel):

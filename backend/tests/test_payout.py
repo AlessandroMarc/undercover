@@ -1,7 +1,6 @@
 import pytest
-from sqlalchemy import update
 
-from backend.database import engine, settings
+from backend.tests.settings_requests import change_settings
 
 
 def line(description, amount, kind="item", **extra):
@@ -133,8 +132,7 @@ def test_nothing_below_zero(client):
 
 
 def test_sign_off_follows_the_limit_in_settings(client):
-    with engine().begin() as db:
-        db.execute(update(settings).values(payout_approval_limit=500))
+    change_settings(client, approval_limit=500.0)
     lines = [
         line("Suitcase", 280),
         line("Wool suit", 420),

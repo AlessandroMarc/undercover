@@ -8,6 +8,7 @@ import type {
   Handler,
   Policy,
   PreviousClaim,
+  Settings,
   SettingsPage,
 } from "./api";
 
@@ -38,7 +39,40 @@ export const marcus: Handler = {
   can_approve_over_limit: false,
 };
 
-const settings: SettingsPage = { current: { approval_limit: 1000 } };
+const startingSettings: Settings = {
+  number: 1,
+  approval_limit: 1000,
+  objectives: { accuracy: 0.6, grade: 1 },
+  noise: {
+    accuracy: 0.1,
+    grade: 0.15,
+    cost_per_claim: 0.15,
+    seconds_per_claim: 0.15,
+  },
+  tolerance: {
+    accuracy: 0.1,
+    grade: 0.15,
+    cost_per_claim: 1,
+    seconds_per_claim: 0.25,
+  },
+  spending_limit: 0.5,
+  agents: 25,
+  changed_by: null,
+  changed_at: "2026-10-04T09:00:00+00:00",
+};
+
+export const settings: SettingsPage = {
+  current: startingSettings,
+  changes: [startingSettings],
+  models_allowed: [
+    {
+      model: "openai/gpt-6-luna",
+      reasoning_efforts: ["none", "low", "medium"],
+      input_price: 0.1,
+      output_price: 0.5,
+    },
+  ],
+};
 
 // Every page is signed in as Dana unless the routes say otherwise.
 export function stubApi(routes: Routes) {

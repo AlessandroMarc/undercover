@@ -1,17 +1,29 @@
 """The backend's operations on the claim agent's configuration: its versions, for the
-claim agent and for the Configuration page."""
+claim agent and for the Configuration page, and the platform's settings and the
+models allowed, for the Settings page."""
 
-from fastapi import APIRouter
-from sqlalchemy import Connection, RowMapping, select
+from typing import Annotated
 
-from backend.database import versions
-from backend.dependencies import Database
+from fastapi import APIRouter, Depends
+from sqlalchemy import Connection, RowMapping, insert, select
+
+from backend.database import now, settings, versions
+from backend.dependencies import Database, senior
 from backend.diffs import diff
 from backend.documents import contents
-from backend.lookups import current_version_number, version_row
+from backend.lookups import (
+    allowed_models,
+    current_settings,
+    current_version_number,
+    version_row,
+)
 from backend.models import (
     ClaimAgentVersion,
     Configuration,
+    Handler,
+    Settings,
+    SettingsPage,
+    SettingsValues,
     VersionDetails,
     VersionScores,
     VersionStatus,
@@ -20,6 +32,8 @@ from backend.models import (
 from backend.scoreboard import expected_answers, version_scores
 
 router = APIRouter()
+
+ChangesTheSettings = Annotated[Handler, Depends(senior("change the settings"))]
 
 
 def with_contents(db: Connection, instructions: str) -> str:
@@ -112,3 +126,31 @@ def get_version_details(number: int, db: Database) -> VersionDetails:
         instructions=with_contents(db, row["instructions"]),
         diff=diff(before["instructions"], row["instructions"]) if before else None,
     )
+
+
+@router.get("/api/settings", operation_id="get_settings")
+def get_settings(db: Database) -> SettingsPage:
+    """Get the settings in force, every change with who made it, and the models."""
+    query = select(settings).order_by(settings.c.number.desc())
+    changes = [Settings(**row) for row in db.execute(query).mappings()]
+    return SettingsPage(
+        current=changes[0], changes=changes, models_allowed=allowed_models(db)
+    )
+
+
+@router.put("/api/settings", operation_id="change_settings")
+def change_settings(
+    request: SettingsValues,
+    handler: ChangesTheSettings,
+    db: Database,
+) -> SettingsPage:
+    """Change the settings, recording every value with the handler and the time."""
+    db.execute(
+        insert(settings).values(
+            number=current_settings(db).number + 1,
+            **request.model_dump(),
+            changed_by=handler.name,
+            changed_at=now(),
+        )
+    )
+    return get_settings(db)

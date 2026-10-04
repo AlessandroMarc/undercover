@@ -32,8 +32,14 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.pool import NullPool
 from sqlalchemy.schema import CreateSchema
 
-from backend.free_models import model_or_free
-from backend.models import EvaluationSet, Status, Verdict
+from backend.free_models import model_or_free, models_or_free
+from backend.models import (
+    EvaluationSet,
+    ModelAllowed,
+    SettingsValues,
+    Status,
+    Verdict,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -58,11 +64,33 @@ RETIRED = ["todos"]
 
 metadata = MetaData()
 
+# The platform's settings, one row for each change; the newest row is in force.
 settings = Table(
     "settings",
     metadata,
-    Column("payout_approval_limit", Float, nullable=False),
+    Column("number", Integer, primary_key=True, autoincrement=False),
+    Column("approval_limit", Float, nullable=False),
+    Column("objectives", JSON, nullable=False),
+    Column("noise", JSON, nullable=False),
+    Column("tolerance", JSON, nullable=False),
+    Column("spending_limit", Float, nullable=False),
+    Column("agents", Integer, nullable=False),
+    Column("changed_by", Text),
+    Column("changed_at", Text, nullable=False),
+)
+payout_rules = Table(
+    "payout_rules",
+    metadata,
     Column("plans", JSON, nullable=False),
+)
+models_allowed = Table(
+    "models_allowed",
+    metadata,
+    Column("model", Text, primary_key=True),
+    Column("position", Integer, nullable=False),
+    Column("reasoning_efforts", JSON, nullable=False),
+    Column("input_price", Float, nullable=False),
+    Column("output_price", Float, nullable=False),
 )
 documents = Table(
     "documents",
@@ -130,6 +158,8 @@ decisions = Table(
     Column("section", Text, nullable=False),
     Column("reason", Text, nullable=False),
     Column("decided_at", Text, nullable=False),
+    # The approval limit in force when the decision was recorded.
+    Column("approval_limit", Float, nullable=False),
     Column("signed_off_by", Text),
     Column("signed_off_at", Text),
 )
@@ -248,6 +278,7 @@ claim_view = (
         decisions.c.section,
         decisions.c.reason,
         decisions.c.decided_at,
+        decisions.c.approval_limit,
         decisions.c.signed_off_by,
         decisions.c.signed_off_at,
         payments.c.amount,
@@ -348,13 +379,9 @@ def seed(db: Engine) -> dict[str, int]:
             Table(name, MetaData()).drop(connection, checkfirst=True)
         metadata.drop_all(connection)
         metadata.create_all(connection)
-        connection.execute(
-            insert(settings),
-            {
-                "payout_approval_limit": company["payout_approval_limit"],
-                "plans": load("plans.json"),
-            },
-        )
+        seed_settings(connection, company["payout_approval_limit"])
+        connection.execute(insert(payout_rules).values(plans=load("plans.json")))
+        seed_models_allowed(connection)
         connection.execute(
             insert(documents),
             [
@@ -400,6 +427,28 @@ def seed(db: Engine) -> dict[str, int]:
         "customers": len(customer_rows),
         "handlers": len(handler_rows),
     } | labeled
+
+
+def seed_settings(connection: Connection, approval_limit: float) -> None:
+    """Store the first settings: the approval limit, and the rest from
+    data/improvement.json, checked as the settings page checks a change."""
+    values = SettingsValues(approval_limit=approval_limit, **load("improvement.json"))
+    connection.execute(
+        insert(settings).values(number=1, **values.model_dump(), changed_at=now())
+    )
+
+
+def seed_models_allowed(connection: Connection) -> None:
+    """Store the models the claim agent may use, from data/models.json, or the free
+    model alone for students on free models."""
+    listed = [ModelAllowed(**model) for model in load("models.json")]
+    connection.execute(
+        insert(models_allowed),
+        [
+            model.model_dump() | {"position": position}
+            for position, model in enumerate(models_or_free(listed))
+        ],
+    )
 
 
 def seed_first_version(connection: Connection) -> None:

@@ -8,6 +8,7 @@ import { EvaluationPage } from "./pages/EvaluationPage";
 import { ConfigurationPage } from "./pages/ConfigurationPage";
 import { QueuePage } from "./pages/QueuePage";
 import { ScoreboardPage } from "./pages/ScoreboardPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { SignInPage } from "./pages/SignInPage";
 import { VersionPage } from "./pages/VersionPage";
 import {
@@ -17,6 +18,7 @@ import {
   INSTRUCTIONS,
   QUEUE,
   SCOREBOARD,
+  SETTINGS,
   SIGN_IN,
   VERSION_PAGE,
 } from "./paths";
@@ -38,6 +40,7 @@ export function App() {
         <Route path={EVALUATION_PAGE} element={<EvaluationPage />} />
         <Route path={CONFIGURATION} element={<ConfigurationPage />} />
         <Route path={VERSION_PAGE} element={<VersionPage />} />
+        <Route path={SETTINGS} element={<SettingsPage />} />
         <Route
           path={INSTRUCTIONS}
           element={<Navigate to={CONFIGURATION} replace />}
@@ -62,6 +65,7 @@ function SignedInLayout() {
           </NavLink>
           <NavLink to={SCOREBOARD}>Scoreboard</NavLink>
           <NavLink to={CONFIGURATION}>Configuration</NavLink>
+          <NavLink to={SETTINGS}>Settings</NavLink>
         </nav>
         <div className="who" role="group" aria-label="Signed in">
           <span className="who-name">{handler.name}</span>

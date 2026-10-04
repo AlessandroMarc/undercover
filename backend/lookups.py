@@ -1,11 +1,11 @@
-"""Finding a run and a version, and the messages for what isn't found, which more
-than one of the backend's routers need."""
+"""Finding a run, a version, the settings and the models allowed, and the messages
+for what isn't found, which more than one of the backend's modules need."""
 
 from fastapi import HTTPException
 from sqlalchemy import Connection, RowMapping, func, select
 
-from backend.database import runs, versions
-from backend.models import Verdict
+from backend.database import models_allowed, runs, settings, versions
+from backend.models import ModelAllowed, Settings, Verdict
 
 RUN_NOT_FOUND = "Run {run_id} not found"
 CLAIM_NOT_FOUND = "Claim {claim_id} not found"
@@ -36,3 +36,17 @@ def current_version_number(db: Connection) -> int:
         versions.c.verdict == Verdict.KEPT
     )
     return db.execute(query).scalar_one()
+
+
+def current_settings(db: Connection) -> Settings:
+    """Return the settings in force: the newest change."""
+    newest = select(func.max(settings.c.number)).scalar_subquery()
+    query = select(settings).where(settings.c.number == newest)
+    return Settings(**db.execute(query).mappings().one())
+
+
+def allowed_models(db: Connection) -> list[ModelAllowed]:
+    """Return the models the claim agent may use, with their reasoning efforts and
+    prices."""
+    query = select(models_allowed).order_by(models_allowed.c.position)
+    return [ModelAllowed(**row) for row in db.execute(query).mappings()]

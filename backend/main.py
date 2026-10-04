@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
 from sqlalchemy import Connection, RowMapping, insert, select, update
 
 from backend import agent_service
@@ -20,16 +20,16 @@ from backend.database import (
     model_calls,
     now,
     payments,
+    payout_rules,
     policies,
     seed,
-    settings,
     stamp,
     steps,
     work_times,
 )
-from backend.dependencies import Database, SignedIn
+from backend.dependencies import Database, SignedIn, senior
 from backend.documents import search, sections, titles
-from backend.lookups import CLAIM_NOT_FOUND, run_row
+from backend.lookups import CLAIM_NOT_FOUND, current_settings, run_row
 from backend.models import (
     Claim,
     ClaimSummary,
@@ -48,8 +48,6 @@ from backend.models import (
     PreviousClaim,
     Section,
     SectionMatch,
-    Settings,
-    SettingsPage,
     StartRequest,
     Status,
     Step,
@@ -57,6 +55,7 @@ from backend.models import (
     WorkTime,
     WorkTimeRequest,
 )
+from backend.money import dollars
 from backend.payout import needs_sign_off, work_out_payout
 from backend.runs import router as runs
 from backend.views import to_claim, to_summary
@@ -76,20 +75,18 @@ app = FastAPI(title="UnderCover", lifespan=lifespan)
 app.include_router(runs)
 app.include_router(configuration)
 
-
-def dollars(amount: float) -> str:
-    """Format an amount like $1,250.00."""
-    return f"${amount:,.2f}"
+SignsOffOverTheLimit = Annotated[Handler, Depends(senior("sign this off"))]
 
 
 def approval_limit(db: Connection) -> float:
-    """Return the largest payout that can be paid without a handler's sign-off."""
-    return db.execute(select(settings.c.payout_approval_limit)).scalar_one()
+    """Return the largest payout that can be paid without a handler's sign-off, as
+    the settings in force have it."""
+    return current_settings(db).approval_limit
 
 
 def plans(db: Connection) -> Plans:
     """Return the plans and add-ons, and the benefits the deductible applies to."""
-    return Plans(**db.execute(select(settings.c.plans)).scalar_one())
+    return Plans(**db.execute(select(payout_rules.c.plans)).scalar_one())
 
 
 def find_claim(db: Connection, claim_id: str) -> RowMapping:
@@ -209,12 +206,6 @@ def get_signed_in_handler(handler: SignedIn) -> Handler:
     return handler
 
 
-@app.get("/api/settings", operation_id="get_settings")
-def get_settings(db: Database) -> SettingsPage:
-    """Get the platform's settings: the approval limit."""
-    return SettingsPage(current=Settings(approval_limit=approval_limit(db)))
-
-
 @app.post("/api/claims/{claim_id}/start", operation_id="start_claim")
 def start_claim(claim_id: str, request: StartRequest, db: Database) -> Claim:
     """Start work on a waiting claim, which moves it to in progress."""
@@ -298,6 +289,7 @@ def record_decision(claim_id: str, request: DecisionRequest, db: Database) -> Cl
         raise HTTPException(409, f"Claim {claim_id} has already been decided")
     if claim["status"] != Status.IN_PROGRESS:
         raise HTTPException(409, f"Claim {claim_id} is not in progress")
+    limit = approval_limit(db)
     db.execute(
         insert(decisions).values(
             claim_id=claim_id,
@@ -306,11 +298,12 @@ def record_decision(claim_id: str, request: DecisionRequest, db: Database) -> Cl
             section=request.section,
             reason=request.reason,
             decided_at=now(),
+            approval_limit=limit,
         )
     )
     if request.decision != DecisionKind.APPROVE:
         set_status(db, claim_id, Status.DECIDED)
-    elif needs_sign_off(payout, approval_limit(db)):
+    elif needs_sign_off(payout, limit):
         set_status(db, claim_id, Status.WAITING_FOR_SIGN_OFF)
     return to_claim(find_claim(db, claim_id))
 
@@ -336,7 +329,8 @@ def pay_claim(claim_id: str, request: PaymentRequest, db: Database) -> Claim:
     if claim["status"] == Status.WAITING_FOR_SIGN_OFF:
         raise HTTPException(
             403,
-            f"A payout over {dollars(approval_limit(db))} needs a handler's sign-off",
+            f"A payout over {dollars(claim['approval_limit'])} needs a handler's "
+            "sign-off",
         )
     if amount != claim["payout"]:
         raise HTTPException(
@@ -353,7 +347,10 @@ def pay_claim(claim_id: str, request: PaymentRequest, db: Database) -> Claim:
 
 @app.post("/api/claims/{claim_id}/sign-off", operation_id="sign_off_claim")
 def sign_off_claim(
-    claim_id: str, handler: SignedIn, db: Database, background: BackgroundTasks
+    claim_id: str,
+    handler: SignsOffOverTheLimit,
+    db: Database,
+    background: BackgroundTasks,
 ) -> Claim:
     """Sign off a held payout as the handler signed in, so the agent pays it."""
     claim = find_claim(db, claim_id)
@@ -363,11 +360,6 @@ def sign_off_claim(
         )
     if claim["status"] != Status.WAITING_FOR_SIGN_OFF:
         raise HTTPException(409, f"Claim {claim_id} is not waiting for sign-off")
-    if not handler.can_approve_over_limit:
-        raise HTTPException(
-            403,
-            f"{handler.name} can't sign off payouts over {dollars(approval_limit(db))}",
-        )
     db.execute(
         update(decisions)
         .where(decisions.c.claim_id == claim_id)

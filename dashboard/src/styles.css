@@ -7,17 +7,19 @@
   --midnight: #073b4c;
   --sea-mist: #cdd8db;
 
-  --page: #f0f4f5;
-  --panel: #ffffff;
-  --inset: #f4f7f8;
-  --ink: var(--midnight);
-  --muted: #4b6f7b;
-  --link: #0b6e8f;
-  --green-text: #037a5b;
-  --red-text: #b8204a;
+  /* Each color for light mode, then dark mode. */
+  --page: light-dark(#f0f4f5, #04232e);
+  --panel: light-dark(#ffffff, #000000);
+  --inset: light-dark(#f4f7f8, #0a1d24);
+  --ink: light-dark(var(--midnight), var(--sea-mist));
+  --muted: light-dark(#4b6f7b, #93aab1);
+  --link: light-dark(#0b6e8f, #6fcbe8);
+  --green-text: light-dark(#037a5b, #6ff0c9);
+  --red-text: light-dark(#b8204a, #ff8fa8);
   --mono: "JetBrains Mono", ui-monospace, monospace;
 
-  color-scheme: light;
+  /* The same as the computer, unless the appearance chosen in Settings says. */
+  color-scheme: light dark;
   font-family: "Instrument Sans", system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.5;
@@ -25,19 +27,12 @@
   background: var(--page);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --page: #04232e;
-    --panel: #000000;
-    --inset: #0a1d24;
-    --ink: var(--sea-mist);
-    --muted: #93aab1;
-    --link: #6fcbe8;
-    --green-text: #6ff0c9;
-    --red-text: #ff8fa8;
+:root[data-theme="light"] {
+  color-scheme: light;
+}
 
-    color-scheme: dark;
-  }
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 * {
@@ -552,6 +547,11 @@ p {
   color: var(--ink);
 }
 
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .action-form button[aria-disabled="true"] {
   opacity: 0.5;
   cursor: default;
@@ -675,4 +675,122 @@ p {
   height: 12px;
   margin: 8px 0;
   background: var(--panel);
+}
+
+.settings {
+  display: grid;
+  gap: 20px;
+}
+
+fieldset.panel {
+  border: none;
+  margin: 0;
+  min-width: 0;
+}
+
+/* A legend as a panel's heading, laid out like the others. */
+fieldset.panel legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+fieldset.panel legend + * {
+  clear: both;
+}
+
+.settings-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.setting-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px 24px;
+  margin-top: 16px;
+}
+
+.setting {
+  display: grid;
+  gap: 6px;
+  font-size: 0.87rem;
+  color: var(--muted);
+}
+
+.setting-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+
+.setting-input input {
+  font: inherit;
+  font-family: var(--mono);
+  width: 100%;
+  max-width: 160px;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: var(--inset);
+  color: var(--ink);
+  text-align: right;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-top: 12px;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.choice input {
+  accent-color: var(--green-text);
+}
+
+.confirm-dialog {
+  border: none;
+  border-radius: 16px;
+  padding: 24px 28px;
+  max-width: 560px;
+  width: calc(100% - 48px);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.confirm-dialog::backdrop {
+  background: color-mix(in srgb, var(--midnight) 55%, transparent);
+}
+
+.confirm-body {
+  margin: 8px 0 20px;
+}
+
+.change-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.confirm-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.confirm-buttons .quiet {
+  background: var(--inset);
 }

@@ -3,9 +3,9 @@ and records nothing of."""
 
 import httpx
 import pytest
-from sqlalchemy import func, select
 
-from backend.database import engine, runs
+from backend.database import runs
+from backend.tests.rows import count
 from backend.tests.sign_in import MARCUS, signed_in
 
 RUNNING = "A dispatch or an evaluation is already running"
@@ -17,17 +17,12 @@ def start_dispatch(client, agents):
     )
 
 
-def runs_recorded():
-    with engine().connect() as db:
-        return db.execute(select(func.count()).select_from(runs)).scalar_one()
-
-
 def test_start_a_dispatch(client, agent_calls):
     response = start_dispatch(client, 7)
     assert response.status_code == 202
     assert response.json() == {"status": "accepted"}
     assert agent_calls == [("/api/dispatches", {"agents": 7})]
-    assert runs_recorded() == 0
+    assert count(runs) == 0
 
 
 def test_the_services_refusal_is_passed_on(client, agent_answers):
@@ -45,7 +40,7 @@ def test_a_service_that_isnt_running(client, agent_answers):
     response = start_dispatch(client, 3)
     assert response.status_code == 503
     assert response.json()["detail"] == "The agent's service isn't running"
-    assert runs_recorded() == 0
+    assert count(runs) == 0
 
 
 @pytest.mark.parametrize("agents", [0, 26])
@@ -88,7 +83,7 @@ def test_start_an_evaluation(client, agent_calls):
             {"evaluation_set": "evaluation", "tiny": False, "agents": 25},
         )
     ]
-    assert runs_recorded() == 0
+    assert count(runs) == 0
 
 
 def test_an_evaluation_is_refused_as_a_dispatch_is(client, agent_answers):

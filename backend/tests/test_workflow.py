@@ -240,7 +240,8 @@ def test_sign_off_needs_a_handler_who_can_approve(client, agent_calls):
     response = sign_off(client, "CLM-1002", MARCUS)
     assert response.status_code == 403
     assert response.json()["detail"] == (
-        "Marcus Oyelaran can't sign off payouts over $1,000.00"
+        "Only a handler who can sign off payouts over $1,000.00 can sign this off. "
+        "Marcus Oyelaran can't."
     )
     assert client.get("/api/claims/CLM-1002").json() == held
     assert agent_calls == []

@@ -259,15 +259,74 @@ export interface Configuration {
   versions: VersionSummary[];
 }
 
-export interface Settings {
+// A setting for each measure the rule compares: accuracy and the grade as
+// differences, cost and time per claim as fractions of the old value.
+export interface MeasureSettings {
+  accuracy: number;
+  grade: number;
+  cost_per_claim: number;
+  seconds_per_claim: number;
+}
+
+export interface SettingsValues {
   approval_limit: number;
+  objectives: { accuracy: number; grade: number };
+  noise: MeasureSettings;
+  tolerance: MeasureSettings;
+  spending_limit: number;
+  agents: number;
+}
+
+export interface Settings extends SettingsValues {
+  number: number;
+  changed_by: string | null;
+  changed_at: string;
+}
+
+export interface ModelAllowed {
+  model: string;
+  reasoning_efforts: string[];
+  // US dollars per million tokens.
+  input_price: number;
+  output_price: number;
 }
 
 export interface SettingsPage {
   current: Settings;
+  changes: Settings[];
+  models_allowed: ModelAllowed[];
 }
 
 export const REQUEST_FAILED = "The request failed";
+
+// How FastAPI refuses a request it can't accept, one entry for each input.
+interface InputError {
+  loc: (string | number)[];
+  msg: string;
+}
+
+function isInputErrors(detail: unknown): detail is InputError[] {
+  return (
+    Array.isArray(detail) &&
+    detail.every(
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "loc" in error &&
+        "msg" in error,
+    )
+  );
+}
+
+// The backend's reason for refusing, as a sentence a handler can act on.
+function reasonFor(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (isInputErrors(detail))
+    return detail
+      .map((error) => `${error.loc.slice(1).join(".")}: ${error.msg}`)
+      .join("; ");
+  return REQUEST_FAILED;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -288,26 +347,27 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const body = (await response.json().catch(() => ({}))) as {
       detail?: unknown;
     };
-    const detail =
-      typeof body.detail === "string" ? body.detail : REQUEST_FAILED;
-    throw new ApiError(response.status, detail);
+    throw new ApiError(response.status, reasonFor(body.detail));
   }
   return (await response.json()) as T;
 }
 
-function post<T>(path: string, body?: object): Promise<T> {
-  if (body === undefined) return request<T>(path, { method: "POST" });
+function send<T>(method: "POST" | "PUT", path: string, body?: object) {
+  if (body === undefined) return request<T>(path, { method });
   return request<T>(path, {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 }
 
+const post = <T>(path: string, body?: object) => send<T>("POST", path, body);
+
 const claimPath = (claimId: string) =>
   `/api/claims/${encodeURIComponent(claimId)}`;
 const DISPATCHES = "/api/dispatches";
 const CONFIGURATION = "/api/configuration";
+const SETTINGS = "/api/settings";
 const EVALUATIONS = "/api/evaluations";
 
 export const api = {
@@ -327,7 +387,9 @@ export const api = {
       `${CONFIGURATION}/versions/${encodeURIComponent(number)}`,
     ),
   getSignedInHandler: () => request<Handler>("/api/me"),
-  getSettings: () => request<SettingsPage>("/api/settings"),
+  getSettings: () => request<SettingsPage>(SETTINGS),
+  changeSettings: (values: SettingsValues) =>
+    send<SettingsPage>("PUT", SETTINGS, values),
   getLatestDispatch: () => request<Run | null>(`${DISPATCHES}/latest`),
   startDispatch: (agents: number) => post<Accepted>(DISPATCHES, { agents }),
   listEvaluations: () => request<Evaluation[]>(EVALUATIONS),

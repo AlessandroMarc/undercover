@@ -410,20 +410,29 @@ As built:
 
 Rework `settings` as a history and move the plans to `payout_rules`. Add `data/improvement.json`, `data/models.json`, `models_allowed`, `get_settings` and `change_settings`, and read the approval limit from the current settings. On the dashboard, add the Settings page with `ConfirmDialog`, and the appearance with `theme.ts` and the theme attribute in `styles.css`.
 
-- [ ] pytest: seeding makes settings row 1 with the approval limit from `company.json` and the rest from `data/improvement.json`, with no one as its author, and the three models allowed from `data/models.json` with their prices as numbers; with `MODEL_NAME=openrouter/free`, `openrouter/free` at `default` and a price of 0 is the only model allowed
-- [ ] pytest: `change_settings` as Dana records row 2 with "Dana Whitfield" and the time, and `get_settings` returns it with the history and the models allowed. As Marcus it returns 403 with "Only a handler who can sign off payouts over $1,000.00 can change the settings. Marcus Oyelaran can't." and records nothing. Without a token it returns 401
-- [ ] pytest: an approval limit of 0, an accuracy floor of 1.5, a grade floor of 4, a negative noise, a spending limit of 0 and 26 agents at once each return 422
-- [ ] pytest: with the limit raised to $1,500.00, an approval of 1,350.00 recorded afterwards is paid without a sign-off, while one recorded before the change stays waiting for sign-off; with it lowered to $500.00, an approval of 600.00 waits, and `pay_claim` refuses it with "A payout over $500.00 needs a handler's sign-off"
-- [ ] `grep -rn "payout_approval_limit" backend --include=*.py` finds it only in seeding and its tests, and `grep -rn 1000 backend --include=*.py` still finds nothing outside the tests
-- [ ] The shared OpenAPI test passes, and `change_settings` is in the list of operations that need a handler
-- [ ] vitest: the Settings page shows each setting with its unit and "Last changed by"; Save opens the dialog listing each change from old to new, Cancel sends nothing, Confirm sends every setting; a refusal shows its detail; Marcus sees the settings read only with why; the models allowed show their prices right-aligned; the appearance choice sets `data-theme` and keeps it in `localStorage`, and Same as this computer removes it
-- [ ] vitest: `ConfirmDialog` is a modal `<dialog>` with a title, the changes and two buttons, and closes on Cancel and Escape, with `showModal` stood in for in jsdom
-- [ ] e2e: as Dana, changing the spending limit to $0.75 and confirming shows $0.75 and "Last changed by Dana Whitfield" after a reload; as Marcus, the page has no Save button and says why
-- [ ] e2e: choosing Dark sets `data-theme="dark"` on the page and the background to `#04232E`, which stays after a reload; Light sets `#F0F4F5` under a dark system setting (`page.emulateMedia`)
-- [ ] `npm run seed`, then Supabase MCP: `settings` has one row with the starting values, `payout_rules` one row, and `models_allowed` three rows
-- [ ] Browser: as Dana, raise the approval limit to $1,500.00 with the dialog, then with curl approve `CLM-1004` for 1,350.00: it is paid without a sign-off. `npm run seed` afterwards
-- [ ] Browser: the Settings page in light, dark and Same as this computer, with no errors in `browser_console_messages`
-- [ ] `npm run check` passes
+- [x] pytest: seeding makes settings row 1 with the approval limit from `company.json` and the rest from `data/improvement.json`, with no one as its author, and the three models allowed from `data/models.json` with their prices as numbers; with `MODEL_NAME=openrouter/free`, `openrouter/free` at `default` and a price of 0 is the only model allowed
+- [x] pytest: `change_settings` as Dana records row 2 with "Dana Whitfield" and the time, and `get_settings` returns it with the history and the models allowed. As Marcus it returns 403 with "Only a handler who can sign off payouts over $1,000.00 can change the settings. Marcus Oyelaran can't." and records nothing. Without a token it returns 401
+- [x] pytest: an approval limit of 0, an accuracy floor of 1.5, a grade floor of 4, a negative noise, a spending limit of 0 and 26 agents at once each return 422
+- [x] pytest: with the limit raised to $1,500.00, an approval of 1,350.00 recorded afterwards is paid without a sign-off, while one recorded before the change stays waiting for sign-off; with it lowered to $500.00, an approval of 600.00 waits, and `pay_claim` refuses it with "A payout over $500.00 needs a handler's sign-off"
+- [x] `grep -rn "payout_approval_limit" backend --include=*.py` finds it only in seeding and its tests, and `grep -rn 1000 backend --include=*.py` still finds nothing outside the tests
+- [x] The shared OpenAPI test passes, and `change_settings` is in the list of operations that need a handler
+- [x] vitest: the Settings page shows each setting with its unit and "Last changed by"; Save opens the dialog listing each change from old to new, Cancel sends nothing, Confirm sends every setting; a refusal shows its detail; Marcus sees the settings read only with why; the models allowed show their prices right-aligned; the appearance choice sets `data-theme` and keeps it in `localStorage`, and Same as this computer removes it
+- [x] vitest: `ConfirmDialog` is a modal `<dialog>` with a title, the changes and two buttons, and closes on Cancel and Escape, with `showModal` stood in for in jsdom
+- [x] e2e: as Dana, changing the spending limit to $0.75 and confirming shows $0.75 and "Last changed by Dana Whitfield" after a reload; as Marcus, the page has no Save button and says why
+- [x] e2e: choosing Dark sets `data-theme="dark"` on the page and the background to `#04232E`, which stays after a reload; Light sets `#F0F4F5` under a dark system setting (`page.emulateMedia`)
+- [x] `npm run seed`, then Supabase MCP: `settings` has one row with the starting values, `payout_rules` one row, and `models_allowed` three rows
+- [x] Browser: as Dana, raise the approval limit to $1,500.00 with the dialog, then with curl approve `CLM-1004` for 1,350.00: it is paid without a sign-off. `npm run seed` afterwards
+- [x] Browser: the Settings page in light, dark and Same as this computer, with no errors in `browser_console_messages`
+- [x] `npm run check` passes
+
+As built:
+
+- Dark mode uses CSS `light-dark()`, with `color-scheme` set to `light dark` for the computer's choice and to one of them by `data-theme`, so each color is written once rather than twice under two selectors.
+- Save sits in a bar at the top of the form, beside "Last changed by", since it needs the form's state.
+- `sign_off_claim` now uses `senior(action)` like every other senior action, so its refusal reads "Only a handler who can sign off payouts over $1,000.00 can sign this off. Marcus Oyelaran can't.", as the dashboard says.
+- `dollars()` moved to `backend/money.py`, since `main.py` and `dependencies.py` both need it.
+- Each decision records the approval limit in force when it was recorded, so a payout held under $1,000.00 is still refused as "A payout over $1,000.00 needs a handler's sign-off" after the limit is raised.
+- The Settings page checks each setting in the browser before it asks (required, with its range and step), keeps a setting the handler didn't touch exactly as it was, and shows FastAPI's own reason when the backend refuses one.
 
 ## Phase 4: The judge
 
