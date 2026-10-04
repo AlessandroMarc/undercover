@@ -334,23 +334,23 @@ Add `start_dispatch` to the runs router and `agent_service.py`, the start form o
 
 Seed the held-out claims and the handlers' decisions. Add `evaluation_id` and `copy_of` to `claims`, `scoring.py`, and in the runs router `create_evaluation` with its copies, `list_evaluations`, `get_evaluation` and `start_evaluation`. Add the refusal of a sign-off on a copy in `main.py`, and `start_evaluation` to the agent's service. The dispatcher lists an evaluation's copies, and `work_in_run` clears a held copy's progress.
 
-- [ ] `uv run -m backend.seed` prints `Seeded 25 claims, 50 policies, 49 customers and 3 handlers into undercover.db, with 25 held-out claims and 50 handlers' decisions for evaluations`
-- [ ] pytest, scoring: a test for each rule of the cost of mistakes, including a wrongful approval that wasn't paid; a payout 99 cents out counting as right and one $1.01 out as wrong; an undecided claim counting as a referral; and the measures of a hand-made evaluation
-- [ ] pytest, backend: `create_evaluation` of the held-out set's `tiny` claims at N=5 makes five waiting copies, `CLM-1104-E1`, `CLM-1106-E1`, `CLM-1110-E1`, `CLM-1112-E1` and `CLM-1114-E1`, each with its id in its record, and the evaluation records its set, `tiny`, N, model and reasoning effort. The whole evaluation set makes 25 copies. An unknown set returns 422
-- [ ] pytest, backend: `list_claims` returns the same 25 claims before and after an evaluation, and `get_claim` on a copy shows its `evaluation_id` and `copy_of`
-- [ ] pytest, backend: `get_claim` on every copy, and `create_evaluation`'s response, hold none of the handlers' reasons, references or calculations, and no field from `handler_decisions`
-- [ ] pytest, backend: `sign_off_claim` on a copy held for sign-off returns 409 and changes nothing
-- [ ] pytest, backend: `start_evaluation` passes the set, `tiny` and N to the agent's service, with the same 409, 503 and 422 rules as `start_dispatch`
-- [ ] Stub model test, through the agent's service: an evaluation of the evaluation set's five `tiny` claims at N=5, where the stub approves `CLM-1007` for 50.00, approves `CLM-1015` for 300.00, declines `CLM-1017`, approves `CLM-1020` for 1,240.00 and fails twice on `CLM-1021`. It finishes, the queue is the same before and after, and the copy of `CLM-1020` is waiting for sign-off with no saved progress on its thread. `get_evaluation` gives decision accuracy 0.4, accuracy 0.2, cost of mistakes 2,850.00 and straight-through 0.8, with the model cost per claim and time per claim the stub's records add up to
-- [ ] Stub model test: a dispatch started after an evaluation leaves its copies alone, including one left in progress
-- [ ] pytest, service: `start_evaluation` while a dispatch runs returns 409, and `start_dispatch` while an evaluation runs returns 409
-- [ ] A pytest test checks that `agent/api.py` has no function for `list_evaluations`, `get_evaluation`, `start_dispatch` or `start_evaluation`
-- [ ] `grep -n '"/api/\(runs\|dispatches\|evaluations\)' backend/main.py` still finds nothing: every new run operation is in `backend/runs.py`
-- [ ] The shared OpenAPI test passes for the backend and the agent's service
-- [ ] `grep -rn evals agent dashboard/src e2e` finds nothing, and `grep -rn evals backend --include=*.py` finds it only in `backend/database.py` and `backend/tests/`
-- [ ] `npm run seed` prints the counts above for the `undercover` schema, and Supabase MCP shows 25 rows in `held_out_claims` and 50 in `handler_decisions`, 10 of them `tiny`
-- [ ] With `npm run dev` running: `create_evaluation` with curl for the held-out set's `tiny` claims makes five copies, `curl -s localhost:8000/api/claims` still returns 25 claims, and `curl -s localhost:8000/api/evaluations` lists the evaluation with every measure, with every copy counted as a referral. `npm run seed` afterwards
-- [ ] `npm run check` passes
+- [x] `uv run -m backend.seed` prints `Seeded 25 claims, 50 policies, 49 customers and 3 handlers into undercover.db, with 25 held-out claims and 50 handlers' decisions for evaluations`
+- [x] pytest, scoring: a test for each rule of the cost of mistakes, including a wrongful approval that wasn't paid; a payout 99 cents out counting as right and one $1.01 out as wrong; an undecided claim counting as a referral; and the measures of a hand-made evaluation
+- [x] pytest, backend: `create_evaluation` of the held-out set's `tiny` claims at N=5 makes five waiting copies, `CLM-1104-E1`, `CLM-1106-E1`, `CLM-1110-E1`, `CLM-1112-E1` and `CLM-1114-E1`, each with its id in its record, and the evaluation records its set, `tiny`, N, model and reasoning effort. The whole evaluation set makes 25 copies. An unknown set returns 422
+- [x] pytest, backend: `list_claims` returns the same 25 claims before and after an evaluation, and `get_claim` on a copy shows its `evaluation_id` and `copy_of`
+- [x] pytest, backend: `get_claim` on every copy, and `create_evaluation`'s response, hold none of the handlers' reasons, references or calculations, and no field from `handler_decisions`
+- [x] pytest, backend: `sign_off_claim` on a copy held for sign-off returns 409 and changes nothing
+- [x] pytest, backend: `start_evaluation` passes the set, `tiny` and N to the agent's service, with the same 409, 503 and 422 rules as `start_dispatch`
+- [x] Stub model test, through the agent's service: an evaluation of the evaluation set's five `tiny` claims at N=5, where the stub approves `CLM-1007` for 50.00, approves `CLM-1015` for 300.00, declines `CLM-1017`, approves `CLM-1020` for 1,240.00 and fails twice on `CLM-1021`. It finishes, the queue is the same before and after, and the copy of `CLM-1020` is waiting for sign-off with no saved progress on its thread. `get_evaluation` gives decision accuracy 0.4, accuracy 0.2, cost of mistakes 2,850.00 and straight-through 0.8, with the model cost per claim and time per claim the stub's records add up to
+- [x] Stub model test: a dispatch started after an evaluation leaves its copies alone, including one left in progress
+- [x] pytest, service: `start_evaluation` while a dispatch runs returns 409, and `start_dispatch` while an evaluation runs returns 409
+- [x] A pytest test checks that `agent/api.py` has no function for `list_evaluations`, `get_evaluation`, `start_dispatch` or `start_evaluation`
+- [x] `grep -n '"/api/\(runs\|dispatches\|evaluations\)' backend/main.py` still finds nothing: every new run operation is in `backend/runs.py`
+- [x] The shared OpenAPI test passes for the backend and the agent's service
+- [x] `grep -rn evals agent dashboard/src e2e` finds nothing, and `grep -rn evals backend --include=*.py` finds it only in `backend/database.py` and `backend/tests/`
+- [x] `npm run seed` prints the counts above for the `undercover` schema, and Supabase MCP shows 25 rows in `held_out_claims` and 50 in `handler_decisions`, 10 of them `tiny`
+- [x] With `npm run dev` running: `create_evaluation` with curl for the held-out set's `tiny` claims makes five copies, `curl -s localhost:8000/api/claims` still returns 25 claims, and `curl -s localhost:8000/api/evaluations` lists the evaluation with every measure, with every copy counted as a referral. `npm run seed` afterwards
+- [x] `npm run check` passes
 
 ## Phase 5: The scoreboard
 

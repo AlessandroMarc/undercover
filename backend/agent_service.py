@@ -42,3 +42,9 @@ def start(path: str, body: dict[str, Any]) -> None:
 def start_dispatch(agents: int) -> None:
     """Ask the agent's service to start a dispatch with up to N claim agents."""
     start("/dispatches", {"agents": agents})
+
+
+def start_evaluation(evaluation_set: str, tiny: bool, agents: int) -> None:
+    """Ask the agent's service to start an evaluation with up to N claim agents."""
+    body = {"evaluation_set": evaluation_set, "tiny": tiny, "agents": agents}
+    start("/evaluations", body)

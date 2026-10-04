@@ -3,8 +3,10 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 from langchain_core.callbacks import BaseCallbackHandler
+from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import api, dispatcher, harness
+from agent import api, dispatcher, harness, service
+from agent.tests.stubs import graph_on
 from backend.main import app
 
 
@@ -43,3 +45,18 @@ def no_waits(monkeypatch):
         dispatcher, "RETRY", real._replace(initial_interval=0, jitter=False)
     )
     return real
+
+
+@pytest.fixture
+def serve():
+    """Run the agent's service, without its lifespan, with claim agents on a stub
+    model whose graphs share a saver."""
+
+    def with_model(model, saver=None):
+        saver = saver or InMemorySaver()
+        agents = service.ClaimAgents("stub", "none", lambda: graph_on(model, saver))
+        service.app.dependency_overrides[service.claim_agents] = lambda: agents
+        return TestClient(service.app)
+
+    yield with_model
+    service.app.dependency_overrides.clear()

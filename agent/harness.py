@@ -364,8 +364,23 @@ def carry_on(claim_id: str, run_id: str | None, graph: ClaimGraph) -> str:
 
 def work_in_run(claim_id: str, run_id: str, new_graph: NewGraph) -> str:
     """Work one claim in a run on a claim graph of its own, carrying it on if it is
-    in progress or starting it if it is waiting, and report how it ended."""
+    in progress or starting it if it is waiting, and report how it ended. A copy in
+    an evaluation held for sign-off is finished."""
     graph = new_graph()
     if api.get_claim(claim_id)["status"] == api.Status.IN_PROGRESS:
-        return carry_on(claim_id, run_id, graph)
-    return work_claim(claim_id, run_id, graph)
+        line = carry_on(claim_id, run_id, graph)
+    else:
+        line = work_claim(claim_id, run_id, graph)
+    finish_held_copy(claim_id, graph)
+    return line
+
+
+def finish_held_copy(claim_id: str, graph: ClaimGraph) -> None:
+    """Clear the saved progress of an evaluation's copy held for sign-off: nobody
+    can sign a copy off, so its work is finished."""
+    claim = api.get_claim(claim_id)
+    held = claim["status"] == api.Status.WAITING_FOR_SIGN_OFF
+    if claim["evaluation_id"] and held:
+        # claim_graph always compiles the graph with a saver.
+        saver = cast(BaseCheckpointSaver[Any], graph.checkpointer)
+        saver.delete_thread(claim["thread_id"])

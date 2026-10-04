@@ -160,8 +160,9 @@ def health() -> dict[str, str]:
 
 @app.get("/api/claims", operation_id="list_claims")
 def list_claims(db: Database) -> list[ClaimSummary]:
-    """List every claim in the queue, in id order."""
-    rows = db.execute(claim_view.order_by(claims.c.claim_id)).mappings()
+    """List every claim in the queue, in id order, leaving out evaluations' copies."""
+    query = claim_view.where(claims.c.evaluation_id.is_(None))
+    rows = db.execute(query.order_by(claims.c.claim_id)).mappings()
     return [to_summary(row) for row in rows]
 
 
@@ -361,6 +362,10 @@ def sign_off_claim(
 ) -> Claim:
     """Sign off a held payout as a handler, so the agent picks the claim up and pays."""
     claim = find_claim(db, claim_id)
+    if claim["evaluation_id"] is not None:
+        raise HTTPException(
+            409, f"Claim {claim_id} is a copy in an evaluation and can't be signed off"
+        )
     if claim["status"] != "waiting_for_sign_off":
         raise HTTPException(409, f"Claim {claim_id} is not waiting for sign-off")
     query = select(handlers).where(handlers.c.handler_id == request.handler_id)

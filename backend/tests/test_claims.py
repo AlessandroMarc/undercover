@@ -63,5 +63,6 @@ def test_seed_command(capsys):
     seed.main()
     assert capsys.readouterr().out == (
         "Seeded 25 claims, 50 policies, 49 customers and 3 handlers "
-        "into undercover.db\n"
+        "into undercover.db, with 25 held-out claims and 50 handlers' decisions "
+        "for evaluations\n"
     )

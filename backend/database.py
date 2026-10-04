@@ -9,12 +9,13 @@ import os
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from sqlalchemy import (
     JSON,
     Boolean,
     Column,
+    Connection,
     Engine,
     Float,
     ForeignKey,
@@ -34,6 +35,7 @@ from sqlalchemy.schema import CreateSchema
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 DOCUMENTS = {"policy_wording": "Policy wording", "claims_manual": "Claims manual"}
+HELD_OUT_CLAIMS = "evals/held_out_claims.json"
 SCHEMA = "undercover"
 CONNECTIONS = 4
 CONNECTION_WAIT = 120
@@ -87,6 +89,23 @@ claims = Table(
     Column("status", Text, nullable=False),
     Column("thread_id", Text),
     Column("attempts", Integer, nullable=False),
+    Column("evaluation_id", Text, ForeignKey("runs.run_id")),
+    Column("copy_of", Text),
+)
+held_out_claims = Table(
+    "held_out_claims",
+    metadata,
+    Column("claim_id", Text, primary_key=True),
+    Column("record", JSON, nullable=False),
+)
+handler_decisions = Table(
+    "handler_decisions",
+    metadata,
+    Column("evaluation_set", Text, primary_key=True),
+    Column("claim_id", Text, primary_key=True),
+    Column("decision", Text, nullable=False),
+    Column("payout", Float, nullable=False),
+    Column("tiny", Boolean, nullable=False),
 )
 decisions = Table(
     "decisions",
@@ -163,6 +182,21 @@ work_times = Table(
     Column("seconds", Float, nullable=False),
 )
 
+
+class LabelledSet(NamedTuple):
+    """A set of claims our handlers have decided: the table its claims are kept in,
+    and the file in data/evals/ with the handlers' decisions, which only seeding
+    reads."""
+
+    claims: Table
+    decisions: str
+
+
+LABELLED_SETS = {
+    "evaluation": LabelledSet(claims, "evals/decisions.json"),
+    "held_out": LabelledSet(held_out_claims, "evals/held_out_decisions.json"),
+}
+
 claim_view = (
     select(
         claims.c.claim_id,
@@ -170,6 +204,8 @@ claim_view = (
         claims.c.status,
         claims.c.thread_id,
         claims.c.attempts,
+        claims.c.evaluation_id,
+        claims.c.copy_of,
         customers.c.name.label("customer_name"),
         decisions.c.decision,
         decisions.c.payout,
@@ -249,6 +285,19 @@ def load(name: str) -> Any:
     return json.loads((DATA / name).read_text(encoding="utf-8"))
 
 
+def waiting_claim(record: dict[str, Any], **columns: Any) -> dict[str, Any]:
+    """Return the row of a claim waiting in the queue, never started, with any other
+    columns given."""
+    return {
+        "claim_id": record["claim_id"],
+        "customer_id": record["customer_id"],
+        "record": record,
+        "status": "waiting",
+        "thread_id": None,
+        "attempts": 0,
+    } | columns
+
+
 def seed(db: Engine) -> dict[str, int]:
     """Build the tables afresh from data/ and count what they hold."""
     company = load("company.json")
@@ -305,23 +354,34 @@ def seed(db: Engine) -> dict[str, int]:
             insert(policies),
             [{"policy_id": p["policy_id"], "record": p} for p in policy_rows],
         )
-        connection.execute(
-            insert(claims),
-            [
-                {
-                    "claim_id": c["claim_id"],
-                    "customer_id": c["customer_id"],
-                    "record": c,
-                    "status": "waiting",
-                    "thread_id": None,
-                    "attempts": 0,
-                }
-                for c in claim_rows
-            ],
-        )
+        connection.execute(insert(claims), [waiting_claim(c) for c in claim_rows])
+        labelled = seed_evaluations(connection)
     return {
         "claims": len(claim_rows),
         "policies": len(policy_rows),
         "customers": len(customer_rows),
         "handlers": len(handler_rows),
-    }
+    } | labelled
+
+
+def seed_evaluations(connection: Connection) -> dict[str, int]:
+    """Store the held-out claims, out of the queue, and the handlers' decisions on
+    both labelled sets, and count them."""
+    held_out = load(HELD_OUT_CLAIMS)
+    connection.execute(
+        insert(held_out_claims),
+        [{"claim_id": c["claim_id"], "record": c} for c in held_out],
+    )
+    rows = [
+        {
+            "evaluation_set": evaluation_set,
+            "claim_id": d["claim_id"],
+            "decision": d["decision"],
+            "payout": d["payout"],
+            "tiny": d["tiny"],
+        }
+        for evaluation_set, labelled in LABELLED_SETS.items()
+        for d in load(labelled.decisions)
+    ]
+    connection.execute(insert(handler_decisions), rows)
+    return {"held_out_claims": len(held_out), "handler_decisions": len(rows)}

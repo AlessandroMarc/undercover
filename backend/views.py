@@ -33,6 +33,8 @@ def to_claim(row: RowMapping) -> Claim:
             "customer_name": row["customer_name"],
             "thread_id": row["thread_id"],
             "attempts": row["attempts"],
+            "evaluation_id": row["evaluation_id"],
+            "copy_of": row["copy_of"],
             "decision": decision,
             "payment": payment,
         }

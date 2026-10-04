@@ -13,21 +13,6 @@ from agent.tests.stubs import decide, graph_on, stub, swarm
 from api_rules import rule_breaks
 
 
-@pytest.fixture
-def serve():
-    """Run the agent's service, without its lifespan, with claim agents on a stub
-    model whose graphs share a saver."""
-
-    def with_model(model, saver=None):
-        saver = saver or InMemorySaver()
-        agents = service.ClaimAgents("stub", "none", lambda: graph_on(model, saver))
-        service.app.dependency_overrides[service.claim_agents] = lambda: agents
-        return TestClient(service.app)
-
-    yield with_model
-    service.app.dependency_overrides.clear()
-
-
 def resume(agent, claim_id):
     return agent.post(f"/api/claims/{claim_id}/resume")
 

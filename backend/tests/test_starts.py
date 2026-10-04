@@ -81,3 +81,46 @@ def test_a_service_that_took_the_start_but_didnt_answer_isnt_said_to_be_down(
     agent_answers(slow)
     with pytest.raises(httpx.ReadTimeout):
         start_dispatch(client, 3)
+
+
+def start_evaluation(client, evaluation_set="held_out", tiny=True, agents=5):
+    return client.post(
+        "/api/evaluations",
+        json={"evaluation_set": evaluation_set, "tiny": tiny, "agents": agents},
+    )
+
+
+def test_start_an_evaluation(client, asked):
+    response = start_evaluation(client, "evaluation", False, 25)
+    assert response.status_code == 202
+    assert asked == [
+        (
+            "/api/evaluations",
+            {"evaluation_set": "evaluation", "tiny": False, "agents": 25},
+        )
+    ]
+    assert runs_recorded() == 0
+
+
+def test_an_evaluation_is_refused_as_a_dispatch_is(client, agent_answers):
+    agent_answers(lambda request: httpx.Response(409, json={"detail": RUNNING}))
+    refused = start_evaluation(client)
+    assert (refused.status_code, refused.json()["detail"]) == (409, RUNNING)
+
+    def unreachable(request):
+        raise httpx.ConnectError("Connection refused")
+
+    agent_answers(unreachable)
+    down = start_evaluation(client)
+    assert down.status_code == 503
+    assert down.json()["detail"] == "The agent's service isn't running"
+
+
+@pytest.mark.parametrize(
+    ("evaluation_set", "agents"), [("harder", 5), ("held_out", 0), ("held_out", 26)]
+)
+def test_an_evaluation_needs_a_known_set_and_1_to_25_agents(
+    client, asked, evaluation_set, agents
+):
+    assert start_evaluation(client, evaluation_set, agents=agents).status_code == 422
+    assert asked == []

@@ -68,6 +68,9 @@ export interface Claim {
   status: Status;
   thread_id: string | null;
   attempts: number;
+  // Set on an evaluation's copy of a claim.
+  evaluation_id: string | null;
+  copy_of: string | null;
   decision: Decision | null;
   payment: Payment | null;
 }

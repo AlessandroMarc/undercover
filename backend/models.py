@@ -89,6 +89,8 @@ class Claim(BaseModel):
     status: Status
     thread_id: str | None
     attempts: int
+    evaluation_id: str | None
+    copy_of: str | None
     decision: Decision | None
     payment: Payment | None
 
@@ -291,8 +293,7 @@ class StartDispatchRequest(BaseModel):
     agents: Agents
 
 
-class DispatchRequest(BaseModel):
-    agents: Agents
+class DispatchRequest(StartDispatchRequest):
     model: str = Field(min_length=1)
     reasoning_effort: str = Field(min_length=1, description="Or none")
 
@@ -321,7 +322,7 @@ class RunClaim(ClaimSummary):
     model_cost: float
 
 
-class Run(BaseModel):
+class RunDetails(BaseModel):
     run_id: str
     number: int
     kind: RunKind
@@ -334,9 +335,49 @@ class Run(BaseModel):
     started_at: str
     finished_at: str | None
     seconds: float | None
-    summary: DispatchSummary | None
     model_cost: float
+
+
+class Run(RunDetails):
+    summary: DispatchSummary | None
     claims: list[RunClaim]
+
+
+class StartEvaluationRequest(StartDispatchRequest):
+    evaluation_set: EvaluationSet
+    tiny: bool = Field(description="Only the set's five tiny claims")
+
+
+class EvaluationRequest(StartEvaluationRequest, DispatchRequest):
+    pass
+
+
+class Measures(BaseModel):
+    decision_accuracy: float
+    accuracy: float
+    cost_of_mistakes: float
+    straight_through: float
+    model_cost_per_claim: float
+    seconds_per_claim: float
+    run_seconds: float | None
+
+
+class ScoredClaim(RunClaim):
+    copy_of: str
+    reason: str | None
+    handler_decision: DecisionKind
+    handler_payout: float
+    right: bool
+    mistake_cost: float
+
+
+class Evaluation(RunDetails):
+    size: int
+    measures: Measures
+
+
+class ScoredEvaluation(Evaluation):
+    claims: list[ScoredClaim]
 
 
 class Accepted(BaseModel):

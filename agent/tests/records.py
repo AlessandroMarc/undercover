@@ -13,6 +13,14 @@ def steps_of(client, claim_id):
     return client.get(f"/api/claims/{claim_id}/steps").json()
 
 
+def queue(client):
+    return client.get("/api/claims").json()
+
+
+def evaluations(client):
+    return client.get("/api/evaluations").json()
+
+
 def latest_dispatch(client):
     return client.get("/api/dispatches/latest").json()
 

@@ -79,6 +79,11 @@ class DispatchRequest(BaseModel):
     agents: int = Field(ge=1, le=MOST_AGENTS, description="Claim agents at once")
 
 
+class EvaluationRequest(DispatchRequest):
+    evaluation_set: api.EvaluationSet
+    tiny: bool = Field(description="Only the set's five tiny claims")
+
+
 def take_the_run() -> None:
     """Take the one run the service works at a time, or refuse with a 409."""
     if not one_run.acquire(blocking=False):
@@ -137,4 +142,22 @@ def resume_claim(
         raise HTTPException(409, f"Claim {claim_id} has no sign-off waiting to be paid")
     resuming.add(claim_id)
     background.add_task(resume, claim_id, agents)
+    return {"status": "accepted"}
+
+
+@app.post("/api/evaluations", operation_id="start_evaluation", status_code=202)
+def start_evaluation(
+    request: EvaluationRequest, agents: Agents, background: BackgroundTasks
+) -> dict[str, str]:
+    """Start an evaluation with up to N claim agents at once."""
+    take_the_run()
+    create = partial(
+        api.create_evaluation,
+        request.evaluation_set,
+        request.tiny,
+        request.agents,
+        agents.model,
+        agents.reasoning_effort,
+    )
+    background.add_task(work_in_background, create, agents)
     return {"status": "accepted"}

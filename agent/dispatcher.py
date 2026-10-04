@@ -55,9 +55,12 @@ Dispatcher = CompiledStateGraph[Dispatch, DispatchContext, Any, Any]
 
 
 def list_claims(state: Dispatch, runtime: Runtime[DispatchContext]) -> dict[str, Any]:
-    """Choose the claims to work: the queue's claims in progress and waiting, oldest
-    submitted first, less any being resumed, which the dispatch records."""
+    """Choose the claims to work: an evaluation's copies, which the backend made, or
+    the queue's claims in progress and waiting, oldest submitted first, less any
+    being resumed, which the dispatch records."""
     run, resuming = runtime.context.run, runtime.context.resuming
+    if run["kind"] == api.EVALUATION:
+        return {"claims": [claim["claim_id"] for claim in run["claims"]]}
     queue = sorted(api.list_claims(), key=lambda c: (c["submitted_on"], c["claim_id"]))
     claims = [
         c["claim_id"]

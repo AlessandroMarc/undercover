@@ -82,6 +82,8 @@ export const claim: Claim = {
   status: "waiting",
   thread_id: null,
   attempts: 0,
+  evaluation_id: null,
+  copy_of: null,
   decision: null,
   payment: null,
 };

@@ -20,6 +20,9 @@ DecisionKind = Literal["approve", "decline", "refer"]
 APPROVE: DecisionKind = "approve"
 DocumentName = Literal["policy_wording", "claims_manual"]
 StepKind = Literal["tool_call", "tool_result", "message", "reading"]
+EvaluationSet = Literal["evaluation", "held_out"]
+RunKind = Literal["dispatch", "evaluation"]
+EVALUATION: RunKind = "evaluation"
 Benefit = Literal[
     "trip_cancellation",
     "trip_interruption",
@@ -188,6 +191,23 @@ def record_work_time(
 def create_dispatch(agents: int, model: str, reasoning_effort: str) -> dict[str, Any]:
     body = {"agents": agents, "model": model, "reasoning_effort": reasoning_effort}
     return _call("POST", "/runs/dispatches", json=body)
+
+
+def create_evaluation(
+    evaluation_set: EvaluationSet,
+    tiny: bool,
+    agents: int,
+    model: str,
+    reasoning_effort: str,
+) -> dict[str, Any]:
+    body = {
+        "evaluation_set": evaluation_set,
+        "tiny": tiny,
+        "agents": agents,
+        "model": model,
+        "reasoning_effort": reasoning_effort,
+    }
+    return _call("POST", "/runs/evaluations", json=body)
 
 
 def record_run_claims(run_id: str, claim_ids: list[str]) -> dict[str, Any]:

@@ -29,3 +29,24 @@ def finish(client, run_id):
 
 def latest_dispatch(client):
     return client.get("/api/dispatches/latest").json()
+
+
+def create_evaluation(client, evaluation_set="held_out", tiny=True, agents=5):
+    return client.post(
+        "/api/runs/evaluations",
+        json={
+            "evaluation_set": evaluation_set,
+            "tiny": tiny,
+            "agents": agents,
+            "model": "openai/gpt-6-luna",
+            "reasoning_effort": "low",
+        },
+    )
+
+
+def get_evaluation(client, run_id):
+    return client.get(f"/api/evaluations/{run_id}").json()
+
+
+def queue(client):
+    return client.get("/api/claims").json()
