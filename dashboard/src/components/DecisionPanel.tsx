@@ -1,6 +1,8 @@
 import type { Claim, Payment } from "../api";
 import { money, time } from "../format";
+import { useHandler } from "../handler";
 import { DecisionChip } from "./Chips";
+import { NotAllowed } from "./NotAllowed";
 import { SignOffForm } from "./SignOffForm";
 
 type SignOff = Pick<Payment, "signed_off_by" | "signed_off_at">;
@@ -77,6 +79,7 @@ function HeldPayment({
   payout,
   onSignedOff,
 }: Readonly<{ claim: Claim; payout: number; onSignedOff: () => void }>) {
+  const handler = useHandler();
   if (claim.evaluation_id)
     return (
       <p className="payment">
@@ -90,7 +93,11 @@ function HeldPayment({
         The payment of <span className="mono">{money(payout)}</span> is over the
         approval limit and waits for a handler's sign-off.
       </p>
-      <SignOffForm claimId={claim.claim_id} onSignedOff={onSignedOff} />
+      {handler.can_approve_over_limit ? (
+        <SignOffForm claimId={claim.claim_id} onSignedOff={onSignedOff} />
+      ) : (
+        <NotAllowed action="sign this off" />
+      )}
     </div>
   );
 }

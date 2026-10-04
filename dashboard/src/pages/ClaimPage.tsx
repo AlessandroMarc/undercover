@@ -4,6 +4,7 @@ import { api, type Claim } from "../api";
 import { StatusChip } from "../components/Chips";
 import { DecisionPanel } from "../components/DecisionPanel";
 import { Message } from "../components/Message";
+import { PageHeader } from "../components/PageHeader";
 import { HistoryPanel, PolicyPanel } from "../components/PolicyPanels";
 import { StepList } from "../components/StepList";
 import { date, label, money } from "../format";
@@ -19,17 +20,21 @@ export function ClaimPage() {
 
   return (
     <>
-      <div className="claim-heading">
-        <p className="mono muted">{claim.claim_id}</p>
-        {claim.evaluation_id && (
-          <p className="copy-note">
-            A copy of <span className="mono">{claim.copy_of}</span> in an{" "}
-            <Link to={evaluationPage(claim.evaluation_id)}>evaluation</Link>
-          </p>
-        )}
-        <h1>{claim.summary}</h1>
-        <StatusChip status={claim.status} />
-      </div>
+      <PageHeader
+        eyebrow={<span className="mono">{claim.claim_id}</span>}
+        title={claim.summary}
+        status={<StatusChip status={claim.status} />}
+        lead={
+          claim.evaluation_id ? (
+            <>
+              A copy of <span className="mono">{claim.copy_of}</span> in an{" "}
+              <Link to={evaluationPage(claim.evaluation_id)}>evaluation</Link>
+            </>
+          ) : (
+            `${claim.customer_name}'s claim, with the agent's decision, its work step by step and the policy behind it.`
+          )
+        }
+      />
       <div className="claim-layout">
         <div className="column">
           <ClaimDetails claim={claim} />

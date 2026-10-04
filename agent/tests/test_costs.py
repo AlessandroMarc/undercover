@@ -11,6 +11,7 @@ from agent.tests.failures import fail_once
 from agent.tests.queue_setup import leave_waiting
 from agent.tests.records import claim_of, model_calls_of, steps_of, work_times_of
 from agent.tests.stubs import USAGE, call, decide, graph_on, stub, swarm
+from backend.tests.claim_requests import sign_off
 from backend.tests.run_requests import latest_dispatch
 
 
@@ -75,7 +76,7 @@ def test_the_wait_for_a_sign_off_isnt_counted(client, monkeypatch):
     harness.work_claim("CLM-1002", run_id, graph)
     wait = 3600
     clock.moved += wait
-    client.post("/api/claims/CLM-1002/sign-off", json={"handler_id": "HND-01"})
+    sign_off(client, "CLM-1002")
     harness.carry_on("CLM-1002", None, graph)
 
     assert claim_of(client, "CLM-1002")["status"] == "decided"

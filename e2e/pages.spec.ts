@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { HANDLERS } from "./handlers";
 
 test("the queue lists every claim", async ({ page }) => {
   await page.goto("/");
@@ -30,4 +31,24 @@ test("the header opens the instructions", async ({ page }) => {
     claim.getByText(/10\. How we work out your payment/),
   ).toBeVisible();
   await expect(claim.getByText(/9\. Repeat claims/)).toBeVisible();
+});
+
+test("signing out lands on the sign-in page", async ({ browser }) => {
+  // A browser of its own, so signing out leaves the other tests signed in.
+  const context = await browser.newContext({
+    storageState: HANDLERS.dana.storage,
+  });
+  const page = await context.newPage();
+  await page.goto("/scoreboard");
+  const who = page.getByLabel("Signed in");
+  await expect(who.getByText("Dana Whitfield")).toBeVisible();
+  await expect(who.getByText("Senior Claims Handler")).toBeVisible();
+  await who.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL("/sign-in");
+  await expect(
+    page.getByRole("heading", { name: "Sign in", level: 1 }),
+  ).toBeVisible();
+  await page.goto("/scoreboard");
+  await expect(page).toHaveURL("/sign-in");
+  await context.close();
 });

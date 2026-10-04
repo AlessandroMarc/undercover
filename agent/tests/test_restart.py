@@ -12,6 +12,7 @@ from agent import api, harness
 from agent.tests.failures import fail_once
 from agent.tests.records import claim_of, steps_of
 from agent.tests.stubs import StubModel, call, decide, graph_on, record, stub
+from backend.tests.claim_requests import sign_off
 
 
 def stop_while_working(claim_id, saver, *replies):
@@ -141,7 +142,7 @@ def test_stopped_on_the_way_into_the_pause_is_paid_after_the_sign_off(
         harness.work_claim(
             "CLM-1002", None, graph_on(stub(*decide("approve", 1350.0)), saver)
         )
-    client.post("/api/claims/CLM-1002/sign-off", json={"handler_id": "HND-01"})
+    sign_off(client, "CLM-1002")
 
     report = harness.carry_on("CLM-1002", None, graph_on(stub(), saver))
     assert report == "CLM-1002  approve  $1,350.00"

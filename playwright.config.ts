@@ -1,13 +1,23 @@
 import { defineConfig } from "@playwright/test";
-import { AGENT_STAND_IN } from "./e2e/api";
+import { AGENT_STAND_IN, AUTH_STAND_IN, DASHBOARD } from "./e2e/api";
+import { HANDLERS, TEST_PASSWORD } from "./e2e/handlers";
 
 // The tests run their own backend and dashboard, on their own ports and
-// database, so they never touch the servers started by `npm run dev`.
+// database, so they never touch the servers started by `npm run dev`. Every
+// test runs signed in as Dana Whitfield unless it chooses another handler.
 export default defineConfig({
   testDir: "e2e",
   outputDir: "e2e/test-results",
   reporter: "list",
-  use: { baseURL: "http://localhost:5174" },
+  use: { baseURL: DASHBOARD },
+  projects: [
+    { name: "sign in", testMatch: /sign_in\.setup\.ts/ },
+    {
+      name: "dashboard",
+      dependencies: ["sign in"],
+      use: { storageState: HANDLERS.dana.storage },
+    },
+  ],
   webServer: [
     {
       command:
@@ -18,6 +28,7 @@ export default defineConfig({
         UNDERCOVER_DB: "e2e/undercover.db",
         DATABASE_URL: "",
         UNDERCOVER_AGENT: AGENT_STAND_IN,
+        VITE_SUPABASE_URL: AUTH_STAND_IN,
       },
     },
     {
@@ -26,9 +37,22 @@ export default defineConfig({
       env: { PORT: new URL(AGENT_STAND_IN).port },
     },
     {
-      command: "npx vite dashboard --port 5174 --strictPort",
-      url: "http://localhost:5174",
-      env: { UNDERCOVER_API: "http://127.0.0.1:8001" },
+      command: "node e2e/auth_stand_in.ts",
+      url: `${AUTH_STAND_IN}/auth/v1/.well-known/jwks.json`,
+      env: {
+        PORT: new URL(AUTH_STAND_IN).port,
+        HANDLER_PASSWORD: TEST_PASSWORD,
+        DASHBOARD,
+      },
+    },
+    {
+      command: `npx vite dashboard --port ${new URL(DASHBOARD).port} --strictPort --mode e2e`,
+      url: DASHBOARD,
+      env: {
+        UNDERCOVER_API: "http://127.0.0.1:8001",
+        VITE_SUPABASE_URL: AUTH_STAND_IN,
+        VITE_SUPABASE_PUBLISHABLE_KEY: "e2e-publishable-key",
+      },
     },
   ],
 });

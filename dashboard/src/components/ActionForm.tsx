@@ -14,7 +14,7 @@ export function ActionForm({
   label: string;
   ready?: boolean;
   action: () => Promise<unknown>;
-  children: ReactNode;
+  children?: ReactNode;
 }>) {
   const [error, setError] = useState<string>();
   const [sending, setSending] = useState(false);

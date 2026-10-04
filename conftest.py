@@ -3,12 +3,14 @@
 import json
 
 import httpx
+import jwt
 import pytest
 from fastapi.testclient import TestClient
 
-from backend import agent_service
+from backend import agent_service, auth
 from backend.database import engine, seed
 from backend.main import app
+from backend.tests.sign_in import PUBLIC_KEYS, SUPABASE_URL
 
 
 @pytest.fixture(autouse=True)
@@ -19,6 +21,15 @@ def database(tmp_path, monkeypatch):
     monkeypatch.setenv("UNDERCOVER_DB", str(path))
     seed(engine())
     return path
+
+
+@pytest.fixture(autouse=True)
+def supabase_keys(monkeypatch):
+    """Check sign-ins against the tests' own public key, in place of fetching
+    Supabase's."""
+    monkeypatch.setenv("VITE_SUPABASE_URL", SUPABASE_URL)
+    monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", lambda _: PUBLIC_KEYS)
+    auth.public_keys.cache_clear()
 
 
 @pytest.fixture

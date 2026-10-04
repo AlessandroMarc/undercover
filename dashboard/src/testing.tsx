@@ -2,7 +2,14 @@ import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
 import { App } from "./App";
-import type { Claim, ClaimSummary, Policy, PreviousClaim } from "./api";
+import type {
+  Claim,
+  ClaimSummary,
+  Handler,
+  Policy,
+  PreviousClaim,
+  SettingsPage,
+} from "./api";
 
 // Stands in for the backend: answers "METHOD /path" with the JSON given, or
 // with the status and detail given as an error, and a 404 for anything else.
@@ -15,9 +22,34 @@ export class Refusal {
   ) {}
 }
 
+const dana: Handler = {
+  handler_id: "HND-01",
+  name: "Dana Whitfield",
+  role: "Senior Claims Handler",
+  email: "dana.whitfield@undercover.example",
+  can_approve_over_limit: true,
+};
+
+export const marcus: Handler = {
+  handler_id: "HND-02",
+  name: "Marcus Oyelaran",
+  role: "Claims Handler",
+  email: "marcus.oyelaran@undercover.example",
+  can_approve_over_limit: false,
+};
+
+const settings: SettingsPage = { current: { approval_limit: 1000 } };
+
+// Every page is signed in as Dana unless the routes say otherwise.
 export function stubApi(routes: Routes) {
+  const signedIn: Routes = {
+    "GET /api/me": dana,
+    "GET /api/settings": settings,
+  };
   const fetchMock = vi.fn((path: string, init?: RequestInit) => {
-    const answer = routes[`${init?.method ?? "GET"} ${path}`];
+    const answer = { ...signedIn, ...routes }[
+      `${init?.method ?? "GET"} ${path}`
+    ];
     if (answer === undefined)
       return Promise.resolve(
         Response.json({ detail: "Not found" }, { status: 404 }),

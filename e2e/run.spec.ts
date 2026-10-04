@@ -88,7 +88,7 @@ test("a claim that fails twice is left for a handler", async ({
   request,
 }) => {
   await page.goto("/claims/CLM-1016");
-  const heading = page.locator(".claim-heading");
+  const heading = page.locator(".page-header");
   await expect(heading.getByText("Waiting")).toBeVisible();
 
   await startClaim(request, "CLM-1016", "e2e-3");

@@ -116,8 +116,11 @@ export const recordRunClaims = (
 export const finishRun = (request: Request, runId: string) =>
   send(request, "POST", `${runPath(runId)}/finish`);
 
-// The stand-in for the agent's service, which Playwright starts on its own port.
+// The dashboard the tests use, and the stand-ins for the agent's service and
+// for Supabase Auth, which Playwright starts on ports of their own.
+export const DASHBOARD = "http://localhost:5174";
 export const AGENT_STAND_IN = "http://127.0.0.1:8003";
+export const AUTH_STAND_IN = "http://127.0.0.1:8004";
 
 export async function resumed(request: Request): Promise<string[]> {
   const response = await request.get(`${AGENT_STAND_IN}/api/resumed`);

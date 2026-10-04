@@ -1,3 +1,5 @@
+import { accessToken } from "./auth";
+
 export const statuses = [
   "waiting",
   "in_progress",
@@ -106,6 +108,7 @@ export interface Handler {
   handler_id: string;
   name: string;
   role: string;
+  email: string;
   can_approve_over_limit: boolean;
 }
 
@@ -204,6 +207,14 @@ export interface Instructions {
   claim: string;
 }
 
+export interface Settings {
+  approval_limit: number;
+}
+
+export interface SettingsPage {
+  current: Settings;
+}
+
 export const REQUEST_FAILED = "The request failed";
 
 export class ApiError extends Error {
@@ -215,8 +226,12 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init);
+// Sends a request with the signed-in handler's access token, if any.
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = await accessToken();
+  const headers = new Headers(init.headers);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(path, { ...init, headers });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as {
       detail?: unknown;
@@ -228,7 +243,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-function post<T>(path: string, body: object): Promise<T> {
+function post<T>(path: string, body?: object): Promise<T> {
+  if (body === undefined) return request<T>(path, { method: "POST" });
   return request<T>(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -253,7 +269,8 @@ export const api = {
       `/api/customers/${encodeURIComponent(customerId)}/claims`,
     ),
   getInstructions: () => request<Instructions>("/api/instructions"),
-  listHandlers: () => request<Handler[]>("/api/handlers"),
+  getSignedInHandler: () => request<Handler>("/api/me"),
+  getSettings: () => request<SettingsPage>("/api/settings"),
   getLatestDispatch: () => request<Run | null>(`${DISPATCHES}/latest`),
   startDispatch: (agents: number) => post<Accepted>(DISPATCHES, { agents }),
   listEvaluations: () => request<Evaluation[]>(EVALUATIONS),
@@ -269,6 +286,5 @@ export const api = {
       tiny,
       agents,
     }),
-  signOff: (claimId: string, handlerId: string) =>
-    post<Claim>(`${claimPath(claimId)}/sign-off`, { handler_id: handlerId }),
+  signOff: (claimId: string) => post<Claim>(`${claimPath(claimId)}/sign-off`),
 };

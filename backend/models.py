@@ -157,6 +157,7 @@ class Handler(BaseModel):
     handler_id: str
     name: str
     role: str
+    email: str
     can_approve_over_limit: bool
 
 
@@ -170,6 +171,14 @@ class Step(BaseModel):
 
 class Instructions(BaseModel):
     claim: str
+
+
+class Settings(BaseModel):
+    approval_limit: float
+
+
+class SettingsPage(BaseModel):
+    current: Settings
 
 
 class Section(BaseModel):
@@ -220,10 +229,6 @@ class DecisionRequest(BaseModel):
 
 class PaymentRequest(BaseModel):
     amount: float = Field(gt=0, description="The approved payout in US dollars")
-
-
-class SignOffRequest(BaseModel):
-    handler_id: str
 
 
 class Plan(BaseModel):

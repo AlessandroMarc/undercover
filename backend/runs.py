@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import Connection, RowMapping, delete, func, insert, select, update
 
 from backend import agent_service, scoring
@@ -22,7 +22,7 @@ from backend.database import (
     waiting_claim,
     work_times,
 )
-from backend.dependencies import Database
+from backend.dependencies import Database, signed_in_handler
 from backend.lookups import CLAIM_NOT_FOUND, RUN_NOT_FOUND, run_row
 from backend.models import (
     Accepted,
@@ -346,7 +346,12 @@ def get_latest_dispatch(db: Database) -> Run | None:
     return None if run_id is None else find_run(db, run_id)
 
 
-@router.post("/api/dispatches", operation_id="start_dispatch", status_code=202)
+@router.post(
+    "/api/dispatches",
+    operation_id="start_dispatch",
+    status_code=202,
+    dependencies=[Depends(signed_in_handler)],
+)
 def start_dispatch(request: StartDispatchRequest) -> Accepted:
     """Ask the agent's service to start a dispatch with up to N claim agents at once."""
     agent_service.start_dispatch(request.agents)
@@ -374,7 +379,12 @@ def get_evaluation(run_id: str, db: Database) -> ScoredEvaluation:
     return score(db, evaluation_row(db, run_id), expected_answers(db))
 
 
-@router.post("/api/evaluations", operation_id="start_evaluation", status_code=202)
+@router.post(
+    "/api/evaluations",
+    operation_id="start_evaluation",
+    status_code=202,
+    dependencies=[Depends(signed_in_handler)],
+)
 def start_evaluation(request: StartEvaluationRequest) -> Accepted:
     """Ask the agent's service to start an evaluation with up to N claim agents."""
     agent_service.start_evaluation(request.evaluation_set, request.tiny, request.agents)

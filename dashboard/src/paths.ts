@@ -1,6 +1,7 @@
 import { generatePath } from "react-router";
 
 // The routes of the pages, and the links to the pages that show one thing.
+export const SIGN_IN = "/sign-in";
 export const QUEUE = "/";
 export const INSTRUCTIONS = "/instructions";
 export const SCOREBOARD = "/scoreboard";

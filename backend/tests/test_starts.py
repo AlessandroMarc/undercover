@@ -6,12 +6,15 @@ import pytest
 from sqlalchemy import func, select
 
 from backend.database import engine, runs
+from backend.tests.sign_in import MARCUS, signed_in
 
 RUNNING = "A dispatch or an evaluation is already running"
 
 
 def start_dispatch(client, agents):
-    return client.post("/api/dispatches", json={"agents": agents})
+    return client.post(
+        "/api/dispatches", json={"agents": agents}, headers=signed_in(MARCUS)
+    )
 
 
 def runs_recorded():
@@ -72,6 +75,7 @@ def start_evaluation(client, evaluation_set="held_out", tiny=True, agents=5):
     return client.post(
         "/api/evaluations",
         json={"evaluation_set": evaluation_set, "tiny": tiny, "agents": agents},
+        headers=signed_in(MARCUS),
     )
 
 

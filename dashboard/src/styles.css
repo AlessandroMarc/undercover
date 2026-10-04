@@ -141,6 +141,16 @@ p {
   background: var(--panel);
 }
 
+.who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.who-name {
+  font-weight: 600;
+}
+
 .page {
   max-width: 1320px;
   margin: 0 auto;
@@ -156,6 +166,50 @@ p {
 .message {
   color: var(--muted);
   padding: 24px 0;
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+  margin-bottom: 24px;
+}
+
+.page-header .lead {
+  margin: 6px 0 0;
+}
+
+.eyebrow {
+  margin-bottom: 4px;
+  color: var(--muted);
+}
+
+.sign-in {
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 72px 24px;
+  display: grid;
+  gap: 24px;
+}
+
+.sign-in-panel {
+  padding: 28px 32px;
+}
+
+.sign-in .page-header {
+  margin-bottom: 8px;
+}
+
+.sign-in .action-form {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.not-allowed {
+  min-height: 1.5em;
+  color: var(--muted);
 }
 
 .panel {
@@ -270,10 +324,6 @@ p {
   min-width: 260px;
 }
 
-.copy-note {
-  margin-bottom: 4px;
-}
-
 .dispatch-summary {
   margin-top: 4px;
 }
@@ -334,14 +384,6 @@ p {
 .table .num {
   text-align: right;
   white-space: nowrap;
-}
-
-.claim-heading {
-  margin-bottom: 20px;
-}
-
-.claim-heading h1 {
-  margin: 4px 0 10px;
 }
 
 .claim-layout {
@@ -467,7 +509,8 @@ p {
 }
 
 .action-form select,
-.action-form button {
+.action-form button,
+.button {
   font: inherit;
   font-size: 0.95rem;
   border-radius: 999px;
@@ -481,17 +524,26 @@ p {
   min-width: 90px;
 }
 
-/* The sign-off sits on an inset box, so its choice stands out on a panel. */
-.sign-off .action-form select {
-  background: var(--panel);
-  min-width: 200px;
+.action-form input {
+  font: inherit;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: var(--inset);
+  color: var(--ink);
 }
 
-.action-form button {
+.action-form button,
+.button {
   background: var(--sea-green);
   color: var(--midnight);
   font-weight: 600;
   cursor: pointer;
+}
+
+.button.quiet {
+  background: var(--panel);
+  color: var(--ink);
 }
 
 .action-form button[aria-disabled="true"] {

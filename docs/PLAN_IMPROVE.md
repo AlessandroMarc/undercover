@@ -51,7 +51,7 @@ The dashboard:
 
 - `auth.ts` (new): the only module that uses `@supabase/supabase-js`. It makes the client once from `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, and offers `signIn`, `signOut`, the session's access token and a way to follow sign-ins and sign-outs.
 - `api.ts`: gains a function for each new operation and sends the access token with every request.
-- `handler.tsx` (new): the signed-in handler for every page, from `get_signed_in_handler`, and the guard that sends a visitor who isn't signed in to the sign-in page.
+- `handler.ts` (new): the signed-in handler for every page, in a React context, and whether anyone is signed in. `components/RequireHandler.tsx` (new) is the guard that sends a visitor who isn't signed in to the sign-in page and loads the handler from `get_signed_in_handler`. (The plan had one `handler.tsx`; the hooks and the component are apart so fast refresh works.)
 - `theme.ts` (new): the appearance, light, dark or the same as the computer, kept in `localStorage` and set as `data-theme` on the page before the first render.
 - New pages: sign-in, Configuration, a version, Settings, Improvement and a recipe. New shared components: `PageHeader`, `ConfirmDialog`, `DiffView`, `StateMessage` (in place of `Message`), `NotAllowed`, `GradeChip`, `RoundProgress` and `VersionChart`.
 
@@ -348,25 +348,33 @@ API calls run against `npm run dev` on Supabase after `npm run seed`, with a han
 
 Add `auth.py`, `SignedIn` and `Senior`, the handlers' emails, the new permissions in `data/handlers.json`, `get_signed_in_handler`, and the signed-in handler on every action that exists today: `sign_off_claim`, `start_dispatch` and `start_evaluation`. On the dashboard, add `auth.ts`, `handler.tsx`, the sign-in page, the guard on every page, the header's handler and Sign out, the token on every request, and the sign-off as the signed-in handler. Set up Vite's `envDir` and modes. Add the Auth stand-in and the setup project, and sign every end-to-end spec in. Start `PageHeader` and `NotAllowed` here, for the sign-in page and the claim page.
 
-- [ ] `uv add "pyjwt[crypto]"` and `npm install @supabase/supabase-js`; `pyproject.toml` and `package.json` list them
-- [ ] pytest: with a key pair made in the test and Supabase's key fetch replaced by its public key, `get_signed_in_handler` with Dana's token returns Dana Whitfield, Senior Claims Handler, her email and `can_approve_over_limit` true. No token, a token signed by another key, an expired token and one with another audience each return 401, and a valid token for an email with no handler returns 403
-- [ ] pytest: a test lists every operation that needs a handler, `get_signed_in_handler`, `sign_off_claim`, `start_dispatch` and `start_evaluation`, and checks each returns 401 without a valid token and does nothing; later phases add theirs to the same list
-- [ ] pytest: `sign_off_claim` as Dana on a held payout records "Dana Whitfield" and the time and asks the service to resume the claim. As Marcus Oyelaran it returns 403 with "Marcus Oyelaran can't sign off payouts over $1,000.00" and changes nothing
-- [ ] pytest: `start_dispatch` and `start_evaluation` as Marcus are passed to the agent's service, as before
-- [ ] `uv run -m backend.seed`, then pytest reads the handlers: Dana's `can_approve_over_limit` is true and Marcus's and Priya's are false, each with their email from `data/handlers.json`
-- [ ] `grep -rn "VITE_SUPABASE_URL\|jwks" backend --include=*.py` finds them only in `backend/auth.py` and its tests, and `grep -rn "supabase-js" dashboard/src` only in `dashboard/src/auth.ts`
-- [ ] The shared OpenAPI test passes
-- [ ] vitest, with `auth.ts` stubbed: a visitor who isn't signed in goes from `/scoreboard` to `/sign-in`, and after signing in comes back to `/scoreboard`; a refused sign-in shows the refusal in an alert; the header shows the handler's name and role and Sign out signs out
-- [ ] vitest: every request `api.ts` sends carries `Authorization: Bearer` and the session's token
-- [ ] vitest: a held payout shows "Sign off" for Dana and posts no body; for Marcus it shows no button and says "Only a handler who can sign off payouts over $1,000.00 can sign this off. Marcus Oyelaran can't."
-- [ ] e2e: the setup project signs in as Dana and as Marcus on the sign-in page; every existing spec passes signed in, the sign-off test now signs off as Dana with no handler to choose, and a new test signs out and lands on the sign-in page
-- [ ] e2e: as Marcus, a held payout shows the explanation and no Sign off button
-- [ ] `npm run check` passes with `.env` moved out of the way
-- [ ] Supabase MCP: `select email from auth.users` lists the three handlers' emails, and `curl -s "$VITE_SUPABASE_URL/auth/v1/settings" -H "apikey: ..."` shows `"disable_signup": true`
-- [ ] With `npm run dev` running after `npm run seed`: `curl -s -X POST localhost:8000/api/dispatches -H 'Content-Type: application/json' -d '{"agents": 3}'` with no token returns 401, and with Marcus's token from Supabase Auth and the agent's service stopped it returns 503
-- [ ] Browser: `/` goes to the sign-in page; signing in as Dana Whitfield with `HANDLER_PASSWORD` shows the queue with "Dana Whitfield" and "Senior Claims Handler" in the header; a wrong password shows the alert; Sign out returns to the sign-in page
-- [ ] Browser: with `CLM-1003` approved for 1,350.00 with curl, Marcus Oyelaran sees the explanation on its page, and Dana Whitfield signs it off and sees "Signed off by Dana Whitfield". `npm run seed` afterwards
-- [ ] Browser: screenshots of the sign-in page in light and dark mode show a rounded panel with no outlines, no one-edge borders and no gradients, and `browser_console_messages` shows no errors
+- [x] `uv add "pyjwt[crypto]"` and `npm install @supabase/supabase-js`; `pyproject.toml` and `package.json` list them
+- [x] pytest: with a key pair made in the test and Supabase's key fetch replaced by its public key, `get_signed_in_handler` with Dana's token returns Dana Whitfield, Senior Claims Handler, her email and `can_approve_over_limit` true. No token, a token signed by another key, an expired token and one with another audience each return 401, and a valid token for an email with no handler returns 403
+- [x] pytest: a test lists every operation that needs a handler, `get_signed_in_handler`, `sign_off_claim`, `start_dispatch` and `start_evaluation`, and checks each returns 401 without a valid token and does nothing; later phases add theirs to the same list
+- [x] pytest: `sign_off_claim` as Dana on a held payout records "Dana Whitfield" and the time and asks the service to resume the claim. As Marcus Oyelaran it returns 403 with "Marcus Oyelaran can't sign off payouts over $1,000.00" and changes nothing
+- [x] pytest: `start_dispatch` and `start_evaluation` as Marcus are passed to the agent's service, as before
+- [x] `uv run -m backend.seed`, then pytest reads the handlers: Dana's `can_approve_over_limit` is true and Marcus's and Priya's are false, each with their email from `data/handlers.json`
+- [x] `grep -rn "VITE_SUPABASE_URL\|jwks" backend --include=*.py` finds them only in `backend/auth.py` and its tests, and `grep -rn "supabase-js" dashboard/src` only in `dashboard/src/auth.ts`
+- [x] The shared OpenAPI test passes
+- [x] vitest, with `auth.ts` stubbed: a visitor who isn't signed in goes from `/scoreboard` to `/sign-in`, and after signing in comes back to `/scoreboard`; a refused sign-in shows the refusal in an alert; the header shows the handler's name and role and Sign out signs out
+- [x] vitest: every request `api.ts` sends carries `Authorization: Bearer` and the session's token
+- [x] vitest: a held payout shows "Sign off" for Dana and posts no body; for Marcus it shows no button and says "Only a handler who can sign off payouts over $1,000.00 can sign this off. Marcus Oyelaran can't."
+- [x] e2e: the setup project signs in as Dana and as Marcus on the sign-in page; every existing spec passes signed in, the sign-off test now signs off as Dana with no handler to choose, and a new test signs out and lands on the sign-in page
+- [x] e2e: as Marcus, a held payout shows the explanation and no Sign off button
+- [x] `npm run check` passes with `.env` moved out of the way
+- [x] Supabase MCP: `select email from auth.users` lists the three handlers' emails, and `curl -s "$VITE_SUPABASE_URL/auth/v1/settings" -H "apikey: ..."` shows `"disable_signup": true`
+- [x] With `npm run dev` running after `npm run seed`: `curl -s -X POST localhost:8000/api/dispatches -H 'Content-Type: application/json' -d '{"agents": 3}'` with no token returns 401, and with Marcus's token from Supabase Auth and the agent's service stopped it returns 503
+- [x] Browser: `/` goes to the sign-in page; signing in as Dana Whitfield with `HANDLER_PASSWORD` shows the queue with "Dana Whitfield" and "Senior Claims Handler" in the header; a wrong password shows the alert; Sign out returns to the sign-in page
+- [x] Browser: with `CLM-1003` approved for 1,350.00 with curl, Marcus Oyelaran sees the explanation on its page, and Dana Whitfield signs it off and sees "Signed off by Dana Whitfield". `npm run seed` afterwards
+- [x] Browser: screenshots of the sign-in page in light and dark mode show a rounded panel with no outlines, no one-edge borders and no gradients, and `browser_console_messages` shows no errors
+
+As built:
+
+- `Senior` comes with its first use in phase 3, as `senior(action)`. Until then `sign_off_claim` checks the signed-in handler itself, with the message this phase's criterion names; in phase 3 it moves to `senior(action)`, so seniority is checked one way.
+- `get_settings` comes early, with the approval limit alone, so `NotAllowed` can name the limit. Phase 3 gives it the rest.
+- `list_handlers` is gone: nothing used it once the sign-off took the signed-in handler, and it would have handed out every handler's email to anyone.
+- The backend allows 30 seconds of difference between Supabase's clock and its own, and a Supabase that can't be reached raises its own error rather than a 401.
+- The one console entry in the browser checks was the browser's own log of Supabase's 400 for the deliberately wrong password.
 
 ## Phase 2: The configuration in versions
 

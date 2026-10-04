@@ -7,13 +7,14 @@ import {
   resumed,
   startClaim,
 } from "./api";
+import { HANDLERS } from "./handlers";
 
 // These tests stand in for the agent by calling the API through the
 // dashboard's proxy, and watch the claim page update without a reload.
 
 test("the claim page shows the agent at work", async ({ page, request }) => {
   await page.goto("/claims/CLM-1003");
-  const heading = page.locator(".claim-heading");
+  const heading = page.locator(".page-header");
   await expect(heading.getByText("Waiting")).toBeVisible();
   await expect(page.getByText(/No steps yet/)).toBeVisible();
 
@@ -77,12 +78,10 @@ test("a sign-off on the dashboard reaches the agent's service", async ({
   expect(refused.status()).toBe(403);
 
   await page.goto("/claims/CLM-1020");
-  const heading = page.locator(".claim-heading");
+  const heading = page.locator(".page-header");
   await expect(heading.getByText("Waiting for sign-off")).toBeVisible();
   expect(await resumed(request)).not.toContain("CLM-1020");
-  await page.getByRole("combobox", { name: "Handler" }).selectOption({
-    label: "Dana Whitfield",
-  });
+  await expect(page.getByRole("combobox")).toHaveCount(0);
   await page.getByRole("button", { name: "Sign off" }).click();
   await expect(heading.getByText("In progress")).toBeVisible();
   await expect(page.getByText(/Signed off by Dana Whitfield/)).toBeVisible();
@@ -94,4 +93,32 @@ test("a sign-off on the dashboard reaches the agent's service", async ({
   await expect(
     page.getByText(/^Paid \$1,350\.00, signed off by Dana Whitfield at /),
   ).toBeVisible();
+});
+
+test.describe("signed in as Marcus Oyelaran", () => {
+  test.use({ storageState: HANDLERS.marcus.storage });
+
+  test("a held payout says why he can't sign it off", async ({
+    page,
+    request,
+  }) => {
+    await startClaim(request, "CLM-1024", "e2e-7");
+    await recordDecision(request, "CLM-1024", {
+      decision: "approve",
+      payout: 1350,
+      section: "Section 5, Baggage and Personal Effects",
+      reason: "The loss is covered.",
+    });
+
+    await page.goto("/claims/CLM-1024");
+    await expect(
+      page.getByLabel("Signed in").getByText("Marcus Oyelaran"),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "Only a handler who can sign off payouts over $1,000.00 can sign this off. Marcus Oyelaran can't.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign off" })).toHaveCount(0);
+  });
 });

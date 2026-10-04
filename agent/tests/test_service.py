@@ -11,6 +11,7 @@ from agent.tests.queue_setup import leave_waiting
 from agent.tests.records import claim_of, steps_of
 from agent.tests.stubs import decide, graph_on, stub, swarm
 from api_rules import rule_breaks
+from backend.tests.claim_requests import sign_off
 from backend.tests.run_requests import latest_dispatch
 
 
@@ -35,7 +36,7 @@ def test_a_sign_off_picks_the_claim_up_and_pays_it_once(
 ):
     model, saver = stub(*decide("approve", 1350.0)), InMemorySaver()
     harness.work_claim("CLM-1002", None, graph_on(model, saver))
-    signed = client.post("/api/claims/CLM-1002/sign-off", json={"handler_id": "HND-01"})
+    signed = sign_off(client, "CLM-1002")
     assert agent_calls == [("/api/claims/CLM-1002/resume", None)]
 
     agent = serve(model, saver)
@@ -63,7 +64,7 @@ def test_a_claim_is_kept_from_dispatches_while_it_is_resumed(
 ):
     model, saver = stub(*decide("approve", 1350.0)), InMemorySaver()
     harness.work_claim("CLM-1002", None, graph_on(model, saver))
-    client.post("/api/claims/CLM-1002/sign-off", json={"handler_id": "HND-01"})
+    sign_off(client, "CLM-1002")
     seen = []
     carry_on = service.carry_on
 
