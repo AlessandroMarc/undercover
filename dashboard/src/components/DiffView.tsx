@@ -1,5 +1,6 @@
 import { Fragment } from "react";
 import type { Diff, DiffLine } from "../api";
+import { LineCounts } from "./LineCounts";
 
 // The lines that differ between two versions of a text: removed lines and added
 // lines marked in color and with a sign, a gap between the hunks, and how many
@@ -8,8 +9,7 @@ export function DiffView({ diff }: Readonly<{ diff: Diff }>) {
   return (
     <div className="diff">
       <p className="diff-counts mono">
-        <span className="diff-added-count">+{diff.added}</span>{" "}
-        <span className="diff-removed-count">−{diff.removed}</span> lines
+        <LineCounts added={diff.added} removed={diff.removed} /> lines
       </p>
       {diff.hunks.length === 0 ? (
         <p className="muted">No lines changed.</p>

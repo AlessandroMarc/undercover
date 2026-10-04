@@ -514,15 +514,22 @@ As built:
 
 Add the Improvement page and a recipe's page, with `RoundProgress`, `VersionChart` and the shared `DiffView` and `ConfirmDialog`, and the round starts and reviews to the agent's stand-in.
 
-- [ ] vitest: with no rounds, the page says "No rounds yet." with what Start a round does; Start a round posts once and shows a refusal's detail; Stop the round shows while a round is open
-- [ ] vitest: a round at each stage shows where it has got to, with "First evaluations, 2 of 3" and "Evaluations, 1 of 3"; a finished round shows its verdict chip and why; a stopped one says who or what stopped it
-- [ ] vitest: a change waiting shows its diff, the model and reasoning effort before and after and the reason; Approve opens the dialog and Confirm posts the approval to the proposal shown, by its id; Reject needs a reason and posts it to the same proposal; a 409 such as "A dispatch is running" or one for a proposal no longer waiting shows in an alert; a recipe waiting shows the recipe's diff in the same `DiffView`
-- [ ] vitest: as Marcus, a waiting proposal shows no Approve or Reject, and Start a round is replaced by what he can't do and why
-- [ ] vitest: the rounds table shows the held-out accuracy and grade before and after, right-aligned, the verdict, who approved or rejected what and when, and the cost against the limit; the chart draws one point per version tried in each of its two charts, colored by verdict, with version 1's line, and labels its axes
-- [ ] e2e: a round created through the API, with a change proposal recorded, shows "A change is waiting for approval" and its diff; approving it as Dana, with the dialog, reaches the agent's stand-in at the round's and the proposal's review path with `{"review": "approved", "handler_id": "HND-01", "reason": ""}`; once the test records the review and the version as the service would, the page moves on to "Evaluations, 0 of 3" without a reload
-- [ ] e2e: rejecting a recipe proposal with a reason reaches the stand-in with the reason; as Marcus the proposal shows no buttons
-- [ ] Browser: with a round played out with curl to a waiting change, the page in light and dark mode at 1280 by 800 and 1440 by 900, with the diff readable, the chart's labels clear and no horizontal scroll outside its tables, and no errors in `browser_console_messages`. `npm run seed` afterwards
-- [ ] `npm run check` passes
+- [x] vitest: with no rounds, the page says "No rounds yet." with what Start a round does; Start a round posts once and shows a refusal's detail; Stop the round shows while a round is open
+- [x] vitest: a round at each stage shows where it has got to, with "First evaluations, 2 of 3" and "Evaluations, 1 of 3"; a finished round shows its verdict chip and why; a stopped one says who or what stopped it
+- [x] vitest: a change waiting shows its diff, the model and reasoning effort before and after and the reason; Approve opens the dialog and Confirm posts the approval to the proposal shown, by its id; Reject needs a reason and posts it to the same proposal; a 409 such as "A dispatch is running" or one for a proposal no longer waiting shows in an alert; a recipe waiting shows the recipe's diff in the same `DiffView`
+- [x] vitest: as Marcus, a waiting proposal shows no Approve or Reject, and Start a round is replaced by what he can't do and why
+- [x] vitest: the rounds table shows the held-out accuracy and grade before and after, right-aligned, the verdict, who approved or rejected what and when, and the cost against the limit; the chart draws one point per version tried in each of its two charts, colored by verdict, with version 1's line, and labels its axes
+- [x] e2e: a round created through the API, with a change proposal recorded, shows "A change is waiting for approval" and its diff; approving it as Dana, with the dialog, reaches the agent's stand-in at the round's and the proposal's review path with `{"review": "approved", "handler_id": "HND-01", "reason": ""}`; once the test records the review and the version as the service would, the page moves on to "Evaluations, 0 of 3" without a reload
+- [x] e2e: rejecting a recipe proposal with a reason reaches the stand-in with the reason; as Marcus the proposal shows no buttons
+- [x] Browser: with a round played out with curl to a waiting change, the page in light and dark mode at 1280 by 800 and 1440 by 900, with the diff readable, the chart's labels clear and no horizontal scroll outside its tables, and no errors in `browser_console_messages`. `npm run seed` afterwards
+- [x] `npm run check` passes
+
+As built:
+
+- The browser check played two rounds out against the dev backend with a script sending the agent's service's requests, as curl would: round 1 ran its first evaluations and version 2's, which was rolled back ("it missed the objectives on accuracy, grade"), and round 2 waited with a change to Gemini 3.5 Flash Lite. Most copies were left undecided, so the judge graded only the 18 decided ones, for $0.0005.
+- Each chart is drawn at 520 by 220 pixels and shrinks on a narrow screen: drawn to its panel's width, its labels came out too big.
+- The rounds table has no column of its own for the status: the chip sits beside the round's number, with the stage under it while the round is open, so the table fits at 1280 pixels without scrolling.
+- A refusal of a review is kept by the page, so it stays on screen once the proposal it was for is no longer waiting, and a quiet button on a panel takes the inset color, so Reject keeps its shape.
 
 ## Phase 7: The whole dashboard, the live runs and the docs
 

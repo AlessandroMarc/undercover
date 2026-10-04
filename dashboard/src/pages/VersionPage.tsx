@@ -7,7 +7,7 @@ import { HeldOutAccuracy } from "../components/HeldOutAccuracy";
 import { PageHeader } from "../components/PageHeader";
 import { StateMessage } from "../components/StateMessage";
 import { VersionChanges } from "../components/VersionChanges";
-import { dateTime, label } from "../format";
+import { dateTime, label, NO_APPROVAL_NEEDED } from "../format";
 import { CONFIGURATION } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
@@ -85,7 +85,7 @@ function VersionFacts({ version }: Readonly<{ version: VersionDetails }>) {
           <dd>
             {version.approved_by && version.approved_at
               ? `${version.approved_by}, ${dateTime(version.approved_at)}`
-              : "Nobody needed to"}
+              : NO_APPROVAL_NEEDED}
           </dd>
         </div>
         <div>

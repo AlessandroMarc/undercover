@@ -1,8 +1,12 @@
 import type {
   DecisionKind,
   EvaluationSet,
+  RoundStage,
+  RoundStatus,
+  RoundSummary,
   RunStatus,
   Status,
+  Verdict,
   VersionStatus,
 } from "./api";
 
@@ -106,6 +110,42 @@ export const versionLabels: Record<VersionStatus, string> = {
   rolled_back: "Rolled back",
   under_test: "Under test",
 };
+
+// Who approved a version or a recipe that needed no approval.
+export const NO_APPROVAL_NEEDED = "Nobody needed to";
+
+export const roundLabels: Record<RoundStatus, string> = {
+  open: "Open",
+  finished: "Finished",
+  stopped: "Stopped",
+};
+
+// A verdict keeps or rolls back a version, so it reads as the version's status.
+export const verdictLabels: Record<Verdict, string> = {
+  kept: versionLabels.kept,
+  rolled_back: versionLabels.rolled_back,
+};
+
+// Each stage of a round in order, as the page names it in the round's progress.
+export const stageLabels: Record<RoundStage, string> = {
+  first_evaluations: "First evaluations",
+  improving: "The improver is working",
+  change_waiting: "A change is waiting for approval",
+  evaluating: "Evaluations",
+  verdict: "Verdict",
+  recipe_waiting: "A new recipe is waiting for approval",
+};
+export const roundStages = Object.keys(stageLabels) as RoundStage[];
+
+// Where an open round has got to, such as "First evaluations, 2 of 3", or
+// "Kept: accuracy improved" once its verdict is in.
+export function whereRoundIs(round: RoundSummary): string {
+  if (round.stage === null) return "";
+  if (round.stage === "verdict" && round.verdict)
+    return `${verdictLabels[round.verdict]}: ${round.verdict_reason ?? ""}`;
+  const name = stageLabels[round.stage];
+  return round.progress ? `${name}, ${round.progress}` : name;
+}
 
 export const evaluationSetLabels: Record<EvaluationSet, string> = {
   evaluation: "Evaluation set",

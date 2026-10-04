@@ -9,6 +9,8 @@ export const SCOREBOARD = "/scoreboard";
 export const CONFIGURATION = "/configuration";
 export const VERSION_PAGE = `${CONFIGURATION}/versions/:number`;
 export const SETTINGS = "/settings";
+export const IMPROVEMENT = "/improvement";
+export const RECIPE_PAGE = `${IMPROVEMENT}/recipes/:number`;
 export const CLAIM_PAGE = "/claims/:claimId";
 export const EVALUATION_PAGE = `${SCOREBOARD}/:runId`;
 
@@ -18,3 +20,5 @@ export const evaluationPage = (runId: string) =>
   generatePath(EVALUATION_PAGE, { runId });
 export const versionPage = (number: number) =>
   generatePath(VERSION_PAGE, { number: String(number) });
+export const recipePage = (number: number) =>
+  generatePath(RECIPE_PAGE, { number: String(number) });

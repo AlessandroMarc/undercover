@@ -313,6 +313,108 @@ export interface SettingsPage {
   models_allowed: ModelAllowed[];
 }
 
+export type RoundStatus = "open" | "finished" | "stopped";
+export type RoundStage =
+  | "first_evaluations"
+  | "improving"
+  | "change_waiting"
+  | "evaluating"
+  | "verdict"
+  | "recipe_waiting";
+export type ProposalKind = "change" | "recipe";
+export type Review = "approved" | "rejected";
+
+// Who approved or rejected one of the improver's proposals, and when.
+export interface RoundReview {
+  kind: ProposalKind;
+  review: Review;
+  reviewed_by: string;
+  reviewed_at: string;
+  rejection_reason: string | null;
+}
+
+// The proposal waiting for a handler, with what it would change. A recipe has
+// no model.
+export interface WaitingProposal {
+  proposal_id: string;
+  kind: ProposalKind;
+  reason: string;
+  proposed_at: string;
+  diff: Diff;
+  model_before: string | null;
+  reasoning_effort_before: string | null;
+  model_after: string | null;
+  reasoning_effort_after: string | null;
+}
+
+export interface RoundSummary {
+  round_id: string;
+  number: number;
+  status: RoundStatus;
+  // Where an open round has got to, and how far, such as "2 of 3".
+  stage: RoundStage | null;
+  progress: string | null;
+  started_by: string;
+  started_at: string;
+  finished_at: string | null;
+  stopped_by: string | null;
+  stopped_because: string | null;
+  recipe: number;
+  settings: number;
+  spending_limit: number;
+  cost: number;
+  // The version the round tried, if any, and its verdict.
+  version: number | null;
+  model: string | null;
+  reasoning_effort: string | null;
+  reason: string | null;
+  verdict: Verdict | null;
+  verdict_reason: string | null;
+  held_out_before: Measures | null;
+  held_out_after: Measures | null;
+  reviews: RoundReview[];
+}
+
+export interface RoundView extends RoundSummary {
+  waiting: WaitingProposal | null;
+  evaluations: Evaluation[];
+}
+
+// A version's held-out accuracy and grade, for the chart.
+export interface VersionPoint {
+  number: number;
+  verdict: Verdict | null;
+  accuracy: number | null;
+  grade: number | null;
+}
+
+export interface RecipeSummary {
+  number: number;
+  current: boolean;
+  reason: string;
+  proposed_by: string;
+  round_id: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+  lines_added: number;
+  lines_removed: number;
+}
+
+export interface RecipeDetails extends RecipeSummary {
+  recipe: string;
+  diff: Diff | null;
+}
+
+export interface Improvement {
+  // The open round, or the newest.
+  round: RoundView | null;
+  rounds: RoundSummary[];
+  first_version: VersionPoint;
+  versions_tried: VersionPoint[];
+  recipes: RecipeSummary[];
+}
+
 export const REQUEST_FAILED = "The request failed";
 
 // How FastAPI refuses a request it can't accept, one entry for each input.
@@ -385,6 +487,12 @@ const DISPATCHES = "/api/dispatches";
 const CONFIGURATION = "/api/configuration";
 const SETTINGS = "/api/settings";
 const EVALUATIONS = "/api/evaluations";
+const IMPROVEMENT = "/api/improvement";
+const ROUNDS = `${IMPROVEMENT}/rounds`;
+const roundPath = (roundId: string) =>
+  `${ROUNDS}/${encodeURIComponent(roundId)}`;
+const proposalPath = (roundId: string, proposalId: string) =>
+  `${roundPath(roundId)}/proposals/${encodeURIComponent(proposalId)}`;
 
 export const api = {
   listClaims: () => request<ClaimSummary[]>("/api/claims"),
@@ -422,4 +530,18 @@ export const api = {
       agents,
     }),
   signOff: (claimId: string) => post<Claim>(`${claimPath(claimId)}/sign-off`),
+  getImprovement: () => request<Improvement>(IMPROVEMENT),
+  getRecipe: (number: string) =>
+    request<RecipeDetails>(
+      `${IMPROVEMENT}/recipes/${encodeURIComponent(number)}`,
+    ),
+  startRound: () => post<Accepted>(ROUNDS),
+  stopRound: (roundId: string) =>
+    post<RoundSummary>(`${roundPath(roundId)}/stop`),
+  approveProposal: (roundId: string, proposalId: string) =>
+    post<Accepted>(`${proposalPath(roundId, proposalId)}/approval`),
+  rejectProposal: (roundId: string, proposalId: string, reason: string) =>
+    post<Accepted>(`${proposalPath(roundId, proposalId)}/rejection`, {
+      reason,
+    }),
 };

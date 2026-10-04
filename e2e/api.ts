@@ -1,5 +1,11 @@
 import { type APIRequestContext, expect } from "@playwright/test";
-import type { DecisionKind, EvaluationSet, Run } from "../dashboard/src/api";
+import type {
+  DecisionKind,
+  EvaluationSet,
+  Improvement,
+  Run,
+} from "../dashboard/src/api";
+import { HANDLERS } from "./handlers";
 
 // Stands in for the agent's service and its claim agents, with one function for
 // each backend operation the tests use, sent through the dashboard's proxy.
@@ -113,6 +119,87 @@ export const recordRunClaims = (
 export const finishRun = (request: Request, runId: string) =>
   send(request, "POST", `${runPath(runId)}/finish`);
 
+// A round of the improver, played out as the agent's service would record it,
+// for Dana Whitfield.
+const ROUNDS = "/api/rounds";
+const roundPath = (roundId: string) => `${ROUNDS}/${roundId}`;
+const DANA = HANDLERS.dana.handler_id;
+
+export async function createRound(request: Request): Promise<string> {
+  const response = await send(request, "POST", ROUNDS, { handler_id: DANA });
+  return ((await response.json()) as { round_id: string }).round_id;
+}
+
+export async function recordChangeProposal(
+  request: Request,
+  roundId: string,
+  instructions: string,
+): Promise<string> {
+  const response = await send(
+    request,
+    "POST",
+    `${roundPath(roundId)}/proposals/change`,
+    {
+      instructions,
+      model: "openai/gpt-6-luna",
+      reasoning_effort: "low",
+      reason: "Two stolen phones were approved without a police report",
+    },
+  );
+  return ((await response.json()) as { proposal_id: string }).proposal_id;
+}
+
+export async function recordRecipeProposal(
+  request: Request,
+  roundId: string,
+): Promise<string> {
+  const response = await send(
+    request,
+    "POST",
+    `${roundPath(roundId)}/proposals/recipe`,
+    { recipe: "1. Read the results.\n", reason: "A shorter recipe" },
+  );
+  return ((await response.json()) as { proposal_id: string }).proposal_id;
+}
+
+export const recordReview = (
+  request: Request,
+  roundId: string,
+  proposalId: string,
+  review: "approved" | "rejected",
+  reason = "",
+) =>
+  send(
+    request,
+    "POST",
+    `${roundPath(roundId)}/proposals/${proposalId}/review`,
+    { review, handler_id: DANA, reason },
+  );
+
+export const createVersion = (request: Request, roundId: string) =>
+  send(request, "POST", `${roundPath(roundId)}/version`);
+
+export const finishRound = (request: Request, roundId: string) =>
+  send(request, "POST", `${roundPath(roundId)}/finish`);
+
+// Finishes the open round, if any, rejecting a proposal it's waiting on first,
+// so the next test can start one.
+export async function finishOpenRound(request: Request) {
+  const response = await request.get("/api/improvement");
+  await expect(response).toBeOK();
+  const { round } = (await response.json()) as Improvement;
+  if (round?.status !== "open") return;
+  if (round.waiting)
+    await recordReview(
+      request,
+      round.round_id,
+      round.waiting.proposal_id,
+      "rejected",
+      "The test is over",
+    );
+  await finishRound(request, round.round_id);
+}
+
 // The dashboard the tests use, and the stand-ins for the agent's service, for
 // Supabase Auth and for the judge, which Playwright starts on ports of their
 // own.
@@ -134,6 +221,12 @@ export interface Started {
 
 export async function started(request: Request): Promise<Started[]> {
   const response = await request.get(`${AGENT_STAND_IN}/api/started`);
+  await expect(response).toBeOK();
+  return (await response.json()) as Started[];
+}
+
+export async function reviews(request: Request): Promise<Started[]> {
+  const response = await request.get(`${AGENT_STAND_IN}/api/reviews`);
   await expect(response).toBeOK();
   return (await response.json()) as Started[];
 }

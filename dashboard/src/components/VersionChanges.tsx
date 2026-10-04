@@ -1,4 +1,5 @@
 import type { VersionSummary } from "../api";
+import { LineCounts } from "./LineCounts";
 import { ModelName } from "./ModelName";
 
 // What a version changed from the one it was based on: lines of its
@@ -14,10 +15,7 @@ export function VersionChanges({
     version.reasoning_effort !== reasoning_effort_before;
   return (
     <>
-      <span className="mono nowrap">
-        <span className="diff-added-count">+{version.lines_added}</span>{" "}
-        <span className="diff-removed-count">−{version.lines_removed}</span>
-      </span>{" "}
+      <LineCounts added={version.lines_added} removed={version.lines_removed} />{" "}
       lines
       {modelChanged && (
         <>

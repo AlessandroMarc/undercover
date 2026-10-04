@@ -4,9 +4,11 @@ import { RequireHandler } from "./components/RequireHandler";
 import { SignOutButton } from "./components/SignOutButton";
 import { useHandler } from "./handler";
 import { ClaimPage } from "./pages/ClaimPage";
-import { EvaluationPage } from "./pages/EvaluationPage";
 import { ConfigurationPage } from "./pages/ConfigurationPage";
+import { EvaluationPage } from "./pages/EvaluationPage";
+import { ImprovementPage } from "./pages/ImprovementPage";
 import { QueuePage } from "./pages/QueuePage";
+import { RecipePage } from "./pages/RecipePage";
 import { ScoreboardPage } from "./pages/ScoreboardPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SignInPage } from "./pages/SignInPage";
@@ -15,8 +17,10 @@ import {
   CLAIM_PAGE,
   CONFIGURATION,
   EVALUATION_PAGE,
+  IMPROVEMENT,
   INSTRUCTIONS,
   QUEUE,
+  RECIPE_PAGE,
   SCOREBOARD,
   SETTINGS,
   SIGN_IN,
@@ -38,6 +42,8 @@ export function App() {
         <Route path={CLAIM_PAGE} element={<ClaimPage />} />
         <Route path={SCOREBOARD} element={<ScoreboardPage />} />
         <Route path={EVALUATION_PAGE} element={<EvaluationPage />} />
+        <Route path={IMPROVEMENT} element={<ImprovementPage />} />
+        <Route path={RECIPE_PAGE} element={<RecipePage />} />
         <Route path={CONFIGURATION} element={<ConfigurationPage />} />
         <Route path={VERSION_PAGE} element={<VersionPage />} />
         <Route path={SETTINGS} element={<SettingsPage />} />
@@ -64,6 +70,7 @@ function SignedInLayout() {
             Queue
           </NavLink>
           <NavLink to={SCOREBOARD}>Scoreboard</NavLink>
+          <NavLink to={IMPROVEMENT}>Improvement</NavLink>
           <NavLink to={CONFIGURATION}>Configuration</NavLink>
           <NavLink to={SETTINGS}>Settings</NavLink>
         </nav>
