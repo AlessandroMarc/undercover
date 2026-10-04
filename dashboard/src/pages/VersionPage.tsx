@@ -3,13 +3,17 @@ import { Link, useParams } from "react-router";
 import { api, type VersionDetails } from "../api";
 import { VersionChip } from "../components/Chips";
 import { DiffView } from "../components/DiffView";
-import { HeldOutAccuracy } from "../components/HeldOutAccuracy";
+import { Approval } from "../components/Approval";
+import { HeldOutAccuracy, HeldOutGrade } from "../components/HeldOutAccuracy";
 import { PageHeader } from "../components/PageHeader";
 import { StateMessage } from "../components/StateMessage";
 import { VersionChanges } from "../components/VersionChanges";
-import { dateTime, label, NO_APPROVAL_NEEDED } from "../format";
+import { inWords, label } from "../format";
 import { CONFIGURATION } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
+
+const LEAD =
+  "One version of the claim agent: its instructions, model and reasoning effort, why it was made, and what changed from the version before.";
 
 export function VersionPage() {
   const { number = "" } = useParams();
@@ -18,10 +22,17 @@ export function VersionPage() {
 
   if (!version)
     return (
-      <StateMessage
-        error={error}
-        notFound="Version not found. Choose one on the Configuration page."
-      />
+      <>
+        <PageHeader
+          eyebrow={<Link to={CONFIGURATION}>Configuration</Link>}
+          title={`Version ${number}`}
+          lead={LEAD}
+        />
+        <StateMessage
+          error={error}
+          notFound="Version not found. Choose one on the Configuration page."
+        />
+      </>
     );
 
   return (
@@ -30,7 +41,7 @@ export function VersionPage() {
         eyebrow={<Link to={CONFIGURATION}>Configuration</Link>}
         title={`Version ${String(version.number)}`}
         status={<VersionChip status={version.status} />}
-        lead="One version of the claim agent: its instructions, model and reasoning effort, why it was made, and what changed from the version before."
+        lead={LEAD}
       />
       <div className="column">
         <VersionFacts version={version} />
@@ -88,9 +99,7 @@ function VersionFacts({ version }: Readonly<{ version: VersionDetails }>) {
         <div>
           <dt>Approved</dt>
           <dd>
-            {version.approved_by && version.approved_at
-              ? `${version.approved_by}, ${dateTime(version.approved_at)}`
-              : NO_APPROVAL_NEEDED}
+            <Approval by={version.approved_by} at={version.approved_at} />
           </dd>
         </div>
         <div>
@@ -99,13 +108,21 @@ function VersionFacts({ version }: Readonly<{ version: VersionDetails }>) {
             <HeldOutAccuracy scores={version.scores} />
           </dd>
         </div>
+        <div>
+          <dt>Held-out grade</dt>
+          <dd>
+            <HeldOutGrade scores={version.scores} />
+          </dd>
+        </div>
         <div className="fact-wide">
           <dt>Reason</dt>
           <dd>{version.reason}</dd>
         </div>
       </dl>
       {version.diff !== null && version.verdict_reason && (
-        <p className="small muted">Verdict: {version.verdict_reason}</p>
+        <p className="small muted">
+          Verdict: {inWords(version.verdict_reason)}
+        </p>
       )}
     </section>
   );

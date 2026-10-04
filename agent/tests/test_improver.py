@@ -420,3 +420,46 @@ def test_a_round_stopped_during_a_model_call_ends_quietly(client, serve_rounds, 
     assert len(model.prompts) == 2
     assert total(improver_calls, improver_calls.c.cost, True) == pytest.approx(0.0042)
     assert "The round stopped" not in caplog.text
+
+
+def test_the_improver_asks_for_one_tool_call_at_a_time(client, serve_rounds):
+    model = improver(call("read_results"), "No change would help.")
+    start_round(serve_rounds(model, claim_agents_model()))
+    assert model.bound_with
+    assert all(bound["parallel_tool_calls"] is False for bound in model.bound_with)
+
+
+def test_a_round_in_its_first_evaluations_names_itself_in_a_refusal(
+    client, serve_rounds, hold_runs
+):
+    agent = serve_rounds(whole_round(), claim_agents_model())
+    held = hold_runs()
+    starting = threading.Thread(target=start_round, args=(agent,))
+    starting.start()
+    assert held.working.wait(5)
+    refused = agent.post("/api/dispatches", json={"agents": 3})
+    assert (refused.status_code, refused.json()["detail"]) == (
+        409,
+        "Round 1 is running",
+    )
+    held.release.set()
+    starting.join(30)
+
+
+def test_a_round_whose_evaluation_fails_is_stopped_with_its_run(
+    client, serve_rounds, monkeypatch
+):
+    def broken(run, claim_agents):
+        raise RuntimeError("The claim agents couldn't be built")
+
+    monkeypatch.setattr(service, "claim_work", broken)
+    model = whole_round()
+    agent = serve_rounds(model, claim_agents_model())
+    start_round(agent)
+
+    round_ = the_round(client)
+    assert round_["status"] == "stopped"
+    assert "The claim agents couldn't be built" in round_["stopped_because"]
+    assert [e["status"] for e in round_["evaluations"]] == ["stopped"]
+    assert model.prompts == []
+    assert agent.post("/api/dispatches", json={"agents": 3}).status_code == 202

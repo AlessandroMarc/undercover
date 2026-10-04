@@ -166,7 +166,7 @@ def test_the_page_follows_a_round_through_its_stages(client):
     change_settings(client, spending_limit=10.0)
     round_id = create_round(client).json()["round_id"]
     assert stage(client) == ("first_evaluations", "0 of 3")
-    play_out(client, round_id, "evaluation")
+    play_out(client, round_id)
     play_out(client, round_id)
     assert stage(client) == ("first_evaluations", "2 of 3")
     play_out(client, round_id)
@@ -185,7 +185,7 @@ def test_the_page_follows_a_round_through_its_stages(client):
     review(client, round_id, proposal["proposal_id"])
     client.post(f"{round_path(round_id)}/version")
     assert stage(client) == ("evaluating", "0 of 3")
-    play_out(client, round_id, "evaluation", right=ALL)
+    play_out(client, round_id, right=ALL)
     assert stage(client) == ("evaluating", "1 of 3")
     play_out(client, round_id, right=ALL)
     play_out(client, round_id, right=ALL)
@@ -242,7 +242,7 @@ def held_out_texts():
 def test_the_improver_reads_nothing_from_the_held_out_set_but_scores(client):
     change_settings(client, spending_limit=10.0)
     round_id = create_round(client).json()["round_id"]
-    play_out(client, round_id, "evaluation")
+    play_out(client, round_id)
     play_out(client, round_id)
     play_out(client, round_id)
     view = client.get(f"{round_path(round_id)}/results").json()
@@ -298,7 +298,7 @@ def test_the_improver_reads_the_five_right_claims_the_judge_graded_lowest(
     judge_answers(by_reason)
     change_settings(client, spending_limit=10.0)
     round_id = create_round(client).json()["round_id"]
-    evaluation = play_out(client, round_id, "evaluation", right=10)
+    evaluation = play_out(client, round_id, right=10)
     play_out(client, round_id)
     play_out(client, round_id)
 

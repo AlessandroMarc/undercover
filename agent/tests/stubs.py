@@ -24,8 +24,11 @@ class StubModel(GenericFakeChatModel):
     raises a scripted error, and keeps the prompts it was sent."""
 
     prompts: list[list[BaseMessage]] = []
+    # The settings each binding of the tools asked for, such as parallel tool calls.
+    bound_with: list[dict[str, Any]] = []
 
     def bind_tools(self, tools, **kwargs):
+        self.bound_with.append(kwargs)
         return self
 
     def next_reply(self, messages):

@@ -28,7 +28,7 @@ def test_an_evaluation_the_round_cant_afford_is_refused(client):
     approved_change(client, round_id)
     improver_call(client, round_id, 0.40)
 
-    refused = round_evaluation(client, round_id, "evaluation")
+    refused = round_evaluation(client, round_id)
     assert (refused.status_code, refused.json()["detail"]) == (
         409,
         "The evaluations could cost about $0.15, and $0.10 of the round's limit "
@@ -50,7 +50,7 @@ def test_a_model_with_no_runs_is_estimated_by_its_prices(client):
         model="google/gemini-3.5-flash-lite",
         reasoning_effort="minimal",
     )
-    refused = round_evaluation(client, round_id, "evaluation")
+    refused = round_evaluation(client, round_id)
     # Five times Luna's cost a claim: Gemini's output price is five times Luna's.
     assert refused.json()["detail"] == (
         "The evaluations could cost about $0.75, and $0.50 of the round's limit is left"
@@ -60,7 +60,7 @@ def test_a_model_with_no_runs_is_estimated_by_its_prices(client):
 def test_no_new_claim_starts_once_the_limit_is_spent(client):
     round_id = create_round(client).json()["round_id"]
     approved_change(client, round_id)
-    run = round_evaluation(client, round_id, "evaluation").json()
+    run = round_evaluation(client, round_id).json()
     first, second = (copy["claim_id"] for copy in run["claims"][:2])
     start(client, first)
     improver_call(client, round_id, 0.30)
@@ -83,7 +83,7 @@ def test_no_new_claim_starts_once_the_limit_is_spent(client):
 
 def test_a_first_evaluation_cut_short_stops_the_round(client):
     round_id = create_round(client).json()["round_id"]
-    run = round_evaluation(client, round_id, "evaluation").json()
+    run = round_evaluation(client, round_id).json()
     improver_call(client, round_id, 0.50)
     assert finish(client, run["run_id"]).json()["status"] == "stopped"
     round_ = client.get(round_path(round_id)).json()

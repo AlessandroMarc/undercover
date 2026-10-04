@@ -14,6 +14,7 @@ from backend.lookups import current_settings
 from backend.models import Handler
 from backend.money import dollars
 
+SIGN_IN_OUT_OF_REACH = "Sign-in can't be checked: Supabase is out of reach"
 NOT_SIGNED_IN = "The sign-in isn't valid. Please sign in again."
 
 
@@ -43,6 +44,8 @@ def signed_in_handler(
         raise HTTPException(
             401, NOT_SIGNED_IN, headers={"WWW-Authenticate": "Bearer"}
         ) from error
+    except auth.OutOfReach as error:
+        raise HTTPException(503, SIGN_IN_OUT_OF_REACH) from error
     row = db.execute(select(handlers).where(handlers.c.email == email)).mappings()
     handler = row.first()
     if handler is None:

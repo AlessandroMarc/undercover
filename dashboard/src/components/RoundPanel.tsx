@@ -3,6 +3,7 @@ import type { RoundView } from "../api";
 import {
   dateTime,
   evaluationSetName,
+  inWords,
   modelCost,
   money,
   percent,
@@ -70,7 +71,7 @@ function outcome(round: RoundView): string {
   if (round.status === "stopped") return round.stopped_because ?? "";
   if (!round.verdict) return "Finished. The improver proposed no change.";
   const verdict = verdictLabels[round.verdict].toLowerCase();
-  return `Finished. Version ${String(round.version)} was ${verdict}: ${round.verdict_reason ?? ""}.`;
+  return `Finished. Version ${String(round.version)} was ${verdict}: ${inWords(round.verdict_reason)}.`;
 }
 
 function RoundEvaluations({ round }: Readonly<{ round: RoundView }>) {

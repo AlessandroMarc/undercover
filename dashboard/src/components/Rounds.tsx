@@ -2,6 +2,7 @@ import type { Measures, RoundReview, RoundSummary } from "../api";
 import {
   dateTime,
   grade,
+  inWords,
   modelCost,
   money,
   percent,
@@ -12,7 +13,7 @@ import { RoundChip, VerdictChip } from "./Chips";
 import { StateMessage } from "./StateMessage";
 import { RecipeLink, VersionLink } from "./VersionLink";
 
-const HEADINGS = [
+const HEADINGS: [string, string][] = [
   ["Round", ""],
   ["Recipe", ""],
   ["Version tried", ""],
@@ -95,7 +96,7 @@ function RoundRows({ round }: Readonly<{ round: RoundSummary }>) {
           {round.verdict ? (
             <>
               <VerdictChip verdict={round.verdict} />{" "}
-              <span className="small">{round.verdict_reason}</span>
+              <span className="small">{inWords(round.verdict_reason)}</span>
             </>
           ) : (
             <span className="muted">{round.stopped_because ?? "None"}</span>

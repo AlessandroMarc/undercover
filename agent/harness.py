@@ -1,6 +1,5 @@
 """The harness: it builds the claim agent's graph and works a claim with it."""
 
-import contextvars
 import logging
 import os
 import time
@@ -40,6 +39,7 @@ from agent.connection import Refused
 from agent.console import describe
 from agent.json_text import as_json
 from agent.openrouter import chat_model, usage_of
+from agent.root_run import as_root_run
 from agent.tools import CLAIM_TOOLS, ClaimContext, ClaimState
 
 log = logging.getLogger(__name__)
@@ -285,11 +285,7 @@ def run_claim_graph(
     wrong, if anything. A rate limit or a timeout is raised again, leaving the claim
     in progress with its progress saved, to carry on later."""
     try:
-        # A fresh context makes this a root run even inside the dispatcher, which
-        # Langfuse needs to put it in the claim's session.
-        contextvars.Context().run(
-            graph.invoke, start, config, context=context, durability="sync"
-        )
+        as_root_run(graph.invoke, start, config, context=context, durability="sync")
     except TRANSIENT:
         raise
     except Exception as error:  # a claim that fails must not stop the run

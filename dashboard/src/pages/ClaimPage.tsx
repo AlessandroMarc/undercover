@@ -21,10 +21,17 @@ export function ClaimPage() {
 
   if (!claim)
     return (
-      <StateMessage
-        error={error}
-        notFound="Claim not found. Choose one from the queue."
-      />
+      <>
+        <PageHeader
+          eyebrow={<Link to={QUEUE}>Queue</Link>}
+          title={claimId}
+          lead="A claim, with the agent's decision, its work step by step and the policy behind it."
+        />
+        <StateMessage
+          error={error}
+          notFound="Claim not found. Choose one from the queue."
+        />
+      </>
     );
 
   return (

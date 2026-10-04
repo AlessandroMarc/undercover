@@ -19,6 +19,9 @@ import { MEASURES } from "../measures";
 import { SCOREBOARD } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
+const LEAD =
+  "How the agent did on each copy of the set's claims, beside our handlers' decisions.";
+
 export function EvaluationPage() {
   const { runId = "" } = useParams();
   const load = useCallback(() => api.getEvaluation(runId), [runId]);
@@ -26,10 +29,17 @@ export function EvaluationPage() {
 
   if (!evaluation)
     return (
-      <StateMessage
-        error={error}
-        notFound="Evaluation not found. Choose one on the Scoreboard."
-      />
+      <>
+        <PageHeader
+          eyebrow={<Link to={SCOREBOARD}>Scoreboard</Link>}
+          title="Evaluation"
+          lead={LEAD}
+        />
+        <StateMessage
+          error={error}
+          notFound="Evaluation not found. Choose one on the Scoreboard."
+        />
+      </>
     );
 
   return (
@@ -38,7 +48,7 @@ export function EvaluationPage() {
         eyebrow={<Link to={SCOREBOARD}>Scoreboard</Link>}
         title={`Evaluation #${String(evaluation.number)}`}
         status={<RunChip status={evaluation.status} />}
-        lead="How the agent did on each copy of the set's claims, beside our handlers' decisions."
+        lead={LEAD}
       />
       <div className="column">
         <MeasuresPanel evaluation={evaluation} />

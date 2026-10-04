@@ -44,7 +44,7 @@ export default defineConfig(
     languageOptions: { globals: globals.node },
   },
   {
-    files: ["dashboard/src/**/*.tsx"],
+    files: ["dashboard/src/**/*.{ts,tsx}"],
     extends: [
       reactHooks.configs.flat["recommended-latest"],
       jsxA11y.configs.recommended,
@@ -53,7 +53,7 @@ export default defineConfig(
     languageOptions: { globals: globals.browser },
   },
   {
-    files: ["dashboard/src/**/*.test.tsx"],
+    files: ["dashboard/src/**/*.test.{ts,tsx}"],
     extends: [vitest.configs.recommended],
   },
   {

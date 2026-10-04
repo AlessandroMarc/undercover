@@ -5,7 +5,6 @@ approves it, keeps or rolls back each version by the business's rule, and refuse
 anything a round records once it has finished or been stopped."""
 
 import uuid
-from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,6 +12,8 @@ from sqlalchemy import Connection, RowMapping, func, insert, select, update
 
 from backend import agent_service, spending, verdict
 from backend.database import (
+    FIRST_VERSION,
+    INSTRUCTIONS,
     LUNA,
     handler_decisions,
     handlers,
@@ -99,7 +100,6 @@ from backend.scoreboard import (
     version_scores,
 )
 
-INSTRUCTIONS = Path(__file__).parent / "instructions"
 # The improver's model, unless students on free models have one of their own.
 IMPROVER_MODEL = (LUNA, "medium")
 ROUND_OPEN = "Round {number} is open. Finish or stop it first."
@@ -166,12 +166,27 @@ def round_recipe(db: Connection, round_id: str) -> RowMapping | None:
     return db.execute(query).mappings().first()
 
 
+def proposer(row: RowMapping) -> str:
+    """Who a round's proposals are recorded as proposed by."""
+    return f"Round {row['number']}"
+
+
 def is_allowed(db: Connection, model: str, reasoning_effort: str) -> bool:
     """Say whether the claim agent may use a model at a reasoning effort."""
     return any(
         allowed.model == model and reasoning_effort in allowed.reasoning_efforts
         for allowed in allowed_models(db)
     )
+
+
+def refuse_a_model_not_allowed(db: Connection, change: ChangeProposalRequest) -> None:
+    """Raise a 422 for a change to a model outside the models allowed."""
+    if not is_allowed(db, change.model, change.reasoning_effort):
+        raise HTTPException(
+            422,
+            f"{change.model} at {change.reasoning_effort} isn't allowed. "
+            "Choose from the models allowed.",
+        )
 
 
 def refuse_while_a_round_is_open(db: Connection) -> None:
@@ -231,6 +246,7 @@ def for_the_service(db: Connection, row: RowMapping) -> RoundForService:
         **row,
         instructions=f"{improver}\n{recipe}",
         models_allowed=allowed_models(db),
+        version_evaluations=EVALUATIONS,
     )
 
 
@@ -469,7 +485,9 @@ def improvement_page(db: Connection) -> Improvement:
     return Improvement(
         round=view_of(db, all_rounds[0], expected) if all_rounds else None,
         rounds=[summary_of(db, row) for row in all_rounds],
-        first_version=version_point(db, version_row(db, 1), expected),
+        first_version=version_point(
+            db, version_row(db, FIRST_VERSION["number"]), expected
+        ),
         versions_tried=[
             version_point(db, row, expected)
             for row in db.execute(tried.order_by(versions.c.number)).mappings()
@@ -565,6 +583,9 @@ def record_change_proposal(
         raise HTTPException(
             409, f"Round {row['number']} has already tried version {tried['number']}"
         )
+    if has_approved(db, row, ProposalKind.CHANGE):
+        raise HTTPException(409, f"Round {row['number']} has a change approved")
+    refuse_a_model_not_allowed(db, request)
     return propose(db, row, ProposalKind.CHANGE, request.model_dump())
 
 
@@ -608,14 +629,22 @@ def record_review(
     return to_proposal(proposal_in(db, row, proposal_id))
 
 
-def approved(db: Connection, row: RowMapping, kind: ProposalKind) -> RowMapping:
-    """Return the round's approved proposal of a kind, or raise a 409."""
-    query = select(proposals).where(
+def approved_query(row: RowMapping, kind: ProposalKind):
+    return select(proposals).where(
         proposals.c.round_id == row["round_id"],
         proposals.c.kind == kind,
         proposals.c.review == Review.APPROVED,
     )
-    proposal = db.execute(query).mappings().first()
+
+
+def has_approved(db: Connection, row: RowMapping, kind: ProposalKind) -> bool:
+    return db.execute(approved_query(row, kind)).first() is not None
+
+
+def approved(db: Connection, row: RowMapping, kind: ProposalKind) -> RowMapping:
+    """Return the round's approved proposal of a kind, or raise a 409. A round
+    approves at most one of each."""
+    proposal = db.execute(approved_query(row, kind)).mappings().first()
     if proposal is None:
         raise HTTPException(
             409, f"No {kind} has been approved in round {row['number']}"
@@ -632,18 +661,13 @@ def create_version(round_id: str, db: Database) -> NewNumber:
         return NewNumber(number=tried["number"])
     proposal = approved(db, row, ProposalKind.CHANGE)
     change = ChangeProposalRequest(**proposal["proposal"])
-    if not is_allowed(db, change.model, change.reasoning_effort):
-        raise HTTPException(
-            422,
-            f"{change.model} at {change.reasoning_effort} isn't allowed. "
-            "Choose from the models allowed.",
-        )
+    refuse_a_model_not_allowed(db, change)
     number = db.execute(select(func.max(versions.c.number))).scalar_one() + 1
     db.execute(
         insert(versions).values(
             number=number,
             **change.model_dump(),
-            proposed_by=f"Round {row['number']}",
+            proposed_by=proposer(row),
             based_on=current_version_number(db),
             round_id=round_id,
             approved_by=proposal["reviewed_by"],
@@ -668,7 +692,7 @@ def create_recipe(round_id: str, db: Database) -> NewNumber:
         insert(recipes).values(
             number=number,
             **recipe.model_dump(),
-            proposed_by=f"Round {row['number']}",
+            proposed_by=proposer(row),
             round_id=round_id,
             approved_by=proposal["reviewed_by"],
             approved_at=proposal["reviewed_at"],
@@ -689,11 +713,9 @@ def decide(
     against the current version's, to the round's settings."""
     evaluations = evaluations_of(db, row["round_id"], version["number"])
     if any(run["status"] == RunStatus.STOPPED for run in evaluations):
-        return verdict.Decided(Verdict.ROLLED_BACK, "its evaluations were stopped")
+        return verdict.Decided(Verdict.ROLLED_BACK, verdict.EVALUATIONS_STOPPED)
     if finished_of(evaluations) < len(EVALUATIONS):
-        return verdict.Decided(
-            Verdict.ROLLED_BACK, "the round couldn't afford to evaluate it"
-        )
+        return verdict.Decided(Verdict.ROLLED_BACK, verdict.CANT_AFFORD)
     settings = settings_number(db, row["settings"])
     return verdict.keep_or_roll_back(new, old, settings)
 
@@ -760,7 +782,7 @@ def finish_round(round_id: str, db: Database) -> RoundForService:
     refuse_while_waiting(db, row)
     version = tried_version(db, round_id)
     if version and version["verdict"] is None:
-        roll_back(db, version["number"], "the improver didn't evaluate it")
+        roll_back(db, version["number"], verdict.NOT_EVALUATED)
     db.execute(
         update(rounds)
         .where(rounds.c.round_id == round_id)

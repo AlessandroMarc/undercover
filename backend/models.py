@@ -455,6 +455,7 @@ class RunDetails(BaseModel):
     agents: int
     version: int
     round_id: str | None
+    round_number: int | None = Field(description="The round that ran it, if any")
     model: str
     reasoning_effort: str
     status: RunStatus
@@ -606,12 +607,11 @@ class RoundForService(BaseModel):
     instructions: str = Field(description="The improver's, around the recipe")
     models_allowed: list[ModelAllowed]
     first_evaluations: list[EvaluationSet] = Field(
-        description="The first evaluations the round still needs, in order"
+        description="The first evaluations the round needed as it started, in order"
     )
-
-
-class RoundEvaluationRequest(BaseModel):
-    evaluation_set: EvaluationSet
+    version_evaluations: list[EvaluationSet] = Field(
+        description="The evaluations a version under test gets, in order"
+    )
 
 
 class ChangeProposalRequest(BaseModel):

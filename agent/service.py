@@ -120,9 +120,10 @@ class RoundWorkers:
 
 def round_workers(request: Request) -> RoundWorkers:
     """The claim agents and the improver on the service's pool."""
-    pool = request.app.state.pool
     return RoundWorkers(
-        partial(claim_graphs, pool=pool), improver.improver_model, PostgresSaver(pool)
+        claim_agents(request),
+        improver.improver_model,
+        PostgresSaver(request.app.state.pool),
     )
 
 
@@ -180,8 +181,8 @@ def first_evaluations(round: dict[str, Any], workers: RoundWorkers) -> bool:
     """Work the evaluations the round's starting version still needs, one at a time,
     and say whether the round is still open after them: the spending limit or a
     handler may have stopped it."""
-    for evaluation_set in round["first_evaluations"]:
-        run = improver_api.create_round_evaluation(round["round_id"], evaluation_set)
+    for _ in round["first_evaluations"]:
+        run = improver_api.create_round_evaluation(round["round_id"])
         evaluate(run, workers.claim_agents)
         if not still_open(round):
             return False
@@ -192,21 +193,6 @@ def still_open(round: dict[str, Any]) -> bool:
     """Say whether the round is still open: a handler or the spending limit may
     have stopped it."""
     return improver_api.get_round(round["round_id"])["status"] == improver_api.OPEN
-
-
-def record_proposal(round_id: str, request: dict[str, Any]) -> None:
-    """Record what the improver waits for a handler to approve."""
-    args = request["args"]
-    if request["name"] == improver.propose_change.name:
-        improver_api.record_change_proposal(
-            round_id,
-            args["instructions"],
-            args["model"],
-            args["reasoning_effort"],
-            args["reason"],
-        )
-    else:
-        improver_api.record_recipe_proposal(round_id, args["recipe"], args["reason"])
 
 
 def stretch(
@@ -224,17 +210,19 @@ def stretch(
         workers.improver_model(round),
     ):
         try:
-            record_proposal(round["round_id"], proposal)
+            improver.record_proposal(round["round_id"], proposal)
             return
         except Refused as refusal:
-            start = improver.resume(improver_api.REJECTED, f"Refused: {refusal.detail}")
+            start = improver.resume(improver_api.REJECTED, refusal.answer)
     if still_open(round):
         improver_api.finish_round(round["round_id"])
 
 
 def stop_the_round(error: Exception) -> None:
-    """Stop a round whose work failed, giving the error as the reason."""
+    """Stop a round whose work failed, giving the error as the reason, and an
+    evaluation it left running."""
     log.exception("The round stopped")
+    api.stop_runs()
     improver_api.stop_rounds(describe(error))
 
 
@@ -243,7 +231,12 @@ def work_round(handler_id: str, workers: RoundWorkers) -> None:
     stretch, and let the next work start."""
     try:
         round = improver_api.create_round(handler_id)
-        one_at_a_time.rename(A_ROUND.format(number=round["number"]))
+    except Exception:  # no round to stop, so the next work may start
+        log.exception("The round didn't start")
+        one_at_a_time.release()
+        return
+    one_at_a_time.rename(A_ROUND.format(number=round["number"]))
+    try:
         if first_evaluations(round, workers):
             stretch(round, improver.begin(), workers)
     except Exception as error:
@@ -342,9 +335,10 @@ def review_proposal(
     background: BackgroundTasks,
 ) -> dict[str, str]:
     """Record a handler's review of a proposal, then carry the improver on."""
-    round = improver_api.get_round(round_id)
-    one_at_a_time.take(A_ROUND.format(number=round["number"]))
+    one_at_a_time.take(A_ROUND_STARTING)
     try:
+        round = improver_api.get_round(round_id)
+        one_at_a_time.rename(A_ROUND.format(number=round["number"]))
         improver_api.record_review(
             round_id, proposal_id, request.review, request.handler_id, request.reason
         )

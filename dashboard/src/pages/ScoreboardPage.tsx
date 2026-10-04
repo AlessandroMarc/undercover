@@ -136,6 +136,9 @@ function EvaluationRow({ evaluation }: Readonly<{ evaluation: Evaluation }>) {
         <p>{evaluationSetName(evaluation.evaluation_set, evaluation.size)}</p>
         <p className="muted small">
           {dateTime(evaluation.started_at)}, version {evaluation.version},{" "}
+          {evaluation.round_number !== null && (
+            <>round {evaluation.round_number}, </>
+          )}
           {agentsAtOnce(evaluation.agents)},{" "}
           <ModelName
             model={evaluation.model}

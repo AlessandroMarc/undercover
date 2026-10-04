@@ -57,11 +57,9 @@ def improver_call(client, round_id, cost):
     )
 
 
-def round_evaluation(client, round_id, evaluation_set="held_out"):
-    return client.post(
-        f"/api/runs/rounds/{round_id}/evaluations",
-        json={"evaluation_set": evaluation_set},
-    )
+def round_evaluation(client, round_id):
+    """Ask for a round's next evaluation, on the set the backend chooses."""
+    return client.post(f"/api/runs/rounds/{round_id}/evaluations")
 
 
 def improvement(client):
@@ -127,10 +125,10 @@ def decide_copies(client, run, right):
         )
 
 
-def play_out(client, round_id, evaluation_set="held_out", right=0, finish=True):
+def play_out(client, round_id, right=0, finish=True):
     """Create one of a round's evaluations, decide its copies with `right` of them
     right, and finish it, as the agent's service would. Return the evaluation."""
-    run = round_evaluation(client, round_id, evaluation_set).json()
+    run = round_evaluation(client, round_id).json()
     decide_copies(client, run, right)
     if finish:
         client.post(f"/api/runs/{run['run_id']}/finish")

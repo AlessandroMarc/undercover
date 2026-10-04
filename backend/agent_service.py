@@ -11,6 +11,10 @@ from fastapi import HTTPException
 
 AGENT_URL = os.getenv("UNDERCOVER_AGENT", "http://127.0.0.1:8002")
 NOT_RUNNING = "The agent's service isn't running"
+NO_ANSWER = (
+    "The agent's service didn't answer in time. Reload the page to see whether "
+    "it went through."
+)
 
 agent = httpx.Client(base_url=f"{AGENT_URL}/api", timeout=10)
 
@@ -27,13 +31,16 @@ def resume_claim(claim_id: str) -> None:
         )
 
 
-def start(path: str, body: dict[str, Any]) -> None:
-    """Ask the agent's service to start some work, passing on its refusal while
-    something else is running, or say it isn't running when it can't be reached."""
+def send(path: str, body: dict[str, Any]) -> None:
+    """Send the agent's service some work, passing on its refusal while something
+    else is running, or say it isn't running when it can't be reached, or that
+    it didn't answer in time."""
     try:
         response = agent.post(path, json=body)
     except (httpx.ConnectError, httpx.ConnectTimeout) as error:
         raise HTTPException(HTTPStatus.SERVICE_UNAVAILABLE, NOT_RUNNING) from error
+    except httpx.TimeoutException as error:
+        raise HTTPException(HTTPStatus.SERVICE_UNAVAILABLE, NO_ANSWER) from error
     if response.status_code == HTTPStatus.CONFLICT:
         raise HTTPException(HTTPStatus.CONFLICT, response.json()["detail"])
     response.raise_for_status()
@@ -41,18 +48,18 @@ def start(path: str, body: dict[str, Any]) -> None:
 
 def start_dispatch(agents: int) -> None:
     """Ask the agent's service to start a dispatch with up to N claim agents."""
-    start("/dispatches", {"agents": agents})
+    send("/dispatches", {"agents": agents})
 
 
 def start_evaluation(evaluation_set: str, tiny: bool, agents: int) -> None:
     """Ask the agent's service to start an evaluation with up to N claim agents."""
     body = {"evaluation_set": evaluation_set, "tiny": tiny, "agents": agents}
-    start("/evaluations", body)
+    send("/evaluations", body)
 
 
 def start_round(handler_id: str) -> None:
     """Ask the agent's service to start a round of the improver."""
-    start("/rounds", {"handler_id": handler_id})
+    send("/rounds", {"handler_id": handler_id})
 
 
 def review_proposal(
@@ -61,4 +68,4 @@ def review_proposal(
     """Pass a handler's review of a proposal to the agent's service, which records
     it and carries the improver on."""
     body = {"review": review, "handler_id": handler_id, "reason": reason}
-    start(f"/rounds/{round_id}/proposals/{proposal_id}/review", body)
+    send(f"/rounds/{round_id}/proposals/{proposal_id}/review", body)

@@ -8,7 +8,7 @@ import { LineCounts } from "./LineCounts";
 export function DiffView({ diff }: Readonly<{ diff: Diff }>) {
   return (
     <div className="diff">
-      <p className="diff-counts mono">
+      <p className="diff-counts">
         <LineCounts added={diff.added} removed={diff.removed} /> lines
       </p>
       {diff.hunks.length === 0 ? (

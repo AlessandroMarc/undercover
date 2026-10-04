@@ -3,7 +3,6 @@ configuration, as in labs/week2day5.ipynb. A handler approves each change and ea
 new recipe before it takes effect, and the backend keeps or rolls back each version
 by the business's rule."""
 
-import contextvars
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
@@ -17,15 +16,15 @@ from langchain.agents.middleware import (
     ModelCallLimitMiddleware,
     ModelRequest,
     ModelResponse,
+    ToolErrorMiddleware,
     after_model,
     before_model,
     wrap_model_call,
-    wrap_tool_call,
 )
 from langchain.agents.middleware.human_in_the_loop import DecisionType
 from langchain.tools import ToolRuntime, tool
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from langfuse.langchain import CallbackHandler
@@ -39,13 +38,12 @@ from agent import improver_api
 from agent.connection import Refused
 from agent.json_text import as_json
 from agent.openrouter import chat_model, usage_of
+from agent.root_run import as_root_run
 
 # The improver's model calls in a round, counted across its stretches of work.
 IMPROVER_MODEL_CALLS = 20
 FIRST_MESSAGE = "Please carry out one round of your recipe."
 TRACE_NAME = "Improver"
-# The improver's evaluations of a new version, in order.
-EVALUATIONS = ("evaluation", "held_out", "held_out")
 
 APPROVE_OR_REJECT: list[DecisionType] = ["approve", "reject"]
 
@@ -108,14 +106,14 @@ def propose_change(
 def run_evaluation(runtime: ToolRuntime[RoundContext]) -> str:
     """Run the newest version once on the evaluation set and twice on the held-out set, then keep it or roll it back."""  # noqa: E501
     round_id = round_of(runtime)
-    try:
-        for evaluation_set in EVALUATIONS:
-            run = improver_api.create_round_evaluation(round_id, evaluation_set)
-            runtime.context.evaluate(run)
-    except Refused as refusal:
-        refused = f"Refused: {refusal.detail}\n"
-    else:
-        refused = ""
+    refused = ""
+    for _ in runtime.context.round["version_evaluations"]:
+        try:
+            run = improver_api.create_round_evaluation(round_id)
+        except Refused as refusal:  # such as when the round can't afford them
+            refused = f"{refusal.answer}\n"
+            break
+        runtime.context.evaluate(run)
     verdict = improver_api.record_verdict(round_id)
     return f"{refused}{verdict['summary']}\n{as_json(verdict['scores'], indent=2)}"
 
@@ -140,22 +138,15 @@ def needs_a_handler(request: ToolCallRequest) -> bool:
     goes straight to the tool, which tells the improver it isn't allowed."""
     args = request.tool_call["args"]
     context = cast(RoundContext, request.runtime.context)
-    return is_allowed(context.round, args["model"], args["reasoning_effort"])
+    return is_allowed(
+        context.round, args.get("model", ""), args.get("reasoning_effort", "")
+    )
 
 
-@wrap_tool_call
-def answer_refusals(
-    request: ToolCallRequest,
-    handler: Callable[[ToolCallRequest], ToolMessage | Command],
-) -> ToolMessage | Command:
+def answer_refusals(error: Exception, request: ToolCallRequest) -> str | None:
     """Answer the improver with the backend's refusal, as the lab's tools answer
-    with a sentence, so it can take it into account."""
-    try:
-        return handler(request)
-    except Refused as refusal:
-        return ToolMessage(
-            f"Refused: {refusal.detail}", tool_call_id=request.tool_call["id"]
-        )
+    with a sentence, so it can take it into account. Any other error stops it."""
+    return error.answer if isinstance(error, Refused) else None
 
 
 @wrap_model_call
@@ -224,7 +215,7 @@ def improver(
         ),
         stop_with_the_round,
         one_tool_call_at_a_time,
-        answer_refusals,
+        ToolErrorMiddleware(on_error=answer_refusals),
         record_the_call,
     ]
     return create_agent(
@@ -271,8 +262,7 @@ def work_stretch(
     """Run the improver on the round's thread until it waits for a handler or ends,
     and return what it proposes, if it is waiting."""
     agent = improver(round, model, saver)
-    # A fresh context makes this a root run, wherever it is called.
-    result = contextvars.Context().run(
+    result: dict[str, Any] = as_root_run(
         agent.invoke,
         start,
         round_config(round),
@@ -283,3 +273,19 @@ def work_stretch(
     if not waiting:
         return None
     return waiting[0].value["action_requests"][0]
+
+
+def record_proposal(round_id: str, request: dict[str, Any]) -> None:
+    """Record what the improver waits for a handler to approve, from the tool call
+    it paused on."""
+    args = request["args"]
+    if request["name"] == propose_change.name:
+        improver_api.record_change_proposal(
+            round_id,
+            args["instructions"],
+            args["model"],
+            args["reasoning_effort"],
+            args["reason"],
+        )
+    else:
+        improver_api.record_recipe_proposal(round_id, args["recipe"], args["reason"])

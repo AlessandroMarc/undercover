@@ -154,6 +154,8 @@ export interface RunDetails {
   agents: number;
   version: number;
   round_id: string | null;
+  // The round that ran it, if any.
+  round_number: number | null;
   model: string;
   reasoning_effort: string;
   status: RunStatus;
@@ -481,8 +483,9 @@ function send<T>(method: "POST" | "PUT", path: string, body?: object) {
 
 const post = <T>(path: string, body?: object) => send<T>("POST", path, body);
 
+const CLAIMS = "/api/claims";
 const claimPath = (claimId: string) =>
-  `/api/claims/${encodeURIComponent(claimId)}`;
+  `${CLAIMS}/${encodeURIComponent(claimId)}`;
 const DISPATCHES = "/api/dispatches";
 const CONFIGURATION = "/api/configuration";
 const SETTINGS = "/api/settings";
@@ -495,7 +498,7 @@ const proposalPath = (roundId: string, proposalId: string) =>
   `${roundPath(roundId)}/proposals/${encodeURIComponent(proposalId)}`;
 
 export const api = {
-  listClaims: () => request<ClaimSummary[]>("/api/claims"),
+  listClaims: () => request<ClaimSummary[]>(CLAIMS),
   getClaim: (claimId: string) => request<Claim>(claimPath(claimId)),
   listSteps: (claimId: string) =>
     request<Step[]>(`${claimPath(claimId)}/steps`),

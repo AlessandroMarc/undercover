@@ -18,11 +18,12 @@
   --red-text: light-dark(#b8204a, #ff8fa8);
   --disabled-surface: light-dark(#e3eaec, #163640);
   --disabled-ink: light-dark(#7a949c, #6f8a92);
+  --sans: "Instrument Sans", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
 
   /* The same as the computer, unless the appearance chosen in Settings says. */
   color-scheme: light dark;
-  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-family: var(--sans);
   font-size: 15px;
   line-height: 1.5;
   color: var(--ink);
@@ -61,7 +62,6 @@ h3 {
 h1 {
   font-size: 1.9rem;
   font-weight: 600;
-  margin-bottom: 20px;
 }
 
 h2 {
@@ -174,7 +174,6 @@ p {
 
 .lead {
   color: var(--muted);
-  margin: -8px 0 20px;
   max-width: 60ch;
   text-wrap: pretty;
 }
@@ -496,7 +495,7 @@ p {
 }
 
 .table td.num .muted {
-  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-family: var(--sans);
 }
 
 .claim-layout {
@@ -672,21 +671,12 @@ p {
   background: var(--inset);
 }
 
-.panel .button.quiet[aria-disabled="true"],
-.panel .button.quiet:disabled {
-  background: var(--disabled-surface);
-  color: var(--disabled-ink);
-}
-
 .button:disabled,
-.action-form button:disabled {
-  background: var(--disabled-surface);
-  color: var(--disabled-ink);
-  cursor: not-allowed;
-}
-
+.button[aria-disabled="true"],
+.action-form button:disabled,
 .action-form button[aria-disabled="true"],
-.button[aria-disabled="true"] {
+.panel .button.quiet:disabled,
+.panel .button.quiet[aria-disabled="true"] {
   background: var(--disabled-surface);
   color: var(--disabled-ink);
   cursor: not-allowed;

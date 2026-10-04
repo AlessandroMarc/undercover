@@ -92,17 +92,36 @@ def test_a_proposal_changes_nothing_until_a_handler_approves_it(client):
     assert client.post(f"{round_path(round_id)}/version").json() == {"number": 2}
 
 
-def test_a_model_outside_the_models_allowed_never_becomes_a_version(client):
+def test_a_model_outside_the_models_allowed_is_never_proposed(client):
     round_id = create_round(client).json()["round_id"]
-    proposal = propose_change(
+    refused = propose_change(
         client, round_id, model="openai/gpt-7", reasoning_effort="high"
-    ).json()
-    review(client, round_id, proposal["proposal_id"])
-    refused = client.post(f"{round_path(round_id)}/version")
+    )
     assert (refused.status_code, refused.json()["detail"]) == (
         422,
         "openai/gpt-7 at high isn't allowed. Choose from the models allowed.",
     )
+    assert client.get("/api/improvement").json()["round"]["waiting"] is None
+
+
+def test_a_second_change_waits_for_the_approved_one_to_become_a_version(client):
+    round_id = create_round(client).json()["round_id"]
+    proposal = propose_change(client, round_id).json()
+    review(client, round_id, proposal["proposal_id"])
+    refused = propose_change(client, round_id)
+    assert (refused.status_code, refused.json()["detail"]) == (
+        409,
+        "Round 1 has a change approved",
+    )
+
+
+def test_a_round_chooses_each_evaluations_set(client):
+    change_settings(client, spending_limit=10.0)
+    round_id = create_round(client).json()["round_id"]
+    first = [play_out(client, round_id)["evaluation_set"] for _ in range(3)]
+    approved_change(client, round_id)
+    tried = [play_out(client, round_id)["evaluation_set"] for _ in range(3)]
+    assert first == tried == ["evaluation", "held_out", "held_out"]
 
 
 def test_only_a_senior_handler_reviews_a_proposal(client):
@@ -133,7 +152,7 @@ def test_one_proposal_waits_at_a_time_and_a_rejection_needs_a_reason(client):
 def test_a_round_keeps_its_settings_when_they_change(client):
     round_id = create_round(client).json()["round_id"]
     change_settings(client, spending_limit=0.75, agents=5)
-    run = round_evaluation(client, round_id, "evaluation").json()
+    run = round_evaluation(client, round_id).json()
     assert run["agents"] == 25
     [listed] = client.get("/api/improvement").json()["rounds"]
     assert (listed["settings"], listed["spending_limit"]) == (1, 0.5)
@@ -175,11 +194,11 @@ def test_a_round_stopped_before_its_verdict_leaves_the_current_version(client):
 def kept_version_2(client, round_id):
     """Play a round out to a verdict that keeps version 2: version 1 gets every
     held-out claim wrong, and version 2 decides each as the handlers did."""
-    for evaluation_set in ("evaluation", "held_out", "held_out"):
-        play_out(client, round_id, evaluation_set)
+    for _ in range(3):
+        play_out(client, round_id)
     approved_change(client, round_id)
-    for evaluation_set in ("evaluation", "held_out", "held_out"):
-        play_out(client, round_id, evaluation_set, right=ALL)
+    for _ in range(3):
+        play_out(client, round_id, right=ALL)
     return client.post(f"{round_path(round_id)}/verdict")
 
 
@@ -238,7 +257,7 @@ def test_a_versions_held_out_scores_average_only_its_rounds_finished_evaluations
 ):
     change_settings(client, spending_limit=10.0)
     first = create_round(client).json()["round_id"]
-    play_out(client, first, "evaluation")
+    play_out(client, first)
     at_60 = play_out(client, first, right=15)
     stopped = play_out(client, first, finish=False)
     stop_round(client, first)
@@ -263,8 +282,8 @@ def test_a_versions_held_out_scores_average_only_its_rounds_finished_evaluations
 def test_a_round_runs_only_the_evaluations_its_versions_need(client):
     change_settings(client, spending_limit=10.0)
     round_id = create_round(client).json()["round_id"]
-    for evaluation_set in ("evaluation", "held_out", "held_out"):
-        play_out(client, round_id, evaluation_set)
+    for _ in range(3):
+        play_out(client, round_id)
     refused = round_evaluation(client, round_id)
     assert (refused.status_code, refused.json()["detail"]) == (
         409,
@@ -272,8 +291,8 @@ def test_a_round_runs_only_the_evaluations_its_versions_need(client):
     )
 
     approved_change(client, round_id)
-    for evaluation_set in ("evaluation", "held_out", "held_out"):
-        play_out(client, round_id, evaluation_set, right=ALL)
+    for _ in range(3):
+        play_out(client, round_id, right=ALL)
     refused = round_evaluation(client, round_id)
     assert refused.json()["detail"] == (
         "Round 1 has run every evaluation version 2 needs"
@@ -289,8 +308,8 @@ def test_a_round_runs_only_the_evaluations_its_versions_need(client):
 def test_a_round_whose_version_already_has_evaluations_runs_none_first(client):
     change_settings(client, spending_limit=10.0)
     first = create_round(client).json()["round_id"]
-    for evaluation_set in ("evaluation", "held_out", "held_out"):
-        play_out(client, first, evaluation_set)
+    for _ in range(3):
+        play_out(client, first)
     client.post(f"{round_path(first)}/finish")
     second = create_round(client).json()
     assert second["first_evaluations"] == []

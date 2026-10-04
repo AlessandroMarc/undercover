@@ -2,12 +2,16 @@ import { useCallback } from "react";
 import { Link, useParams } from "react-router";
 import { api, type RecipeDetails } from "../api";
 import { VersionChip } from "../components/Chips";
+import { Approval } from "../components/Approval";
 import { DiffView } from "../components/DiffView";
 import { PageHeader } from "../components/PageHeader";
 import { StateMessage } from "../components/StateMessage";
-import { dateTime, NO_APPROVAL_NEEDED } from "../format";
+import { dateTime } from "../format";
 import { IMPROVEMENT } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
+
+const LEAD =
+  "One version of the recipe the improver follows in a round, why it was made, and what changed from the one before.";
 
 export function RecipePage() {
   const { number = "" } = useParams();
@@ -16,10 +20,17 @@ export function RecipePage() {
 
   if (!recipe)
     return (
-      <StateMessage
-        error={error}
-        notFound="Recipe not found. Choose one on the Improvement page."
-      />
+      <>
+        <PageHeader
+          eyebrow={<Link to={IMPROVEMENT}>Improvement</Link>}
+          title={`Recipe ${number}`}
+          lead={LEAD}
+        />
+        <StateMessage
+          error={error}
+          notFound="Recipe not found. Choose one on the Improvement page."
+        />
+      </>
     );
 
   return (
@@ -28,7 +39,7 @@ export function RecipePage() {
         eyebrow={<Link to={IMPROVEMENT}>Improvement</Link>}
         title={`Recipe ${String(recipe.number)}`}
         status={recipe.current && <VersionChip status="current" />}
-        lead="One version of the recipe the improver follows in a round, why it was made, and what changed from the one before."
+        lead={LEAD}
       />
       <div className="column">
         <RecipeFacts recipe={recipe} />
@@ -71,9 +82,7 @@ function RecipeFacts({ recipe }: Readonly<{ recipe: RecipeDetails }>) {
         <div>
           <dt>Approved</dt>
           <dd>
-            {recipe.approved_by && recipe.approved_at
-              ? `${recipe.approved_by}, ${dateTime(recipe.approved_at)}`
-              : NO_APPROVAL_NEEDED}
+            <Approval by={recipe.approved_by} at={recipe.approved_at} />
           </dd>
         </div>
         <div>

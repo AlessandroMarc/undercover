@@ -1,10 +1,11 @@
 import { defineConfig } from "@playwright/test";
 import {
   AGENT_STAND_IN,
+  BACKEND,
   AUTH_STAND_IN,
   DASHBOARD,
   JUDGE_STAND_IN,
-} from "./e2e/api";
+} from "./e2e/servers";
 import { HANDLERS, TEST_PASSWORD } from "./e2e/handlers";
 
 // The tests run their own backend and dashboard, on their own ports and
@@ -14,6 +15,9 @@ export default defineConfig({
   testDir: "e2e",
   outputDir: "e2e/test-results",
   reporter: "list",
+  // The test files share one database and one set of stand-ins, so they run one
+  // at a time and never see each other's work part done.
+  workers: 1,
   use: { baseURL: DASHBOARD },
   projects: [
     { name: "sign in", testMatch: /sign_in\.setup\.ts/ },
@@ -25,9 +29,8 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command:
-        "uv run -m backend.seed && uv run uvicorn backend.main:app --port 8001",
-      url: "http://127.0.0.1:8001/api/health",
+      command: `uv run -m backend.seed && uv run uvicorn backend.main:app --port ${new URL(BACKEND).port}`,
+      url: `${BACKEND}/api/health`,
       // Empty DATABASE_URL and MODEL_NAME keep the tests on SQLite and the
       // default model, whatever the shell has.
       env: {
@@ -63,7 +66,7 @@ export default defineConfig({
       command: `npx vite dashboard --port ${new URL(DASHBOARD).port} --strictPort --mode e2e`,
       url: DASHBOARD,
       env: {
-        UNDERCOVER_API: "http://127.0.0.1:8001",
+        UNDERCOVER_API: BACKEND,
         VITE_SUPABASE_URL: AUTH_STAND_IN,
         VITE_SUPABASE_PUBLISHABLE_KEY: "e2e-publishable-key",
       },

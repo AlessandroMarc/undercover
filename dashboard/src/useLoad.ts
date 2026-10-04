@@ -21,15 +21,18 @@ export function useLoad<T>(
 
   useEffect(() => {
     let active = true;
+    let latest = 0;
     const fetchNow = () => {
+      const asked = ++latest;
+      const current = () => active && asked === latest;
       load().then(
         (data) => {
-          if (active) setLoaded({ data });
+          if (current()) setLoaded({ data });
         },
         (error: unknown) => {
           if (error instanceof ApiError && error.status === 404)
             clearInterval(timer);
-          if (active)
+          if (current())
             setLoaded((previous) => ({
               data: previous.data,
               error: error instanceof Error ? error : new Error(REQUEST_FAILED),

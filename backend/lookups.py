@@ -4,7 +4,7 @@ for what isn't found, which more than one of the backend's modules need."""
 from fastapi import HTTPException
 from sqlalchemy import Connection, RowMapping, func, select
 
-from backend.database import models_allowed, runs, settings, versions
+from backend.database import models_allowed, rounds, runs, settings, versions
 from backend.models import ModelAllowed, Settings, Verdict
 
 RUN_NOT_FOUND = "Run {run_id} not found"
@@ -18,6 +18,14 @@ def run_row(db: Connection, run_id: str) -> RowMapping:
     if row is None:
         raise HTTPException(404, RUN_NOT_FOUND.format(run_id=run_id))
     return row
+
+
+def round_number(db: Connection, round_id: str | None) -> int | None:
+    """Return the number of the round with this id, or none for no round."""
+    if round_id is None:
+        return None
+    query = select(rounds.c.number).where(rounds.c.round_id == round_id)
+    return db.execute(query).scalar_one()
 
 
 def version_row(db: Connection, number: int) -> RowMapping:

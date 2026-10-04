@@ -6,7 +6,6 @@ from typing import Any, Literal
 
 from agent.connection import call
 
-EvaluationSet = Literal["evaluation", "held_out"]
 RoundStatus = Literal["open", "finished", "stopped"]
 OPEN: RoundStatus = "open"
 Review = Literal["approved", "rejected"]
@@ -58,11 +57,8 @@ def create_recipe(round_id: str) -> dict[str, Any]:
     return call("POST", f"/rounds/{round_id}/recipe")
 
 
-def create_round_evaluation(
-    round_id: str, evaluation_set: EvaluationSet
-) -> dict[str, Any]:
-    body = {"evaluation_set": evaluation_set}
-    return call("POST", f"/runs/rounds/{round_id}/evaluations", json=body)
+def create_round_evaluation(round_id: str) -> dict[str, Any]:
+    return call("POST", f"/runs/rounds/{round_id}/evaluations")
 
 
 def record_verdict(round_id: str) -> dict[str, Any]:

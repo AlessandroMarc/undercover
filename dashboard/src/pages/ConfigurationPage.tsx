@@ -1,11 +1,12 @@
 import { api, type VersionSummary } from "../api";
 import { VersionChip } from "../components/Chips";
-import { HeldOutAccuracy } from "../components/HeldOutAccuracy";
+import { Approval } from "../components/Approval";
+import { HeldOutAccuracy, HeldOutGrade } from "../components/HeldOutAccuracy";
 import { PageHeader } from "../components/PageHeader";
 import { StateMessage } from "../components/StateMessage";
 import { VersionChanges } from "../components/VersionChanges";
 import { VersionLink } from "../components/VersionLink";
-import { label, NO_APPROVAL_NEEDED } from "../format";
+import { label } from "../format";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
 export function ConfigurationPage() {
@@ -66,6 +67,12 @@ function CurrentVersion({ version }: Readonly<{ version: VersionSummary }>) {
             <HeldOutAccuracy scores={version.scores} />
           </dd>
         </div>
+        <div>
+          <dt>Held-out grade</dt>
+          <dd>
+            <HeldOutGrade scores={version.scores} />
+          </dd>
+        </div>
       </dl>
     </section>
   );
@@ -84,8 +91,9 @@ function Versions({ versions }: Readonly<{ versions: VersionSummary[] }>) {
               <th>What changed</th>
               <th>Reason</th>
               <th>Proposed by</th>
-              <th>Approved by</th>
+              <th>Approved</th>
               <th className="num">Held-out accuracy</th>
+              <th className="num">Held-out grade</th>
             </tr>
           </thead>
           <tbody>
@@ -102,11 +110,14 @@ function Versions({ versions }: Readonly<{ versions: VersionSummary[] }>) {
                 </td>
                 <td>{version.reason}</td>
                 <td>{version.proposed_by}</td>
-                <td className="nowrap">
-                  {version.approved_by ?? NO_APPROVAL_NEEDED}
+                <td>
+                  <Approval by={version.approved_by} at={version.approved_at} />
                 </td>
                 <td className="num">
                   <HeldOutAccuracy scores={version.scores} />
+                </td>
+                <td className="num">
+                  <HeldOutGrade scores={version.scores} />
                 </td>
               </tr>
             ))}

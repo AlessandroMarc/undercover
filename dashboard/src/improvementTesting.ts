@@ -36,6 +36,7 @@ export const evaluation: Evaluation = {
   agents: 25,
   version: 1,
   round_id: ROUND_ID,
+  round_number: 1,
   model: "openai/gpt-6-luna",
   reasoning_effort: "low",
   status: "finished",

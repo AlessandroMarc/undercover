@@ -122,7 +122,7 @@ it("shows a finished round's verdict and why", async () => {
   expect(round.getByText("Rolled back", { selector: ".chip" }).className).toBe(
     "chip verdict-rolled_back",
   );
-  expect(round.getByText(/cost_per_claim got worse/)).toBeDefined();
+  expect(round.getByText(/cost per claim got worse/)).toBeDefined();
   expect(
     round.queryByRole("list", { name: "Where the round has got to" }),
   ).toBeNull();
@@ -396,7 +396,7 @@ it("charts each version tried against version 1", async () => {
     "3.00",
   ]);
   expect(within(charts[0]).getByRole("img").getAttribute("aria-label")).toBe(
-    "Held-out accuracy. Version 1 60%, version 2 56%, version 3 72%.",
+    "Held-out accuracy. Version 1 60%, version 2 56%, rolled back, version 3 72%, kept.",
   );
 });
 
@@ -427,4 +427,24 @@ it("shows a recipe with its diff", async () => {
   expect(
     (await panel("Recipe")).getByText("1. Read the results."),
   ).toBeDefined();
+});
+
+it("clears a refusal once another proposal waits", async () => {
+  const detail = `Proposal ${PROPOSAL_ID} isn't waiting for a handler: it was approved`;
+  const routes: Routes = { [APPROVAL]: new Refusal(409, detail) };
+  showPage(improvement(open), routes);
+  const proposal = await panel("A change is waiting for approval");
+  fireEvent.click(proposal.getByRole("button", { name: "Approve" }));
+  fireEvent.click(
+    within(screen.getByRole("dialog")).getByRole("button", {
+      name: "Approve the change",
+    }),
+  );
+  await screen.findByRole("alert");
+  routes["GET /api/improvement"] = improvement({
+    ...open,
+    waiting: { ...change, proposal_id: "proposal-3", reason: "A new reason" },
+  });
+  await screen.findByText("A new reason", {}, { timeout: 3000 });
+  expect(screen.queryByRole("alert")).toBeNull();
 });

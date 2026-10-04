@@ -24,6 +24,11 @@ class Refused(Exception):
         super().__init__(f"{status_code}: {detail}")
         self.status_code, self.detail = status_code, detail
 
+    @property
+    def answer(self) -> str:
+        """The refusal as a model is answered with it."""
+        return f"Refused: {self.detail}"
+
 
 def call(method: str, path: str, **request: Any) -> Any:
     """Send one request to the backend and return its JSON, or raise Refused."""

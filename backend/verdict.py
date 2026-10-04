@@ -25,6 +25,13 @@ RULE = (
 )
 
 
+# Why a version was rolled back without the rule being applied to its scores.
+EVALUATIONS_STOPPED = "its evaluations were stopped"
+CANT_AFFORD = "the round couldn't afford to evaluate it"
+NOT_EVALUATED = "the improver didn't evaluate it"
+STOPPED_BEFORE_VERDICT = "the round was stopped before its verdict"
+
+
 class Decided(NamedTuple):
     """Whether to keep a version, and why, in the lab's words."""
 

@@ -111,6 +111,7 @@ function Review({
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const reasonId = useId();
+  const rejectId = useId();
   const ids = [round.round_id, proposal.proposal_id] as const;
   const refused = (error: unknown) => {
     onRefused(error instanceof Error ? error.message : REQUEST_FAILED);
@@ -142,6 +143,7 @@ function Review({
           type="button"
           className="button quiet"
           aria-expanded={rejecting}
+          aria-controls={rejectId}
           onClick={() => {
             setRejecting(!rejecting);
           }}
@@ -151,6 +153,7 @@ function Review({
       </div>
       {rejecting && (
         <form
+          id={rejectId}
           className="reject-form"
           onSubmit={(event) => {
             event.preventDefault();

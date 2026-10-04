@@ -6,6 +6,7 @@ import type {
   Run,
 } from "../dashboard/src/api";
 import { HANDLERS } from "./handlers";
+import { AGENT_STAND_IN } from "./servers";
 
 // Stands in for the agent's service and its claim agents, with one function for
 // each backend operation the tests use, sent through the dashboard's proxy.
@@ -199,14 +200,6 @@ export async function finishOpenRound(request: Request) {
     );
   await finishRound(request, round.round_id);
 }
-
-// The dashboard the tests use, and the stand-ins for the agent's service, for
-// Supabase Auth and for the judge, which Playwright starts on ports of their
-// own.
-export const DASHBOARD = "http://localhost:5174";
-export const AGENT_STAND_IN = "http://127.0.0.1:8003";
-export const AUTH_STAND_IN = "http://127.0.0.1:8004";
-export const JUDGE_STAND_IN = "http://127.0.0.1:8005";
 
 export async function resumed(request: Request): Promise<string[]> {
   const response = await request.get(`${AGENT_STAND_IN}/api/resumed`);

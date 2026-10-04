@@ -20,7 +20,8 @@ it("shows the current version and every version with its status", async () => {
   );
   expect(current.getByText("google/gemini-3.5-flash-lite")).toBeDefined();
   expect(current.getByText("Minimal")).toBeDefined();
-  expect(current.getByText("Not scored yet")).toBeDefined();
+  // Neither the held-out accuracy nor the grade, until rounds score it.
+  expect(current.getAllByText("Not scored yet")).toHaveLength(2);
 
   const rows = within(
     screen.getByRole("region", { name: "Versions" }),
@@ -31,7 +32,7 @@ it("shows the current version and every version with its status", async () => {
   expect(rows[1].textContent).toContain(
     "openai/gpt-6-luna at low to google/gemini-3.5-flash-lite at minimal",
   );
-  expect(two.getByText("Dana Whitfield")).toBeDefined();
+  expect(rows[1].textContent).toContain("Dana Whitfield, Oct 5");
   expect(within(rows[2]).getByText("Kept")).toBeDefined();
   expect(rows[2].textContent).toContain("The first version");
   expect(

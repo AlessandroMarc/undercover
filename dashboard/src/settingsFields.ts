@@ -1,3 +1,4 @@
+import { MOST_AGENTS } from "./components/AgentsChoice";
 import type { Settings, SettingsValues } from "./api";
 import { grade, money } from "./format";
 
@@ -145,7 +146,7 @@ export const SETTING_FIELDS: SettingField[] = [
     label: "Claim agents at once",
     name: "Claim agents at once in the improver's evaluations",
     unit: "agents",
-    max: 25,
+    max: MOST_AGENTS,
     get: (values) => values.agents,
     set: (values, value) => ({ ...values, agents: value }),
   },

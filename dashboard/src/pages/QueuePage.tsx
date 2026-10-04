@@ -33,6 +33,7 @@ export function QueuePage() {
             <div
               className="panel tile"
               key={status}
+              role="group"
               aria-label={`${statusLabels[status]}: ${String(count)}`}
             >
               <StatusChip status={status} />

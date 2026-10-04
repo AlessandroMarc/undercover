@@ -27,6 +27,7 @@ from backend.lookups import (
     RUN_NOT_FOUND,
     allowed_models,
     current_version_number,
+    round_number,
     run_row,
     settings_number,
     version_row,
@@ -40,7 +41,6 @@ from backend.models import (
     EvaluationSet,
     HeldPayout,
     Letter,
-    RoundEvaluationRequest,
     RoundStatus,
     Run,
     RunClaimsRequest,
@@ -95,6 +95,7 @@ def find_run(db: Connection, run_id: str) -> Run:
     return Run(
         **row,
         **cost_and_time(db, row),
+        round_number=round_number(db, row["round_id"]),
         claims=[to_run_claim(claim) for claim in claims_of(db, run_id)],
     )
 
@@ -221,23 +222,27 @@ def set_size(db: Connection, evaluation_set: EvaluationSet) -> int:
     return db.execute(query).scalar_one()
 
 
-def version_to_evaluate(db: Connection, row: RowMapping) -> RowMapping:
-    """Return the version a round's next evaluation is of: its version under test
-    until its verdict, or before it has one, its starting version until its first
-    evaluations are done. Raise a 409 for any other, so a version's scores never
+def next_evaluation(
+    db: Connection, row: RowMapping
+) -> tuple[RowMapping, EvaluationSet]:
+    """Return the version a round's next evaluation is of, and its set: the
+    round's starting version on the sets of its first evaluations, then its
+    version under test once on the evaluation set and twice on the held-out set,
+    until the verdict. Raise a 409 for any other, so a version's scores never
     change after its verdict."""
     tried = tried_version(db, row["round_id"])
     if tried is not None and tried["verdict"] is not None:
         raise HTTPException(409, f"Version {tried['number']} already has its verdict")
     version = tried or version_row(db, row["starting_version"])
-    needed = len(EVALUATIONS) if tried else len(row["first_evaluations"])
-    if len(evaluations_of(db, row["round_id"], version["number"])) >= needed:
+    sets = EVALUATIONS if tried else row["first_evaluations"]
+    done = len(evaluations_of(db, row["round_id"], version["number"]))
+    if done >= len(sets):
         raise HTTPException(
             409,
             f"Round {row['number']} has run every evaluation version "
             f"{version['number']} needs",
         )
-    return version
+    return version, sets[done]
 
 
 def refuse_what_the_round_cant_afford(
@@ -359,16 +364,14 @@ def create_evaluation(request: StartEvaluationRequest, db: Database) -> Run:
 @router.post(
     "/api/runs/rounds/{round_id}/evaluations", operation_id="create_round_evaluation"
 )
-def create_round_evaluation(
-    round_id: str, request: RoundEvaluationRequest, db: Database
-) -> Run:
-    """Record a round's whole-set evaluation of the version it is evaluating."""
+def create_round_evaluation(round_id: str, db: Database) -> Run:
+    """Record a round's next whole-set evaluation, on the set it needs next."""
     row = open_round(db, round_id)
-    version = version_to_evaluate(db, row)
+    version, evaluation_set = next_evaluation(db, row)
     if version["number"] != row["starting_version"]:
         refuse_what_the_round_cant_afford(db, row, version)
     fields = {
-        "evaluation_set": request.evaluation_set,
+        "evaluation_set": evaluation_set,
         "tiny": False,
         "agents": settings_number(db, row["settings"]).agents,
         "round_id": round_id,

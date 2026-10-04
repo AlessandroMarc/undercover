@@ -4,6 +4,7 @@ and records nothing of."""
 import httpx
 import pytest
 
+from backend.agent_service import NO_ANSWER
 from backend.database import runs
 from backend.tests.rows import count
 from backend.tests.sign_in import MARCUS, signed_in
@@ -62,8 +63,9 @@ def test_a_service_that_took_the_start_but_didnt_answer_isnt_said_to_be_down(
         raise httpx.ReadTimeout("Timed out")
 
     agent_answers(slow)
-    with pytest.raises(httpx.ReadTimeout):
-        start_dispatch(client, 3)
+    refused = start_dispatch(client, 3)
+    assert (refused.status_code, refused.json()["detail"]) == (503, NO_ANSWER)
+    assert "isn't running" not in NO_ANSWER
 
 
 def start_evaluation(client, evaluation_set="held_out", tiny=True, agents=5):

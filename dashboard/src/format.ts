@@ -140,12 +140,17 @@ export const stageLabels: Record<RoundStage, string> = {
 };
 export const roundStages = Object.keys(stageLabels) as RoundStage[];
 
+// A verdict's reason in words: the rule names measures such as cost_per_claim.
+export function inWords(reason: string | null): string {
+  return (reason ?? "").replaceAll("_", " ");
+}
+
 // Where an open round has got to, such as "First evaluations, 2 of 3", or
 // "Kept: accuracy improved" once its verdict is in.
 export function whereRoundIs(round: RoundSummary): string {
   if (round.stage === null) return "";
   if (round.stage === "verdict" && round.verdict)
-    return `${verdictLabels[round.verdict]}: ${round.verdict_reason ?? ""}`;
+    return `${verdictLabels[round.verdict]}: ${inWords(round.verdict_reason)}`;
   const name = stageLabels[round.stage];
   return round.progress ? `${name}, ${round.progress}` : name;
 }

@@ -64,6 +64,12 @@ interface Plotted extends VersionPoint {
   value: number | null;
 }
 
+interface Scored extends Plotted {
+  value: number;
+}
+
+const isScored = (point: Plotted): point is Scored => point.value !== null;
+
 // Where a chart's axis starts: a step below the lowest score, rounded down to
 // a step, so close scores are told apart rather than flattened against zero.
 function axisStart(values: number[], step: number): number {
@@ -86,7 +92,7 @@ function Chart({
   first: number | null;
   points: Plotted[];
 }>) {
-  const scored = points.filter((point) => point.value !== null);
+  const scored = points.filter(isScored);
   const values = [first, ...scored.map((point) => point.value)].filter(
     (value) => value !== null,
   );
@@ -164,12 +170,13 @@ function describe(
   title: string,
   show: (value: number) => string,
   first: number | null,
-  scored: Plotted[],
+  scored: Scored[],
 ): string {
   const start =
     first === null ? `${FIRST} isn't scored yet` : `${FIRST} ${show(first)}`;
   const tried = scored.map(
-    (point) => `version ${String(point.number)} ${show(point.value ?? 0)}`,
+    (point) =>
+      `version ${String(point.number)} ${show(point.value)}, ${point.verdict ? verdictLabels[point.verdict].toLowerCase() : versionLabels.under_test.toLowerCase()}`,
   );
   return `${title}. ${[start, ...tried].join(", ")}.`;
 }

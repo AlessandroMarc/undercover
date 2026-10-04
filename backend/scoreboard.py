@@ -19,6 +19,7 @@ from backend.database import (
     runs,
     work_times,
 )
+from backend.lookups import round_number
 from backend.models import (
     ClaimGrade,
     EvaluationSet,
@@ -154,6 +155,7 @@ def score(db: Connection, row: RowMapping, expected: Expected) -> ScoredEvaluati
     return ScoredEvaluation(
         **row,
         **run,
+        round_number=round_number(db, row["round_id"]),
         judge_cost=sum(copy["judge_cost"] for copy in copies),
         size=len(scored),
         measures=scoring.measures(scored, run["model_cost"], run["seconds"]),

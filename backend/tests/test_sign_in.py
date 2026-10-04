@@ -71,8 +71,11 @@ def test_supabase_out_of_reach_isnt_a_bad_sign_in(client, monkeypatch):
         raise jwt.PyJWKClientConnectionError("Fail to fetch data from the url")
 
     monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", unreachable)
-    with pytest.raises(jwt.PyJWKClientConnectionError):
-        client.get("/api/me", headers=signed_in(DANA))
+    refused = client.get("/api/me", headers=signed_in(DANA))
+    assert (refused.status_code, refused.json()["detail"]) == (
+        503,
+        "Sign-in can't be checked: Supabase is out of reach",
+    )
 
 
 def test_a_sign_in_that_isnt_a_handlers_is_refused(client):

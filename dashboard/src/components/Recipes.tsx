@@ -1,5 +1,5 @@
 import type { RecipeSummary } from "../api";
-import { NO_APPROVAL_NEEDED } from "../format";
+import { Approval } from "./Approval";
 import { VersionChip } from "./Chips";
 import { LineCounts } from "./LineCounts";
 import { RecipeLink } from "./VersionLink";
@@ -21,7 +21,7 @@ export function Recipes({ recipes }: Readonly<{ recipes: RecipeSummary[] }>) {
               <th>What changed</th>
               <th>Reason</th>
               <th>Proposed by</th>
-              <th>Approved by</th>
+              <th>Approved</th>
             </tr>
           </thead>
           <tbody>
@@ -48,7 +48,9 @@ export function Recipes({ recipes }: Readonly<{ recipes: RecipeSummary[] }>) {
                 </td>
                 <td>{recipe.reason}</td>
                 <td>{recipe.proposed_by}</td>
-                <td>{recipe.approved_by ?? NO_APPROVAL_NEEDED}</td>
+                <td>
+                  <Approval by={recipe.approved_by} at={recipe.approved_at} />
+                </td>
               </tr>
             ))}
           </tbody>

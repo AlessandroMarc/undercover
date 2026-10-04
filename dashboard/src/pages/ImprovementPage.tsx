@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { api, type Improvement, type RoundView } from "../api";
+import {
+  api,
+  type Improvement,
+  type RoundView,
+  type WaitingProposal,
+} from "../api";
 import { ActionForm } from "../components/ActionForm";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { NotAllowed } from "../components/NotAllowed";
@@ -14,11 +19,22 @@ import { useHandler } from "../handler";
 import { useAction } from "../useAction";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
+interface Refusal {
+  proposalId?: string;
+  message: string;
+}
+
+// Whether a refusal is still about what the page shows: the proposal it
+// refused, or none now that it's gone.
+function stillAbout(refusal: Refusal, waiting?: WaitingProposal | null) {
+  return !waiting || waiting.proposal_id === refusal.proposalId;
+}
+
 export function ImprovementPage() {
   const { data: page, error, reload } = useLoad(api.getImprovement, REFRESH_MS);
   // A review's refusal, kept here so it stays on screen when the proposal it
-  // was for is no longer waiting.
-  const [refusal, setRefusal] = useState<string>();
+  // was for is no longer waiting, until another proposal waits.
+  const [refusal, setRefusal] = useState<Refusal>();
   const open = page?.round?.status === "open" ? page.round : undefined;
   const header = (
     <PageHeader
@@ -39,9 +55,9 @@ export function ImprovementPage() {
       {header}
       <div className="column">
         {page.round && <RoundPanel round={page.round} />}
-        {refusal && (
+        {refusal && stillAbout(refusal, page.round?.waiting) && (
           <p className="form-error" role="alert">
-            {refusal}
+            {refusal.message}
           </p>
         )}
         {page.round?.waiting && (
@@ -52,7 +68,12 @@ export function ImprovementPage() {
               setRefusal(undefined);
               reload();
             }}
-            onRefused={setRefusal}
+            onRefused={(message) => {
+              setRefusal({
+                proposalId: page.round?.waiting?.proposal_id,
+                message,
+              });
+            }}
           />
         )}
         <VersionsTried page={page} />
