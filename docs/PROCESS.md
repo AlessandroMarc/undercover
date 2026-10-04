@@ -44,7 +44,7 @@ The checks show that the code works, but not that it is fit to merge. Every code
 ## Rules
 
 - Add tests with each change. Tests never call a model; use a stub model.
-- Before a live run with the real model, reseed with `npm run seed`, and cap a queue run at five claims.
+- Before a live dispatch with the real model, reseed once with `npm run seed`. Evaluations work their own copies and need no reseed. Keep to the runs the plan asks for.
 - Outside a plan, commit each change once you have checked and reviewed it.
 - Run `npm run check` before you hand work over.
 - Never use `git commit --no-verify`.

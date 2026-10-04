@@ -26,9 +26,8 @@ export function ScoreboardPage() {
     <>
       <h1>Scoreboard</h1>
       <p className="lead">
-        Each evaluation works copies of a labelled set's claims, which never
-        show in the queue, and scores the agent's decisions against our
-        handlers'.
+        Each evaluation works copies of a labeled set's claims, which never show
+        in the queue, and scores the agent's decisions against our handlers'.
       </p>
       <div className="column">
         <StartEvaluation />

@@ -368,20 +368,20 @@ Add the Scoreboard page with its start form and the list of evaluations, an eval
 
 Run the trial the brief describes, fix what it finds, then bring `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md`, `docs/CODE_STANDARDS.md` and `docs/STATUS.md` up to date.
 
-- [ ] Live: after one `npm run seed`, with `npm run dev` running and the default model, start a dispatch at N=3 on the queue page. Once at least three claims are decided, stop it with `kill -9` on every process from `lsof -ti tcp:8002`, which makes `npm run dev` stop the others, and start `npm run dev` again. The N=3 dispatch shows Stopped
-- [ ] Live: a dispatch at N=25 carries on the claims left in progress, each with the thread and attempts it had and one decision, and works the rest. The start times of the claims it worked from the start are within a few seconds of each other
-- [ ] Live: its run takes well under the sum of its claims' times
-- [ ] Live: claims worked from the start take about as long on average at N=25 as at N=3, from the work times of both dispatches through Supabase MCP. If they are slower, report where the time goes, from the model calls' times in Langfuse and the gaps between each claim's steps, keeping to 4 connections a process
-- [ ] Live: claims held for sign-off show Waiting for sign-off, and signing one off on its page shows it paid, with the handler and the time, within five seconds (`browser_wait_for`)
-- [ ] Live: no claim has an `error` step about a database connection or a pool timeout, and Supabase MCP, checked several times during the N=25 dispatch, never shows more than 12 connections from `select count(*) from pg_stat_activity where usename = 'postgres'`
-- [ ] Live: an evaluation of the evaluation set at N=25, and one of the held-out set's five `tiny` claims at N=5, started on the Scoreboard, finish and appear with every measure, and the queue page's counts are the same before and after them
-- [ ] Live: through Langfuse's API, `trace.list(tags=[run_id])` for the N=25 dispatch returns a trace for each of its claims
-- [ ] `docs/SPEC.md`: its section on working the queue describes dispatches, with N claim agents at once, code choosing the order, problems put right as the brief says, cost and time, and evaluations on copies; its section on what the team needs to see describes the dispatch panel, the Scoreboard and the claim agent's instructions. Its Rules are unchanged
-- [ ] `docs/TECH_STACK.md` names the backend's runs router beside the claim operations, and the dispatcher as a fifth part of the agent, with `Send`, `max_concurrency` and `RetryPolicy`; a saver per claim run on a pool of 4; `work_claim`, `carry_on` and `work_in_run`; GPT-6 Luna by default; cost from `usage.cost`; and the Langfuse tags
-- [ ] `docs/PROCESS.md`: these live runs, a dispatch from the dashboard after a reseed and evaluations, which need none, replace the five-claim cap
-- [ ] `docs/CODE_STANDARDS.md`: rule 10 names the dispatcher's LangGraph tools in place of the queue agent's middleware, and rule 13 gives the agent five parts, with the dispatcher reaching the claim agent only through the harness's one function
-- [ ] `docs/STATUS.md` describes what's built, how to start a dispatch and an evaluation, the live runs' times, decisions, connections and measures, and the known gaps, including LangGraph's `error_handler`
-- [ ] `npm run check` passes, both with `.env` in place and with it moved out of the way
+- [x] Live: after one `npm run seed`, with `npm run dev` running and the default model, start a dispatch at N=3 on the queue page. Once at least three claims are decided, stop it with `kill -9` on every process from `lsof -ti tcp:8002`, which makes `npm run dev` stop the others, and start `npm run dev` again. The N=3 dispatch shows Stopped
+- [x] Live: a dispatch at N=25 carries on the claims left in progress, each with the thread and attempts it had and one decision, and works the rest. The start times of the claims it worked from the start are within a few seconds of each other. (CLM-1004 carried on as attempt 1 on its thread, then the model finished without recording a decision, so the dispatch worked it once more as attempt 2, which decided it once: see `docs/STATUS.md`.)
+- [x] Live: its run takes well under the sum of its claims' times
+- [x] Live: claims worked from the start take about as long on average at N=25 as at N=3, from the work times of both dispatches through Supabase MCP. If they are slower, report where the time goes, from the model calls' times in Langfuse and the gaps between each claim's steps, keeping to 4 connections a process
+- [x] Live: claims held for sign-off show Waiting for sign-off, and signing one off on its page shows it paid, with the handler and the time, within five seconds (`browser_wait_for`)
+- [x] Live: no claim has an `error` step about a database connection or a pool timeout, and Supabase MCP, checked several times during the N=25 dispatch, never shows more than 12 connections from `select count(*) from pg_stat_activity where usename = 'postgres'`
+- [x] Live: an evaluation of the evaluation set at N=25, and one of the held-out set's five `tiny` claims at N=5, started on the Scoreboard, finish and appear with every measure, and the queue page's counts are the same before and after them
+- [x] Live: through Langfuse's API, `trace.list(tags=[run_id])` for the N=25 dispatch returns a trace for each of its claims
+- [x] `docs/SPEC.md`: its section on working the queue describes dispatches, with N claim agents at once, code choosing the order, problems put right as the brief says, cost and time, and evaluations on copies; its section on what the team needs to see describes the dispatch panel, the Scoreboard and the claim agent's instructions. Its Rules are unchanged
+- [x] `docs/TECH_STACK.md` names the backend's runs router beside the claim operations, and the dispatcher as a fifth part of the agent, with `Send`, `max_concurrency` and `RetryPolicy`; a saver per claim run on a pool of 4; `work_claim`, `carry_on` and `work_in_run`; GPT-6 Luna by default; cost from `usage.cost`; and the Langfuse tags
+- [x] `docs/PROCESS.md`: these live runs, a dispatch from the dashboard after a reseed and evaluations, which need none, replace the five-claim cap
+- [x] `docs/CODE_STANDARDS.md`: rule 10 names the dispatcher's LangGraph tools in place of the queue agent's middleware, and rule 13 gives the agent five parts, with the dispatcher reaching the claim agent only through the harness's one function
+- [x] `docs/STATUS.md` describes what's built, how to start a dispatch and an evaluation, the live runs' times, decisions, connections and measures, and the known gaps, including LangGraph's `error_handler`
+- [x] `npm run check` passes, both with `.env` in place and with it moved out of the way
 
 ## Not in this plan
 
