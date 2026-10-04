@@ -20,6 +20,7 @@ The backend:
 - `dependencies.py` (new): the `Database` dependency both routers share, one transaction per request, committed before the response is sent. It moves from `main.py` unchanged, following the layout in FastAPI's guide to bigger applications.
 - `views.py` (new): `to_claim()` and `to_summary()`, which build a claim in full and its line in the queue from a `claim_view` row. They move from `main.py`, since a run's claims show the queue's line too.
 - `database.py` also takes `now()` from `main.py`, the time stamp every record carries, since both routers write records.
+- `lookups.py` (new, added in the review of the whole change): finding a run, and the messages for a run or a claim not found, which both routers need. The claim and run statuses, decisions, run kinds and sets are `StrEnum`s in `models.py`, as the agent's `Status` is.
 - `instructions/queue.md` goes. `get_instructions` serves the claim instructions alone.
 
 Inside the backend, `main` uses `runs`, `dependencies`, `views`, `database`, `documents`, `payout`, `agent_service` and `models`, and `runs` uses `dependencies`, `views`, `database`, `scoring`, `agent_service` and `models`. Neither uses the other's helpers.
@@ -76,7 +77,7 @@ The nodes and edges:
 - `work_claim`: has a `RetryPolicy` (below). It calls `harness.work_in_run(claim_id, run_id, new_graph)` and adds the report line. If the claim is back in the queue afterwards, because it failed with an error on its first attempt, it calls `work_in_run` once more, which starts a new attempt; a claim that fails again is left for a handler by the backend, as today.
 - `finish_run`: calls `finish_run` for the run.
 
-`work_run(run, new_graph, resuming)` invokes the compiled graph with `max_concurrency` set to the run's N and returns the report lines. The dispatcher has no checkpointer: each claim saves its own progress, and the next dispatch finishes what a stopped one left.
+`work_run(run, work, resuming)` invokes the compiled graph with `max_concurrency` set to the run's N and returns the report lines. `work` is `harness.work_in_run` with its `new_graph` bound by the service, so the dispatcher sees only a function of the claim's id and the run's id. The dispatcher has no checkpointer: each claim saves its own progress, and the next dispatch finishes what a stopped one left.
 
 ### Following the lab
 

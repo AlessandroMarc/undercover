@@ -1,3 +1,5 @@
+import threading
+from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
@@ -55,8 +57,34 @@ def serve():
     def with_model(model, saver=None):
         saver = saver or InMemorySaver()
         agents = service.ClaimAgents("stub", "none", lambda: graph_on(model, saver))
-        service.app.dependency_overrides[service.claim_agents] = lambda: agents
+        service.app.dependency_overrides[service.build_claim_agents] = lambda: agents
         return TestClient(service.app)
 
     yield with_model
     service.app.dependency_overrides.clear()
+
+
+@dataclass
+class HeldRun:
+    """A run the service is working, held open until the test releases it, and the
+    claims being resumed that the service handed the dispatcher."""
+
+    working: threading.Event = field(default_factory=threading.Event)
+    release: threading.Event = field(default_factory=threading.Event)
+    resuming: list[set[str]] = field(default_factory=list)
+
+
+@pytest.fixture
+def held_run(monkeypatch):
+    """Hold each run the service starts open until the test releases it."""
+    held = HeldRun()
+    work_run = service.work_run
+
+    def hold(run, work, resuming):
+        held.resuming.append(resuming)
+        held.working.set()
+        held.release.wait(5)
+        return work_run(run, work, resuming)
+
+    monkeypatch.setattr(service, "work_run", hold)
+    return held

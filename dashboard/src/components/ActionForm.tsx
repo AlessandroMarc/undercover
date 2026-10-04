@@ -1,4 +1,5 @@
 import { type ReactNode, type SyntheticEvent, useState } from "react";
+import { REQUEST_FAILED } from "../api";
 
 // A form that asks the backend to do one thing, such as signing off a payout
 // or starting a dispatch, and shows the backend's reason if it refuses. The
@@ -26,9 +27,7 @@ export function ActionForm({
     setError(undefined);
     action()
       .catch((reason: unknown) => {
-        setError(
-          reason instanceof Error ? reason.message : "The request failed",
-        );
+        setError(reason instanceof Error ? reason.message : REQUEST_FAILED);
       })
       .finally(() => {
         setSending(false);

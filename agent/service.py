@@ -17,9 +17,17 @@ from pydantic import BaseModel, Field
 from agent import api
 from agent.console import show_reports
 from agent.dispatcher import work_run
-from agent.harness import NewGraph, carry_on, checkpoint_pool, claim_graphs, model
+from agent.harness import (
+    NewGraph,
+    carry_on,
+    checkpoint_pool,
+    claim_graphs,
+    model,
+    work_in_run,
+)
 
 ALREADY_RUNNING = "A dispatch or an evaluation is already running"
+ACCEPTED = {"status": "accepted"}
 # The most claim agents at once, as the backend and the dashboard also allow.
 MOST_AGENTS = 25
 NO_REASONING_EFFORT = "none"
@@ -62,7 +70,7 @@ class ClaimAgents:
     new_graph: NewGraph
 
 
-def claim_agents(request: Request) -> ClaimAgents:
+def build_claim_agents(request: Request) -> ClaimAgents:
     """Build the model for one request, and claim graphs on the service's pool."""
     llm = model()
     return ClaimAgents(
@@ -72,7 +80,7 @@ def claim_agents(request: Request) -> ClaimAgents:
     )
 
 
-Agents = Annotated[ClaimAgents, Depends(claim_agents)]
+ClaimAgentsDep = Annotated[ClaimAgents, Depends(build_claim_agents)]
 
 
 class DispatchRequest(BaseModel):
@@ -91,12 +99,13 @@ def take_the_run() -> None:
 
 
 def work_in_background(
-    create: Callable[[], dict[str, Any]], agents: ClaimAgents
+    create: Callable[[], dict[str, Any]], claim_agents: ClaimAgents
 ) -> None:
     """Create a run through the backend and work it, then let the next run start. A
     run whose dispatcher fails is marked stopped."""
+    work = partial(work_in_run, new_graph=claim_agents.new_graph)
     try:
-        work_run(create(), agents.new_graph, resuming)
+        work_run(create(), work, resuming)
     except Exception:
         log.exception("The run stopped")
         api.stop_runs()
@@ -112,28 +121,31 @@ def health() -> dict[str, str]:
 
 @app.post("/api/dispatches", operation_id="start_dispatch", status_code=202)
 def start_dispatch(
-    request: DispatchRequest, agents: Agents, background: BackgroundTasks
+    request: DispatchRequest, claim_agents: ClaimAgentsDep, background: BackgroundTasks
 ) -> dict[str, str]:
     """Start a dispatch with up to N claim agents at once."""
     take_the_run()
     create = partial(
-        api.create_dispatch, request.agents, agents.model, agents.reasoning_effort
+        api.create_dispatch,
+        request.agents,
+        claim_agents.model,
+        claim_agents.reasoning_effort,
     )
-    background.add_task(work_in_background, create, agents)
-    return {"status": "accepted"}
+    background.add_task(work_in_background, create, claim_agents)
+    return ACCEPTED
 
 
-def resume(claim_id: str, agents: ClaimAgents) -> None:
+def resume(claim_id: str, claim_agents: ClaimAgents) -> None:
     """Carry a signed-off claim on, keeping dispatches away from it meanwhile."""
     try:
-        carry_on(claim_id, None, agents.new_graph())
+        carry_on(claim_id, None, claim_agents.new_graph())
     finally:
         resuming.discard(claim_id)
 
 
 @app.post("/api/claims/{claim_id}/resume", operation_id="resume_claim", status_code=202)
 def resume_claim(
-    claim_id: str, agents: Agents, background: BackgroundTasks
+    claim_id: str, claim_agents: ClaimAgentsDep, background: BackgroundTasks
 ) -> dict[str, str]:
     """Pick a claim back up after a handler's sign-off, without waiting for it."""
     claim = api.get_claim(claim_id)
@@ -141,13 +153,15 @@ def resume_claim(
     if claim["status"] != api.Status.IN_PROGRESS or not signed_off:
         raise HTTPException(409, f"Claim {claim_id} has no sign-off waiting to be paid")
     resuming.add(claim_id)
-    background.add_task(resume, claim_id, agents)
-    return {"status": "accepted"}
+    background.add_task(resume, claim_id, claim_agents)
+    return ACCEPTED
 
 
 @app.post("/api/evaluations", operation_id="start_evaluation", status_code=202)
 def start_evaluation(
-    request: EvaluationRequest, agents: Agents, background: BackgroundTasks
+    request: EvaluationRequest,
+    claim_agents: ClaimAgentsDep,
+    background: BackgroundTasks,
 ) -> dict[str, str]:
     """Start an evaluation with up to N claim agents at once."""
     take_the_run()
@@ -156,8 +170,8 @@ def start_evaluation(
         request.evaluation_set,
         request.tiny,
         request.agents,
-        agents.model,
-        agents.reasoning_effort,
+        claim_agents.model,
+        claim_agents.reasoning_effort,
     )
-    background.add_task(work_in_background, create, agents)
-    return {"status": "accepted"}
+    background.add_task(work_in_background, create, claim_agents)
+    return ACCEPTED

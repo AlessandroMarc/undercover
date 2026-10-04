@@ -32,6 +32,8 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.pool import NullPool
 from sqlalchemy.schema import CreateSchema
 
+from backend.models import EvaluationSet, Status
+
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 DOCUMENTS = {"policy_wording": "Policy wording", "claims_manual": "Claims manual"}
@@ -183,7 +185,7 @@ work_times = Table(
 )
 
 
-class LabelledSet(NamedTuple):
+class LabeledSet(NamedTuple):
     """A set of claims our handlers have decided: the table its claims are kept in,
     and the file in data/evals/ with the handlers' decisions, which only seeding
     reads."""
@@ -192,9 +194,11 @@ class LabelledSet(NamedTuple):
     decisions: str
 
 
-LABELLED_SETS = {
-    "evaluation": LabelledSet(claims, "evals/decisions.json"),
-    "held_out": LabelledSet(held_out_claims, "evals/held_out_decisions.json"),
+LABELED_SETS = {
+    EvaluationSet.EVALUATION: LabeledSet(claims, "evals/decisions.json"),
+    EvaluationSet.HELD_OUT: LabeledSet(
+        held_out_claims, "evals/held_out_decisions.json"
+    ),
 }
 
 claim_view = (
@@ -292,7 +296,7 @@ def waiting_claim(record: dict[str, Any], **columns: Any) -> dict[str, Any]:
         "claim_id": record["claim_id"],
         "customer_id": record["customer_id"],
         "record": record,
-        "status": "waiting",
+        "status": Status.WAITING,
         "thread_id": None,
         "attempts": 0,
     } | columns
@@ -355,18 +359,18 @@ def seed(db: Engine) -> dict[str, int]:
             [{"policy_id": p["policy_id"], "record": p} for p in policy_rows],
         )
         connection.execute(insert(claims), [waiting_claim(c) for c in claim_rows])
-        labelled = seed_evaluations(connection)
+        labeled = seed_evaluations(connection)
     return {
         "claims": len(claim_rows),
         "policies": len(policy_rows),
         "customers": len(customer_rows),
         "handlers": len(handler_rows),
-    } | labelled
+    } | labeled
 
 
 def seed_evaluations(connection: Connection) -> dict[str, int]:
     """Store the held-out claims, out of the queue, and the handlers' decisions on
-    both labelled sets, and count them."""
+    both labeled sets, and count them."""
     held_out = load(HELD_OUT_CLAIMS)
     connection.execute(
         insert(held_out_claims),
@@ -380,8 +384,8 @@ def seed_evaluations(connection: Connection) -> dict[str, int]:
             "payout": d["payout"],
             "tiny": d["tiny"],
         }
-        for evaluation_set, labelled in LABELLED_SETS.items()
-        for d in load(labelled.decisions)
+        for evaluation_set, labeled in LABELED_SETS.items()
+        for d in load(labeled.decisions)
     ]
     connection.execute(insert(handler_decisions), rows)
     return {"held_out_claims": len(held_out), "handler_decisions": len(rows)}

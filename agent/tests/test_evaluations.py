@@ -1,23 +1,19 @@
-"""Evaluations: the agent's service works copies of a labelled set's claims, and the
+"""Evaluations: the agent's service works copies of a labeled set's claims, and the
 backend scores them."""
 
 import threading
+from functools import partial
 
 import pytest
+from langchain_core.exceptions import ModelRateLimitError
 from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import api, harness, service
+from agent import api, dispatcher, harness
 from agent.tests.dispatching import dispatch
 from agent.tests.queue_setup import leave_waiting
-from agent.tests.records import (
-    claim_of,
-    evaluations,
-    latest_dispatch,
-    model_calls_of,
-    queue,
-    work_times_of,
-)
-from agent.tests.stubs import decide, stub, swarm
+from agent.tests.records import claim_of, evaluations, model_calls_of, work_times_of
+from agent.tests.stubs import decide, graph_on, stub, swarm
+from backend.tests.run_requests import latest_dispatch, queue
 
 TINY = ["CLM-1007", "CLM-1015", "CLM-1017", "CLM-1020", "CLM-1021"]
 
@@ -84,28 +80,19 @@ def test_a_dispatch_leaves_an_evaluations_copies_alone(client):
     ],
 )
 def test_a_dispatch_and_an_evaluation_never_run_together(
-    client, serve, monkeypatch, first, second
+    client, serve, held_run, first, second
 ):
     leave_waiting()
-    working, release = threading.Event(), threading.Event()
-    work_run = service.work_run
-
-    def held(run, new_graph, resuming):
-        working.set()
-        release.wait(5)
-        return work_run(run, new_graph, resuming)
-
-    monkeypatch.setattr(service, "work_run", held)
     agent = serve(stub())
     body = {"evaluation_set": "held_out", "tiny": True, "agents": 3}
     running = threading.Thread(target=agent.post, args=(first,), kwargs={"json": body})
     running.start()
-    assert working.wait(5)
+    assert held_run.working.wait(5)
 
     refused = agent.post(second, json=body)
     assert refused.status_code == 409
     assert refused.json()["detail"] == "A dispatch or an evaluation is already running"
-    release.set()
+    held_run.release.set()
     running.join(5)
     assert not running.is_alive()
 
@@ -118,3 +105,20 @@ def test_the_agent_cant_read_the_scoreboard():
         "start_evaluation",
     ):
         assert not hasattr(api, name)
+
+
+def test_a_copy_still_failing_after_its_tries_is_left_in_progress(client):
+    run = api.create_evaluation("held_out", True, 5, "stub", "none")
+    limited = ModelRateLimitError("429 Too Many Requests")
+    scripts = {copy["claim_id"]: decide("refer", 0) for copy in run["claims"]}
+    model = swarm(scripts | {"CLM-1104-E1": [limited] * 3})
+    work = partial(
+        harness.work_in_run, new_graph=partial(graph_on, model, InMemorySaver())
+    )
+    reports = dispatcher.work_run(run, work, set())
+
+    assert (
+        "CLM-1104-E1  left in progress: ModelRateLimitError: 429 Too Many Requests"
+        in reports
+    )
+    assert claim_of(client, "CLM-1104-E1")["status"] == "in_progress"

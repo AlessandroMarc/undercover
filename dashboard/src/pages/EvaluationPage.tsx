@@ -26,7 +26,7 @@ export function EvaluationPage() {
 
   return (
     <>
-      <div className="claim-heading">
+      <div className="title-row">
         <h1>Evaluation #{evaluation.number}</h1>
         <RunChip status={evaluation.status} />
       </div>
@@ -53,7 +53,7 @@ function MeasuresPanel({
         {MEASURES.map(({ label, show }) => (
           <div key={label}>
             <dt>{label}</dt>
-            <dd className="mono">{show(evaluation.measures) ?? "Running"}</dd>
+            <dd className="mono">{show(evaluation.measures)}</dd>
           </div>
         ))}
       </dl>

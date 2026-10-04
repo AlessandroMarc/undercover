@@ -9,14 +9,9 @@ from agent import api, harness
 from agent.tests.dispatching import dispatch, new_dispatch
 from agent.tests.failures import fail_once
 from agent.tests.queue_setup import leave_waiting
-from agent.tests.records import (
-    claim_of,
-    latest_dispatch,
-    model_calls_of,
-    steps_of,
-    work_times_of,
-)
+from agent.tests.records import claim_of, model_calls_of, steps_of, work_times_of
 from agent.tests.stubs import USAGE, call, decide, graph_on, stub, swarm
+from backend.tests.run_requests import latest_dispatch
 
 
 def test_each_model_call_and_spell_of_work_is_recorded(client):

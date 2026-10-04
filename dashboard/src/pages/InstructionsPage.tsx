@@ -14,8 +14,8 @@ export function InstructionsPage() {
         that hands out the claims follows fixed rules and has no instructions.
         This page is read only.
       </p>
-      <section className="panel" aria-label="Working a claim">
-        <h2>Working a claim</h2>
+      <section className="panel" aria-labelledby="claim-instructions-title">
+        <h2 id="claim-instructions-title">Working a claim</h2>
         {data ? (
           <pre className="instructions">{data.claim}</pre>
         ) : (

@@ -11,6 +11,7 @@ from backend.tests.claim_requests import (
     start,
 )
 from backend.tests.run_requests import (
+    create_dispatch,
     create_evaluation,
     finish,
     get_evaluation,
@@ -184,10 +185,7 @@ def test_a_wrongful_approval_costs_its_payout_whether_or_not_it_was_paid(client)
 
 def test_an_unknown_evaluation(client):
     assert client.get("/api/evaluations/run-9").status_code == 404
-    dispatch = client.post(
-        "/api/runs/dispatches",
-        json={"agents": 3, "model": "openai/gpt-6-luna", "reasoning_effort": "low"},
-    ).json()
+    dispatch = create_dispatch(client).json()
     assert client.get(f"/api/evaluations/{dispatch['run_id']}").status_code == 404
 
 

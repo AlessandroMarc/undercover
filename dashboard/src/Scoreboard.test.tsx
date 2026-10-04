@@ -264,13 +264,30 @@ it("links to the Scoreboard from the header", async () => {
   expect(link.getAttribute("href")).toBe("/scoreboard");
 });
 
-it("says a running evaluation's run time isn't known yet", async () => {
+it("shows a stopped evaluation as stopped, with no run time", async () => {
+  const stopped = { ...running, status: "stopped" as const };
   stubApi({
-    "GET /api/evaluations/run-9": { ...scored, measures: running.measures },
+    "GET /api/evaluations": [stopped],
+    "GET /api/evaluations/run-9": {
+      ...scored,
+      status: "stopped",
+      measures: running.measures,
+    },
   });
+  renderAt("/scoreboard");
+  const [row] = (await (await panel("Evaluations")).findAllByRole("row")).slice(
+    1,
+  );
+  expect(within(row).getByText("Stopped")).toBeDefined();
+  expect(within(row).getAllByRole("cell").at(-1)?.textContent).toBe(
+    "Not finished",
+  );
+  cleanup();
+
   renderAt("/scoreboard/run-9");
   const measures = await panel("Measures");
+  expect(screen.getByText("Stopped")).toBeDefined();
   expect(measures.getByText("Run time").nextSibling?.textContent).toBe(
-    "Running",
+    "Not finished",
   );
 });

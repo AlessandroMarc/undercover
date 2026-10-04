@@ -1,17 +1,46 @@
 """The shapes of the backend's requests and responses."""
 
+from enum import StrEnum
 from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
-Status = Literal[
-    "waiting", "in_progress", "waiting_for_sign_off", "decided", "left_for_handler"
-]
-DecisionKind = Literal["approve", "decline", "refer"]
+
+class Status(StrEnum):
+    """Where a claim stands."""
+
+    WAITING = "waiting"
+    IN_PROGRESS = "in_progress"
+    WAITING_FOR_SIGN_OFF = "waiting_for_sign_off"
+    DECIDED = "decided"
+    LEFT_FOR_HANDLER = "left_for_handler"
+
+
+class DecisionKind(StrEnum):
+    APPROVE = "approve"
+    DECLINE = "decline"
+    REFER = "refer"
+
+
+class RunKind(StrEnum):
+    DISPATCH = "dispatch"
+    EVALUATION = "evaluation"
+
+
+class RunStatus(StrEnum):
+    RUNNING = "running"
+    FINISHED = "finished"
+    STOPPED = "stopped"
+
+
+class EvaluationSet(StrEnum):
+    """The labeled sets of claims an evaluation can work."""
+
+    EVALUATION = "evaluation"
+    HELD_OUT = "held_out"
+
+
 StepKind = Literal["tool_call", "tool_result", "message", "reading", "error"]
-RunKind = Literal["dispatch", "evaluation"]
-RunStatus = Literal["running", "finished", "stopped"]
-EvaluationSet = Literal["evaluation", "held_out"]
 MOST_AGENTS = 25
 Agents = Annotated[
     int, Field(ge=1, le=MOST_AGENTS, description="How many claim agents work at once")
@@ -182,9 +211,9 @@ class DecisionRequest(BaseModel):
     @model_validator(mode="after")
     def check_payout(self) -> Self:
         """An approval pays something, and a decline or referral pays nothing."""
-        if self.decision == "approve" and self.payout == 0:
+        if self.decision == DecisionKind.APPROVE and self.payout == 0:
             raise ValueError("An approval needs a payout above zero")
-        if self.decision != "approve" and self.payout != 0:
+        if self.decision != DecisionKind.APPROVE and self.payout != 0:
             raise ValueError("A decline or a referral has a payout of zero")
         return self
 
@@ -293,7 +322,7 @@ class StartDispatchRequest(BaseModel):
     agents: Agents
 
 
-class DispatchRequest(StartDispatchRequest):
+class CreateDispatchRequest(StartDispatchRequest):
     model: str = Field(min_length=1)
     reasoning_effort: str = Field(min_length=1, description="Or none")
 
@@ -348,7 +377,7 @@ class StartEvaluationRequest(StartDispatchRequest):
     tiny: bool = Field(description="Only the set's five tiny claims")
 
 
-class EvaluationRequest(StartEvaluationRequest, DispatchRequest):
+class CreateEvaluationRequest(StartEvaluationRequest, CreateDispatchRequest):
     pass
 
 
@@ -383,4 +412,4 @@ class ScoredEvaluation(Evaluation):
 
 
 class Accepted(BaseModel):
-    status: Literal["accepted"]
+    status: Literal["accepted"] = "accepted"

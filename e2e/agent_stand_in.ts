@@ -3,9 +3,10 @@
 // or evaluation it asks it to start, listing them at /api/started.
 import { createServer, type ServerResponse } from "node:http";
 import { json } from "node:stream/consumers";
+import type { Started } from "./api";
 
 const resumed: string[] = [];
-const started: { path: string; body: unknown }[] = [];
+const started: Started[] = [];
 const STARTS = new Set(["/api/dispatches", "/api/evaluations"]);
 
 function reply(response: ServerResponse, status: number, body: unknown) {

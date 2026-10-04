@@ -204,6 +204,8 @@ export interface Instructions {
   claim: string;
 }
 
+export const REQUEST_FAILED = "The request failed";
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -220,7 +222,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       detail?: unknown;
     };
     const detail =
-      typeof body.detail === "string" ? body.detail : "The request failed";
+      typeof body.detail === "string" ? body.detail : REQUEST_FAILED;
     throw new ApiError(response.status, detail);
   }
   return (await response.json()) as T;

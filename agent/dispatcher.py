@@ -3,6 +3,7 @@ evaluation, handing each claim to a claim agent of its own, up to N at once."""
 
 import logging
 import operator
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated, Any, TypedDict, cast
 
@@ -41,13 +42,21 @@ class ClaimToWork(TypedDict):
     claim_id: str
 
 
+# Works one claim in a run, given the claim's id and the run's, and reports how it
+# ended: the harness's work_in_run, bound to how its claim graphs are built.
+WorkInRun = Callable[[str, str], str]
+
+# How a claim still failing after its tries is left, by the kind of run.
+LEFT = {api.DISPATCH: "left for the next dispatch", api.EVALUATION: "left in progress"}
+
+
 @dataclass
 class DispatchContext:
-    """The run being worked, how to build a claim graph, and the claims the service
-    is resuming after a sign-off, which a dispatch leaves alone."""
+    """The run being worked, how to work one of its claims, and the claims the
+    service is resuming after a sign-off, which a dispatch leaves alone."""
 
     run: dict[str, Any]
-    new_graph: harness.NewGraph
+    work: WorkInRun
     resuming: set[str]
 
 
@@ -81,16 +90,16 @@ def hand_over(claim_id: str, context: DispatchContext) -> str:
     """Hand a claim to the claim agent, and once more if its first attempt failed and
     put it back in the queue."""
     run_id = context.run["run_id"]
-    report = harness.work_in_run(claim_id, run_id, context.new_graph)
+    report = context.work(claim_id, run_id)
     if api.get_claim(claim_id)["status"] == api.Status.WAITING:
-        report = harness.work_in_run(claim_id, run_id, context.new_graph)
+        report = context.work(claim_id, run_id)
     return report
 
 
 def work_claim(state: ClaimToWork, runtime: Runtime[DispatchContext]) -> dict[str, Any]:
     """Work one claim. A rate limit or a timeout goes to the RetryPolicy, which waits
-    and carries the claim on, until the last try leaves it in progress for the next
-    dispatch. No error stops the dispatch."""
+    and carries the claim on, until the last try leaves it in progress. No error
+    stops the dispatch."""
     claim_id = state["claim_id"]
     try:
         report = hand_over(claim_id, runtime.context)
@@ -99,7 +108,8 @@ def work_claim(state: ClaimToWork, runtime: Runtime[DispatchContext]) -> dict[st
         attempt = cast(ExecutionInfo, runtime.execution_info).node_attempt
         if isinstance(error, harness.TRANSIENT) and attempt < RETRY.max_attempts:
             raise
-        report = f"{claim_id}  left for the next dispatch: {describe(error)}"
+        left = LEFT[runtime.context.run["kind"]]
+        report = f"{claim_id}  {left}: {describe(error)}"
         log.warning(report)
     return {"reports": [report]}
 
@@ -122,12 +132,10 @@ def dispatcher() -> Dispatcher:
     return builder.compile()
 
 
-def work_run(
-    run: dict[str, Any], new_graph: harness.NewGraph, resuming: set[str]
-) -> list[str]:
+def work_run(run: dict[str, Any], work: WorkInRun, resuming: set[str]) -> list[str]:
     """Work a dispatch or an evaluation with up to its N claim agents at once, and
     return each claim's report line."""
-    context = DispatchContext(run, new_graph, resuming)
+    context = DispatchContext(run, work, resuming)
     config: RunnableConfig = {"max_concurrency": run["agents"]}
     state = dispatcher().invoke({"claims": [], "reports": []}, config, context=context)
     return state["reports"]

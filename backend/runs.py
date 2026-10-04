@@ -11,7 +11,7 @@ from sqlalchemy import Connection, RowMapping, delete, func, insert, select, upd
 
 from backend import agent_service, scoring
 from backend.database import (
-    LABELLED_SETS,
+    LABELED_SETS,
     claim_view,
     claims,
     handler_decisions,
@@ -23,41 +23,35 @@ from backend.database import (
     work_times,
 )
 from backend.dependencies import Database
+from backend.lookups import CLAIM_NOT_FOUND, RUN_NOT_FOUND, run_row
 from backend.models import (
     Accepted,
-    DispatchRequest,
+    CreateDispatchRequest,
+    CreateEvaluationRequest,
+    DecisionKind,
     DispatchSummary,
     Evaluation,
-    EvaluationRequest,
     EvaluationSet,
     HeldPayout,
     Run,
     RunClaim,
     RunClaimsRequest,
+    RunKind,
+    RunStatus,
     ScoredClaim,
     ScoredEvaluation,
     StartDispatchRequest,
     StartEvaluationRequest,
+    Status,
 )
 from backend.views import to_summary
 
-RUN_NOT_FOUND = "Run {run_id} not found"
-RUNNING, FINISHED, STOPPED = "running", "finished", "stopped"
-DISPATCH, EVALUATION = "dispatch", "evaluation"
 # A copy's id is its original's with the evaluation's number, such as CLM-1104-E7.
 COPY_ID = "{claim_id}-E{number}"
 # Claims a dispatch left that the next one picks up.
-UNFINISHED = {"in_progress", "waiting"}
+UNFINISHED = {Status.IN_PROGRESS, Status.WAITING}
 
 router = APIRouter()
-
-
-def run_row(db: Connection, run_id: str) -> RowMapping:
-    """Return one run's row, or raise a 404."""
-    row = db.execute(select(runs).where(runs.c.run_id == run_id)).mappings().first()
-    if row is None:
-        raise HTTPException(404, RUN_NOT_FOUND.format(run_id=run_id))
-    return row
 
 
 def claims_of(db: Connection, run_id: str) -> list[RowMapping]:
@@ -136,7 +130,7 @@ def find_run(db: Connection, run_id: str) -> Run:
 def running_run(db: Connection, run_id: str) -> RowMapping:
     """Return a run's row if it is still running, or raise a 404 or a 409."""
     row = run_row(db, run_id)
-    if row["status"] != RUNNING:
+    if row["status"] != RunStatus.RUNNING:
         raise HTTPException(409, f"Run {run_id} is not running")
     return row
 
@@ -149,27 +143,31 @@ def summarize(rows: list[RowMapping]) -> DispatchSummary:
     decided = [row for row in rows if row["status"] not in UNFINISHED]
     decisions = [row["decision"] for row in decided]
     return DispatchSummary(
-        approved=decisions.count("approve"),
-        declined=decisions.count("decline"),
-        referred=decisions.count("refer"),
+        approved=decisions.count(DecisionKind.APPROVE),
+        declined=decisions.count(DecisionKind.DECLINE),
+        referred=decisions.count(DecisionKind.REFER),
         waiting_for_sign_off=[
             HeldPayout(claim_id=row["claim_id"], payout=row["payout"])
             for row in rows
-            if row["status"] == "waiting_for_sign_off"
+            if row["status"] == Status.WAITING_FOR_SIGN_OFF
         ],
         left_for_handler=[
-            row["claim_id"] for row in rows if row["status"] == "left_for_handler"
+            row["claim_id"] for row in rows if row["status"] == Status.LEFT_FOR_HANDLER
         ],
         unfinished=unfinished,
     )
 
 
-def new_run(db: Connection, kind: str, fields: dict[str, Any]) -> RowMapping:
+def new_run(db: Connection, kind: RunKind, fields: dict[str, Any]) -> RowMapping:
     """Record a new run, running, and return its row."""
     run_id = str(uuid.uuid4())
     db.execute(
         insert(runs).values(
-            run_id=run_id, kind=kind, **fields, status=RUNNING, started_at=now()
+            run_id=run_id,
+            kind=kind,
+            **fields,
+            status=RunStatus.RUNNING,
+            started_at=now(),
         )
     )
     return run_row(db, run_id)
@@ -191,14 +189,14 @@ def put_claims(db: Connection, run_id: str, claim_ids: list[str]) -> None:
 def originals(
     db: Connection, evaluation_set: EvaluationSet, tiny: bool
 ) -> list[dict[str, Any]]:
-    """Return the records of a labelled set's claims, all or its tiny ones, oldest
+    """Return the records of a labeled set's claims, all or its tiny ones, oldest
     submitted first."""
     chosen = select(handler_decisions.c.claim_id).where(
         handler_decisions.c.evaluation_set == evaluation_set
     )
     if tiny:
         chosen = chosen.where(handler_decisions.c.tiny)
-    table = LABELLED_SETS[evaluation_set].claims
+    table = LABELED_SETS[evaluation_set].claims
     records = db.execute(select(table.c.record).where(table.c.claim_id.in_(chosen)))
     return sorted(records.scalars(), key=lambda r: (r["submitted_on"], r["claim_id"]))
 
@@ -232,7 +230,7 @@ def make_copies(
 def evaluation_row(db: Connection, run_id: str) -> RowMapping:
     """Return an evaluation's row, or raise a 404."""
     row = run_row(db, run_id)
-    if row["kind"] != EVALUATION:
+    if row["kind"] != RunKind.EVALUATION:
         raise HTTPException(404, RUN_NOT_FOUND.format(run_id=run_id))
     return row
 
@@ -252,7 +250,7 @@ def scored_claim(row: RowMapping, expected: scoring.Answer) -> ScoredClaim:
 
 
 def expected_answers(db: Connection) -> dict[tuple[str, str], scoring.Answer]:
-    """Return the handlers' decisions on every labelled claim, by set and claim."""
+    """Return the handlers' decisions on every labeled claim, by set and claim."""
     rows = db.execute(select(handler_decisions)).mappings()
     return {
         (d["evaluation_set"], d["claim_id"]): scoring.Answer(d["decision"], d["payout"])
@@ -280,16 +278,16 @@ def score(
 
 
 @router.post("/api/runs/dispatches", operation_id="create_dispatch")
-def create_dispatch(request: DispatchRequest, db: Database) -> Run:
+def create_dispatch(request: CreateDispatchRequest, db: Database) -> Run:
     """Record a new dispatch, running, with its claims to come."""
-    row = new_run(db, DISPATCH, request.model_dump())
+    row = new_run(db, RunKind.DISPATCH, request.model_dump())
     return find_run(db, row["run_id"])
 
 
 @router.post("/api/runs/evaluations", operation_id="create_evaluation")
-def create_evaluation(request: EvaluationRequest, db: Database) -> Run:
+def create_evaluation(request: CreateEvaluationRequest, db: Database) -> Run:
     """Record a new evaluation, running, with a waiting copy of each of its claims."""
-    row = new_run(db, EVALUATION, request.model_dump())
+    row = new_run(db, RunKind.EVALUATION, request.model_dump())
     records = originals(db, request.evaluation_set, request.tiny)
     put_claims(db, row["run_id"], make_copies(db, row, records))
     return find_run(db, row["run_id"])
@@ -298,12 +296,12 @@ def create_evaluation(request: EvaluationRequest, db: Database) -> Run:
 @router.put("/api/runs/{run_id}/claims", operation_id="record_run_claims")
 def record_run_claims(run_id: str, request: RunClaimsRequest, db: Database) -> Run:
     """Record the claims a running dispatch works, in order."""
-    if running_run(db, run_id)["kind"] != DISPATCH:
+    if running_run(db, run_id)["kind"] != RunKind.DISPATCH:
         raise HTTPException(409, f"Run {run_id} is not a dispatch")
     known = select(claims.c.claim_id).where(claims.c.claim_id.in_(request.claim_ids))
     missing = set(request.claim_ids) - set(db.execute(known).scalars())
     if missing:
-        raise HTTPException(404, f"Claim {min(missing)} not found")
+        raise HTTPException(404, CLAIM_NOT_FOUND.format(claim_id=min(missing)))
     put_claims(db, run_id, request.claim_ids)
     return find_run(db, run_id)
 
@@ -313,12 +311,12 @@ def finish_run(run_id: str, db: Database) -> Run:
     """Finish a running run; a dispatch gets its summary from its claims as they are."""
     row = running_run(db, run_id)
     summary = None
-    if row["kind"] == DISPATCH:
+    if row["kind"] == RunKind.DISPATCH:
         summary = summarize(claims_of(db, run_id)).model_dump()
     db.execute(
         update(runs)
         .where(runs.c.run_id == run_id)
-        .values(status=FINISHED, finished_at=now(), summary=summary)
+        .values(status=RunStatus.FINISHED, finished_at=now(), summary=summary)
     )
     return find_run(db, run_id)
 
@@ -328,8 +326,8 @@ def stop_runs(db: Database) -> list[str]:
     """Mark every running run stopped, as the agent's service does when it starts."""
     query = (
         update(runs)
-        .where(runs.c.status == RUNNING)
-        .values(status=STOPPED)
+        .where(runs.c.status == RunStatus.RUNNING)
+        .values(status=RunStatus.STOPPED)
         .returning(runs.c.run_id)
     )
     return list(db.execute(query).scalars())
@@ -340,7 +338,7 @@ def get_latest_dispatch(db: Database) -> Run | None:
     """Get the newest dispatch with its claims, cost, time and summary, or nothing."""
     query = (
         select(runs.c.run_id)
-        .where(runs.c.kind == DISPATCH)
+        .where(runs.c.kind == RunKind.DISPATCH)
         .order_by(runs.c.number.desc())
         .limit(1)
     )
@@ -352,13 +350,17 @@ def get_latest_dispatch(db: Database) -> Run | None:
 def start_dispatch(request: StartDispatchRequest) -> Accepted:
     """Ask the agent's service to start a dispatch with up to N claim agents at once."""
     agent_service.start_dispatch(request.agents)
-    return Accepted(status="accepted")
+    return Accepted()
 
 
 @router.get("/api/evaluations", operation_id="list_evaluations")
 def list_evaluations(db: Database) -> list[Evaluation]:
     """List every evaluation, newest first, with its measures."""
-    query = select(runs).where(runs.c.kind == EVALUATION).order_by(runs.c.number.desc())
+    query = (
+        select(runs)
+        .where(runs.c.kind == RunKind.EVALUATION)
+        .order_by(runs.c.number.desc())
+    )
     expected = expected_answers(db)
     return [
         Evaluation(**score(db, row, expected).model_dump(exclude={"claims"}))
@@ -376,4 +378,4 @@ def get_evaluation(run_id: str, db: Database) -> ScoredEvaluation:
 def start_evaluation(request: StartEvaluationRequest) -> Accepted:
     """Ask the agent's service to start an evaluation with up to N claim agents."""
     agent_service.start_evaluation(request.evaluation_set, request.tiny, request.agents)
-    return Accepted(status="accepted")
+    return Accepted()

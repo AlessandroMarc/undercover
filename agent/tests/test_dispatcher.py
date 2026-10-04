@@ -15,13 +15,9 @@ from agent import api, dispatcher, harness
 from agent.tests.dispatching import dispatch
 from agent.tests.failures import fail_once
 from agent.tests.queue_setup import leave_waiting
-from agent.tests.records import (
-    claim_of,
-    latest_dispatch,
-    steps_of,
-    work_times_of,
-)
+from agent.tests.records import claim_of, steps_of, work_times_of
 from agent.tests.stubs import call, decide, graph_on, record, stub, swarm
+from backend.tests.run_requests import latest_dispatch
 
 
 def tries_on(model, claim_id):

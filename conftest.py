@@ -1,5 +1,7 @@
 """Fixtures for the backend's and the agent's tests."""
 
+import json
+
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -36,11 +38,13 @@ def agent_answers(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def agent_calls(agent_answers):
-    """Stand in for the agent's service, keeping the path of each call to it."""
-    calls: list[str] = []
+    """Stand in for the agent's service, keeping the path and the body of each call
+    to it, or None for a call with no body."""
+    calls: list[tuple[str, object]] = []
 
     def accept(request: httpx.Request) -> httpx.Response:
-        calls.append(request.url.path)
+        body = json.loads(request.content) if request.content else None
+        calls.append((request.url.path, body))
         return httpx.Response(202, json={"status": "accepted"})
 
     agent_answers(accept)

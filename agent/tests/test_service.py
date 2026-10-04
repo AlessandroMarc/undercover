@@ -8,9 +8,10 @@ from langgraph.checkpoint.memory import InMemorySaver
 from agent import harness, service
 from agent.tests.dispatching import new_dispatch
 from agent.tests.queue_setup import leave_waiting
-from agent.tests.records import claim_of, latest_dispatch, steps_of
+from agent.tests.records import claim_of, steps_of
 from agent.tests.stubs import decide, graph_on, stub, swarm
 from api_rules import rule_breaks
+from backend.tests.run_requests import latest_dispatch
 
 
 def resume(agent, claim_id):
@@ -35,7 +36,7 @@ def test_a_sign_off_picks_the_claim_up_and_pays_it_once(
     model, saver = stub(*decide("approve", 1350.0)), InMemorySaver()
     harness.work_claim("CLM-1002", None, graph_on(model, saver))
     signed = client.post("/api/claims/CLM-1002/sign-off", json={"handler_id": "HND-01"})
-    assert agent_calls == ["/api/claims/CLM-1002/resume"]
+    assert agent_calls == [("/api/claims/CLM-1002/resume", None)]
 
     agent = serve(model, saver)
     response = resume(agent, "CLM-1002")
@@ -125,29 +126,23 @@ def test_a_dispatch_has_1_to_25_claim_agents(client, serve, agents):
     assert latest_dispatch(client) is None
 
 
-def test_one_run_at_a_time(client, serve, monkeypatch):
+def test_one_run_at_a_time(client, serve, held_run):
     leave_waiting()
-    working, release = threading.Event(), threading.Event()
-    work_run = service.work_run
-
-    def held(run, new_graph, resuming):
-        working.set()
-        release.wait(5)
-        return work_run(run, new_graph, resuming)
-
-    monkeypatch.setattr(service, "work_run", held)
     agent = serve(stub())
     first = threading.Thread(target=start_dispatch, args=(agent, 3))
     first.start()
-    assert working.wait(5)
+    assert held_run.working.wait(5)
+    [resuming] = held_run.resuming
+    assert resuming is service.resuming
 
     refused = start_dispatch(agent, 3)
     assert refused.status_code == 409
     assert refused.json()["detail"] == "A dispatch or an evaluation is already running"
     assert latest_dispatch(client)["number"] == 1
 
-    release.set()
+    held_run.release.set()
     first.join(5)
+    assert not first.is_alive()
     assert latest_dispatch(client)["status"] == "finished"
     assert start_dispatch(agent, 3).status_code == 202
     assert latest_dispatch(client)["number"] == 2
@@ -157,7 +152,7 @@ def test_a_dispatch_whose_dispatcher_fails_is_stopped(client, serve, monkeypatch
     leave_waiting()
     work_run = service.work_run
 
-    def broken(run, new_graph, resuming):
+    def broken(run, work, resuming):
         raise RuntimeError("The backend is unreachable")
 
     monkeypatch.setattr(service, "work_run", broken)

@@ -1,6 +1,13 @@
 import { Fragment, useState } from "react";
 import { api, type DispatchSummary, type Run, type RunClaim } from "../api";
-import { agentsAtOnce, duration, modelCost, money, time } from "../format";
+import {
+  agentsAtOnce,
+  dateTime,
+  duration,
+  modelCost,
+  money,
+  time,
+} from "../format";
 import { REFRESH_MS, useLoad } from "../useLoad";
 import { DecisionChip, RunChip, StatusChip } from "./Chips";
 import { ClaimLink } from "./ClaimLink";
@@ -13,8 +20,8 @@ export function DispatchPanel() {
   const [agents, setAgents] = useState(FIRST_CHOICE);
 
   return (
-    <section className="panel run" aria-labelledby="dispatch-title">
-      <div className="run-heading">
+    <section className="panel dispatch" aria-labelledby="dispatch-title">
+      <div className="title-row">
         <h2 id="dispatch-title">Dispatch</h2>
         {dispatch && <RunChip status={dispatch.status} />}
       </div>
@@ -36,8 +43,9 @@ function DispatchDetails({ dispatch }: Readonly<{ dispatch: Run }>) {
     <>
       <p className="muted small">
         <span className="mono">#{dispatch.number}</span> started at{" "}
-        {time(dispatch.started_at)} with {agentsAtOnce(dispatch.agents)}. Model
-        cost <span className="mono">{modelCost(dispatch.model_cost)}</span>
+        {dateTime(dispatch.started_at)} with {agentsAtOnce(dispatch.agents)}.
+        Model cost{" "}
+        <span className="mono">{modelCost(dispatch.model_cost)}</span>
         {dispatch.seconds !== null && (
           <>
             , took <span className="mono">{duration(dispatch.seconds)}</span>
@@ -72,6 +80,7 @@ function RunClaims({ claims }: Readonly<{ claims: RunClaim[] }>) {
             <th>State</th>
             <th>Decision</th>
             <th className="num">Payout</th>
+            <th>Started</th>
             <th className="num">Time</th>
             <th className="num">Model cost</th>
           </tr>
@@ -91,6 +100,9 @@ function RunClaims({ claims }: Readonly<{ claims: RunClaim[] }>) {
               </td>
               <td className="num mono">
                 {claim.payout !== null && money(claim.payout)}
+              </td>
+              <td className="nowrap">
+                {claim.started_at && time(claim.started_at)}
               </td>
               <td className="num mono">{duration(claim.seconds)}</td>
               <td className="num mono">{modelCost(claim.model_cost)}</td>

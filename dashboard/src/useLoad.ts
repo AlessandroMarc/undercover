@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ApiError } from "./api";
+import { ApiError, REQUEST_FAILED } from "./api";
 
 export const REFRESH_MS = 2000;
 
@@ -32,10 +32,7 @@ export function useLoad<T>(
           if (active)
             setLoaded((previous) => ({
               data: previous.data,
-              error:
-                error instanceof Error
-                  ? error
-                  : new Error("The request failed"),
+              error: error instanceof Error ? error : new Error(REQUEST_FAILED),
             }));
         },
       );

@@ -173,7 +173,7 @@ def test_a_sign_off_is_recorded_and_the_agent_is_told(client, agent_calls):
     assert claim["decision"]["signed_off_by"] == "Dana Whitfield"
     signed_off_at = claim["decision"]["signed_off_at"]
     assert signed_off_at
-    assert agent_calls == ["/api/claims/CLM-1002/resume"]
+    assert agent_calls == [("/api/claims/CLM-1002/resume", None)]
 
     assert pay(client, "CLM-1002", 1300.0).status_code == 422
     paid = pay(client, "CLM-1002", 1350.0).json()
@@ -184,7 +184,7 @@ def test_a_sign_off_is_recorded_and_the_agent_is_told(client, agent_calls):
         signed_off_at,
     )
     assert sign_off(client, "CLM-1002", "HND-01").status_code == 409
-    assert agent_calls == ["/api/claims/CLM-1002/resume"]
+    assert agent_calls == [("/api/claims/CLM-1002/resume", None)]
 
 
 def test_the_agent_is_told_only_once_the_sign_off_is_saved(client, agent_answers):

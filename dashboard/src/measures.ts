@@ -1,11 +1,13 @@
 import type { Measures } from "./api";
 import { duration, modelCost, money, percent } from "./format";
 
-// The scoreboard's measures, in order, each with how it's shown, or null
-// while it can't be known yet.
+// A run that's running or stopped has no run time.
+const NOT_FINISHED = "Not finished";
+
+// The scoreboard's measures, in order, each with how it's shown.
 export const MEASURES: {
   label: string;
-  show: (measures: Measures) => string | null;
+  show: (measures: Measures) => string;
 }[] = [
   { label: "Decision accuracy", show: (m) => percent(m.decision_accuracy) },
   { label: "Accuracy", show: (m) => percent(m.accuracy) },
@@ -18,6 +20,7 @@ export const MEASURES: {
   { label: "Time per claim", show: (m) => duration(m.seconds_per_claim) },
   {
     label: "Run time",
-    show: (m) => (m.run_seconds === null ? null : duration(m.run_seconds)),
+    show: (m) =>
+      m.run_seconds === null ? NOT_FINISHED : duration(m.run_seconds),
   },
 ];

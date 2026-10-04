@@ -1,23 +1,25 @@
 import pytest
 
-from backend.models import ScoredClaim
+from backend.models import DecisionKind, ScoredClaim, Status
 from backend.scoring import Answer, answer_of, is_right, measures, mistake_cost
+
+APPROVE, DECLINE, REFER = DecisionKind.APPROVE, DecisionKind.DECLINE, DecisionKind.REFER
 
 
 @pytest.mark.parametrize(
     ("answer", "expected", "cost"),
     [
-        (Answer("approve", 420), Answer("approve", 420), 0),
-        (Answer("decline", 0), Answer("decline", 0), 0),
-        (Answer("refer", 0), Answer("refer", 0), 0),
-        (Answer("decline", 0), Answer("approve", 420), 1500),
-        (Answer("decline", 0), Answer("refer", 0), 1500),
-        (Answer("approve", 1240), Answer("decline", 0), 1240),
-        (Answer("approve", 300), Answer("refer", 0), 300),
-        (Answer("refer", 0), Answer("approve", 825), 50),
-        (Answer("refer", 0), Answer("decline", 0), 50),
-        (Answer("approve", 1240), Answer("approve", 240), 1000),
-        (Answer("approve", 200), Answer("approve", 250), 50),
+        (Answer(APPROVE, 420), Answer(APPROVE, 420), 0),
+        (Answer(DECLINE, 0), Answer(DECLINE, 0), 0),
+        (Answer(REFER, 0), Answer(REFER, 0), 0),
+        (Answer(DECLINE, 0), Answer(APPROVE, 420), 1500),
+        (Answer(DECLINE, 0), Answer(REFER, 0), 1500),
+        (Answer(APPROVE, 1240), Answer(DECLINE, 0), 1240),
+        (Answer(APPROVE, 300), Answer(REFER, 0), 300),
+        (Answer(REFER, 0), Answer(APPROVE, 825), 50),
+        (Answer(REFER, 0), Answer(DECLINE, 0), 50),
+        (Answer(APPROVE, 1240), Answer(APPROVE, 240), 1000),
+        (Answer(APPROVE, 200), Answer(APPROVE, 250), 50),
     ],
 )
 def test_the_cost_of_a_mistake(answer, expected, cost):
@@ -25,16 +27,16 @@ def test_the_cost_of_a_mistake(answer, expected, cost):
 
 
 def test_a_payout_within_a_dollar_is_right():
-    expected = Answer("approve", 250)
-    assert is_right(Answer("approve", 250.99), expected)
-    assert is_right(Answer("approve", 249.01), expected)
-    assert not is_right(Answer("approve", 251.01), expected)
-    assert not is_right(Answer("decline", 0), Answer("refer", 0))
+    expected = Answer(APPROVE, 250)
+    assert is_right(Answer(APPROVE, 250.99), expected)
+    assert is_right(Answer(APPROVE, 249.01), expected)
+    assert not is_right(Answer(APPROVE, 251.01), expected)
+    assert not is_right(Answer(DECLINE, 0), Answer(REFER, 0))
 
 
 def test_a_claim_the_agent_didnt_decide_counts_as_a_referral():
-    assert answer_of(None, None) == Answer("refer", 0)
-    assert answer_of("approve", 420) == Answer("approve", 420)
+    assert answer_of(None, None) == Answer(REFER, 0)
+    assert answer_of(APPROVE, 420) == Answer(APPROVE, 420)
 
 
 def scored(decision, payout, handler_decision, handler_payout, seconds):
@@ -49,7 +51,7 @@ def scored(decision, payout, handler_decision, handler_payout, seconds):
         summary="A suitcase",
         amount_claimed=300,
         submitted_on="2026-08-14",
-        status="decided" if decision else "waiting",
+        status=Status.DECIDED if decision else Status.WAITING,
         decision=decision,
         payout=payout,
         started_at=None,
@@ -66,10 +68,10 @@ def scored(decision, payout, handler_decision, handler_payout, seconds):
 
 def test_the_measures_of_an_evaluation():
     claims = [
-        scored("approve", 420, "approve", 420, 30),
-        scored("approve", 500, "approve", 420, 50),
-        scored("decline", 0, "refer", 0, 40),
-        scored(None, None, "approve", 100, 0),
+        scored(APPROVE, 420, APPROVE, 420, 30),
+        scored(APPROVE, 500, APPROVE, 420, 50),
+        scored(DECLINE, 0, REFER, 0, 40),
+        scored(None, None, APPROVE, 100, 0),
     ]
     result = measures(claims, model_cost=0.08, run_seconds=95)
     assert result.decision_accuracy == 0.5

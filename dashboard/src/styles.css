@@ -227,26 +227,25 @@ p {
   overflow-x: auto;
 }
 
-.run {
+.dispatch {
   margin-bottom: 20px;
 }
 
-.run-heading {
+/* A heading with its status chip beside it. */
+.title-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin-bottom: 4px;
 }
 
-.run-heading h2 {
+.title-row h1,
+.title-row h2 {
   margin: 0;
 }
 
-.run h3 {
-  margin: 16px 0 8px;
-}
-
-.run .table {
+.dispatch .table {
   margin-top: 12px;
 }
 
@@ -277,6 +276,10 @@ p {
 
 .dispatch-summary {
   margin-top: 4px;
+}
+
+.dispatch-summary h3 {
+  margin: 16px 0 8px;
 }
 
 .dispatch-summary ul {

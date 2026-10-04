@@ -1,8 +1,6 @@
 """Starting dispatches and evaluations, which the backend asks the agent's service for
 and records nothing of."""
 
-import json
-
 import httpx
 import pytest
 from sqlalchemy import func, select
@@ -21,24 +19,11 @@ def runs_recorded():
         return db.execute(select(func.count()).select_from(runs)).scalar_one()
 
 
-@pytest.fixture
-def asked(agent_answers):
-    """Accept each start as the agent's service does, keeping its path and body."""
-    starts = []
-
-    def accept(request: httpx.Request) -> httpx.Response:
-        starts.append((request.url.path, json.loads(request.content)))
-        return httpx.Response(202, json={"status": "accepted"})
-
-    agent_answers(accept)
-    return starts
-
-
-def test_start_a_dispatch(client, asked):
+def test_start_a_dispatch(client, agent_calls):
     response = start_dispatch(client, 7)
     assert response.status_code == 202
     assert response.json() == {"status": "accepted"}
-    assert asked == [("/api/dispatches", {"agents": 7})]
+    assert agent_calls == [("/api/dispatches", {"agents": 7})]
     assert runs_recorded() == 0
 
 
@@ -61,9 +46,9 @@ def test_a_service_that_isnt_running(client, agent_answers):
 
 
 @pytest.mark.parametrize("agents", [0, 26])
-def test_a_dispatch_has_1_to_25_claim_agents(client, asked, agents):
+def test_a_dispatch_has_1_to_25_claim_agents(client, agent_calls, agents):
     assert start_dispatch(client, agents).status_code == 422
-    assert asked == []
+    assert agent_calls == []
 
 
 def test_any_other_failure_of_the_service_is_an_error(client, agent_answers):
@@ -90,10 +75,10 @@ def start_evaluation(client, evaluation_set="held_out", tiny=True, agents=5):
     )
 
 
-def test_start_an_evaluation(client, asked):
+def test_start_an_evaluation(client, agent_calls):
     response = start_evaluation(client, "evaluation", False, 25)
     assert response.status_code == 202
-    assert asked == [
+    assert agent_calls == [
         (
             "/api/evaluations",
             {"evaluation_set": "evaluation", "tiny": False, "agents": 25},
@@ -120,7 +105,7 @@ def test_an_evaluation_is_refused_as_a_dispatch_is(client, agent_answers):
     ("evaluation_set", "agents"), [("harder", 5), ("held_out", 0), ("held_out", 26)]
 )
 def test_an_evaluation_needs_a_known_set_and_1_to_25_agents(
-    client, asked, evaluation_set, agents
+    client, agent_calls, evaluation_set, agents
 ):
     assert start_evaluation(client, evaluation_set, agents=agents).status_code == 422
-    assert asked == []
+    assert agent_calls == []

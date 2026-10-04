@@ -297,11 +297,9 @@ it("lets a handler sign off a held payment", async () => {
   expect(waiting.textContent).toBe(
     `Signed off by Dana Whitfield at ${time(decidedAt)}. Waiting for the agent to pay it.`,
   );
-  const [, init] = fetchMock.mock.calls.find(
-    ([path, request]) =>
-      path === "/api/claims/CLM-1002/sign-off" && request?.method === "POST",
-  ) ?? [undefined, undefined];
-  expect(init?.body).toBe(JSON.stringify({ handler_id: "HND-01" }));
+  expect(sent(fetchMock, "POST /api/claims/CLM-1002/sign-off")).toEqual([
+    { handler_id: "HND-01" },
+  ]);
 });
 
 it("shows why a sign-off was refused", async () => {

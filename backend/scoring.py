@@ -22,7 +22,7 @@ def answer_of(decision: DecisionKind | None, payout: float | None) -> Answer:
     """Return the agent's answer on a claim, with a claim it didn't decide counted
     as a referral."""
     if decision is None:
-        return Answer("refer", 0)
+        return Answer(DecisionKind.REFER, 0)
     return Answer(decision, payout or 0)
 
 
@@ -40,12 +40,12 @@ def mistake_cost(answer: Answer, expected: Answer) -> float:
     wrongful decline, a wrongful approval's payout whether or not it was paid, a
     needless referral, or the difference on a right approval."""
     if answer.decision == expected.decision:
-        if answer.decision == "approve":
+        if answer.decision == DecisionKind.APPROVE:
             return abs(answer.payout - expected.payout)
         return 0
-    if answer.decision == "decline":
+    if answer.decision == DecisionKind.DECLINE:
         return WRONGFUL_DECLINE
-    if answer.decision == "approve":
+    if answer.decision == DecisionKind.APPROVE:
         return answer.payout
     return NEEDLESS_REFERRAL
 
@@ -58,7 +58,9 @@ def measures(
     agreed = [
         answer_of(c.decision, c.payout).decision == c.handler_decision for c in claims
     ]
-    referred = [answer_of(c.decision, c.payout).decision == "refer" for c in claims]
+    referred = [
+        answer_of(c.decision, c.payout).decision == DecisionKind.REFER for c in claims
+    ]
     return Measures(
         decision_accuracy=sum(agreed) / count,
         accuracy=sum(c.right for c in claims) / count,

@@ -22,6 +22,7 @@ DocumentName = Literal["policy_wording", "claims_manual"]
 StepKind = Literal["tool_call", "tool_result", "message", "reading"]
 EvaluationSet = Literal["evaluation", "held_out"]
 RunKind = Literal["dispatch", "evaluation"]
+DISPATCH: RunKind = "dispatch"
 EVALUATION: RunKind = "evaluation"
 Benefit = Literal[
     "trip_cancellation",
