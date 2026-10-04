@@ -438,22 +438,28 @@ As built:
 
 Seed the handlers' reasons and references. Add `judge.py`, `grades`, grading in `finish_run`, the grade and the judge cost in the measures, and the judge's stand-in. On the dashboard, the grade on the Scoreboard, and each claim's grade and checks on an evaluation's page.
 
-- [ ] pytest: seeding stores a reason and a reference for all 50 handlers' decisions, and `get_claim` and every response the claim agent's client can read still hold neither
-- [ ] pytest, with the judge's client on an httpx `MockTransport` answering like the Decisions endpoint: the request goes to `JUDGE_URL` plus `/api/alpha/decisions` with Jev's id, the handler's decision, reason and reference, the agent's decision, reason and section, and the three questions, and a 10 second timeout
-- [ ] pytest: a score of 1.5 with probabilities 0.4, 0.05, 0.2 and 0.35 for F, C, B and A gives the letter F, not the B the score would round to; the two checks keep their probabilities, and 0.5 or more shows as yes
-- [ ] pytest: a judge that times out, answers 500 or answers without the grade leaves the claim not graded after one request, and the evaluation still finishes
-- [ ] pytest: an evaluation of 25 copies with a judge that takes 0.3 seconds a call finishes in under 2 seconds, and each graded copy has its grade and cost in `grades`
-- [ ] pytest: an undecided copy gets F, a score of 0 and both checks at 0 without a call to the judge; an evaluation's grade averages its graded copies and leaves out a copy not graded; with none graded it has no grade; its judge cost is the sum of its grades' costs and isn't in its model cost
-- [ ] pytest: with `MODEL_NAME` set, finishing an evaluation makes no call to the judge and every copy is not graded
-- [ ] pytest: a stopped evaluation isn't graded
-- [ ] `grep -rn "typesafe/jev\|JUDGE_URL\|alpha.decisions" backend agent --include=*.py` finds them only in `backend/judge.py` and its tests
-- [ ] The shared OpenAPI test passes
-- [ ] vitest: the Scoreboard shows the grade as 2.20 or "Not graded"; an evaluation's page shows each claim's grade chip and score, Same grounds and Same section as Yes or No, and the judge cost
-- [ ] e2e: the evaluation played out through the API in `e2e/scoreboard.spec.ts` shows the stand-in's grade, 2.20 with B on each decided copy and F on the undecided one, and the judge cost
-- [ ] Live, judge only: `uv run --env-file .env python -c` calling the judge on the lab's four explanations for CLM-1001 gives the handler's own reason a B or an A, the reason from CLM-1003 an F, the vague one a C or an F, and the clearer one an A, for under $0.001 in all
-- [ ] `npm run seed`, then Supabase MCP: `handler_decisions` has 50 rows with a reason and a reference, and `grades` is empty
-- [ ] Live, judge only: an evaluation of the held-out set's tiny claims, played out with curl with one copy left undecided, finishes in under 20 seconds with four copies graded by Jev and the undecided one an F, and the Scoreboard and its page show the grade and the chips in light and dark mode. `npm run seed` afterwards
-- [ ] `npm run check` passes
+- [x] pytest: seeding stores a reason and a reference for all 50 handlers' decisions, and `get_claim` and every response the claim agent's client can read still hold neither
+- [x] pytest, with the judge's client on an httpx `MockTransport` answering like the Decisions endpoint: the request goes to `JUDGE_URL` plus `/api/alpha/decisions` with Jev's id, the handler's decision, reason and reference, the agent's decision, reason and section, and the three questions, and a 10 second timeout
+- [x] pytest: a score of 1.5 with probabilities 0.4, 0.05, 0.2 and 0.35 for F, C, B and A gives the letter F, not the B the score would round to; the two checks keep their probabilities, and 0.5 or more shows as yes
+- [x] pytest: a judge that times out, answers 500 or answers without the grade leaves the claim not graded after one request, and the evaluation still finishes
+- [x] pytest: an evaluation of 25 copies with a judge that takes 0.3 seconds a call finishes in under 2 seconds, and each graded copy has its grade and cost in `grades`
+- [x] pytest: an undecided copy gets F, a score of 0 and both checks at 0 without a call to the judge; an evaluation's grade averages its graded copies and leaves out a copy not graded; with none graded it has no grade; its judge cost is the sum of its grades' costs and isn't in its model cost
+- [x] pytest: with `MODEL_NAME` set, finishing an evaluation makes no call to the judge and every copy is not graded
+- [x] pytest: a stopped evaluation isn't graded
+- [x] `grep -rn "typesafe/jev\|JUDGE_URL\|alpha.decisions" backend agent --include=*.py` finds them only in `backend/judge.py` and its tests
+- [x] The shared OpenAPI test passes
+- [x] vitest: the Scoreboard shows the grade as 2.20 or "Not graded"; an evaluation's page shows each claim's grade chip and score, Same grounds and Same section as Yes or No, and the judge cost
+- [x] e2e: the evaluation played out through the API in `e2e/scoreboard.spec.ts` shows the stand-in's grade, 2.20 with B on each decided copy and F on the undecided one, and the judge cost
+- [x] Live, judge only: `uv run --env-file .env python -c` calling the judge on the lab's four explanations for CLM-1001 gives the handler's own reason a B or an A, the reason from CLM-1003 an F, the vague one a C or an F, and the clearer one an A, for under $0.001 in all
+- [x] `npm run seed`, then Supabase MCP: `handler_decisions` has 50 rows with a reason and a reference, and `grades` is empty
+- [x] Live, judge only: an evaluation of the held-out set's tiny claims, played out with curl with one copy left undecided, finishes in under 20 seconds with four copies graded by Jev and the undecided one an F, and the Scoreboard and its page show the grade and the chips in light and dark mode. `npm run seed` afterwards
+- [x] `npm run check` passes
+
+As built:
+
+- Live, on the lab's four explanations for CLM-1001, Jev gave the handler's own reason B (2.02), the reason from CLM-1003 F (0.01), the vague one C (0.77) and the clearer one A (2.92), for $0.0001 in all.
+- Live, the held-out set's tiny claims, played out with curl with four copies referred and one left undecided, finished in 0.5 seconds: Jev graded the four (all F, since the handlers decided otherwise) and the undecided one got an F without a call, with a judge cost of $0.0001.
+- A column of panels now keeps a wide table scrolling inside its panel, which the evaluation page needed at 1280 pixels.
 
 ## Phase 5: The improver
 

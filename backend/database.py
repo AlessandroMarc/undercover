@@ -148,6 +148,8 @@ handler_decisions = Table(
     Column("decision", Text, nullable=False),
     Column("payout", Float, nullable=False),
     Column("tiny", Boolean, nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("reference", Text, nullable=False),
 )
 decisions = Table(
     "decisions",
@@ -215,6 +217,19 @@ runs = Table(
     Column("started_at", Text, nullable=False),
     Column("finished_at", Text),
     Column("summary", JSON),
+)
+# The judge's grade of each copy in an evaluation, empty when it couldn't grade it.
+grades = Table(
+    "grades",
+    metadata,
+    Column("claim_id", Text, ForeignKey("claims.claim_id"), primary_key=True),
+    Column("run_id", Text, ForeignKey("runs.run_id"), nullable=False),
+    Column("score", Float),
+    Column("letter", Text),
+    Column("same_grounds", Float),
+    Column("same_section", Float),
+    Column("cost", Float, nullable=False),
+    Column("graded_at", Text, nullable=False),
 )
 run_claims = Table(
     "run_claims",
@@ -482,6 +497,8 @@ def seed_evaluations(connection: Connection) -> dict[str, int]:
             "decision": d["decision"],
             "payout": d["payout"],
             "tiny": d["tiny"],
+            "reason": d["reason"],
+            "reference": d["reference"],
         }
         for evaluation_set, labeled in LABELED_SETS.items()
         for d in load(labeled.decisions)

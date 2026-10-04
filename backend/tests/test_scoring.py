@@ -1,6 +1,6 @@
 import pytest
 
-from backend.models import DecisionKind, ScoredClaim, Status
+from backend.models import ClaimGrade, DecisionKind, Letter, ScoredClaim, Status
 from backend.scoring import Answer, answer_of, is_right, measures, mistake_cost
 
 APPROVE, DECLINE, REFER = DecisionKind.APPROVE, DecisionKind.DECLINE, DecisionKind.REFER
@@ -39,7 +39,9 @@ def test_a_claim_the_agent_didnt_decide_counts_as_a_referral():
     assert answer_of(APPROVE, 420) == Answer(APPROVE, 420)
 
 
-def scored(decision, payout, handler_decision, handler_payout, seconds):
+def scored(agent, handler, seconds, grade=None):
+    """A copy decided as the agent did, beside the handler's decision."""
+    (decision, payout), (handler_decision, handler_payout) = agent, handler
     answer, expected = (
         answer_of(decision, payout),
         Answer(handler_decision, handler_payout),
@@ -63,15 +65,16 @@ def scored(decision, payout, handler_decision, handler_payout, seconds):
         handler_payout=handler_payout,
         right=is_right(answer, expected),
         mistake_cost=mistake_cost(answer, expected),
+        grade=grade,
     )
 
 
 def test_the_measures_of_an_evaluation():
     claims = [
-        scored(APPROVE, 420, APPROVE, 420, 30),
-        scored(APPROVE, 500, APPROVE, 420, 50),
-        scored(DECLINE, 0, REFER, 0, 40),
-        scored(None, None, APPROVE, 100, 0),
+        scored((APPROVE, 420), (APPROVE, 420), 30),
+        scored((APPROVE, 500), (APPROVE, 420), 50),
+        scored((DECLINE, 0), (REFER, 0), 40),
+        scored((None, None), (APPROVE, 100), 0),
     ]
     result = measures(claims, model_cost=0.08, run_seconds=95)
     assert result.decision_accuracy == 0.5
@@ -81,3 +84,19 @@ def test_the_measures_of_an_evaluation():
     assert result.model_cost_per_claim == pytest.approx(0.02)
     assert result.seconds_per_claim == 30
     assert result.run_seconds == 95
+    assert result.grade is None
+
+
+def grade_of(score):
+    return ClaimGrade(
+        score=score, letter=Letter.B, same_grounds=1, same_section=1, cost=0
+    )
+
+
+def test_the_grade_averages_the_claims_the_judge_graded():
+    claims = [
+        scored((APPROVE, 420), (APPROVE, 420), 30, grade_of(3.0)),
+        scored((APPROVE, 420), (APPROVE, 420), 30, grade_of(1.5)),
+        scored((APPROVE, 420), (APPROVE, 420), 30),
+    ]
+    assert measures(claims, model_cost=0, run_seconds=None).grade == 2.25

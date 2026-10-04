@@ -229,14 +229,16 @@ p {
 .decision-approve,
 .run-finished,
 .score-right,
-.version-kept {
+.version-kept,
+.grade-A {
   background: var(--sea-green);
 }
 
 .status-in_progress,
 .decision-refer,
 .run-running,
-.version-under_test {
+.version-under_test,
+.grade-C {
   background: var(--marigold);
 }
 
@@ -248,14 +250,16 @@ p {
 }
 
 .status-waiting,
-.version-current {
+.version-current,
+.grade-B {
   background: var(--cerulean);
   color: #ffffff;
 }
 
 .status-left_for_handler,
 .step-failed,
-.score-miss {
+.score-miss,
+.grade-F {
   background: var(--raspberry);
   color: #ffffff;
 }
@@ -394,8 +398,10 @@ p {
   align-items: start;
 }
 
+/* A column of panels, which a wide table scrolls inside rather than widens. */
 .column {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
 }
 

@@ -48,6 +48,11 @@ export function percent(share: number): string {
   return `${String(Math.round(share * 100))}%`;
 }
 
+// The judge's grade, from 0 to 3, to two places: 2.20.
+export function grade(score: number): string {
+  return score.toFixed(2);
+}
+
 export function modelCost(amount: number): string {
   return modelDollars.format(amount);
 }

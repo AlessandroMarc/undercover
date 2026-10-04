@@ -1,6 +1,7 @@
 """The lab's measures of the agent's work against the handlers' decisions: whether an
 answer is right, what a mistake costs, and an evaluation's measures."""
 
+from statistics import fmean
 from typing import NamedTuple
 
 from backend.models import DecisionKind, Measures, ScoredClaim
@@ -50,6 +51,13 @@ def mistake_cost(answer: Answer, expected: Answer) -> float:
     return NEEDLESS_REFERRAL
 
 
+def average_grade(claims: list[ScoredClaim]) -> float | None:
+    """Return the judge's average grade over the claims it graded, or nothing when
+    it graded none."""
+    scores = [c.grade.score for c in claims if c.grade]
+    return fmean(scores) if scores else None
+
+
 def measures(
     claims: list[ScoredClaim], model_cost: float, run_seconds: float | None
 ) -> Measures:
@@ -66,6 +74,7 @@ def measures(
         accuracy=sum(c.right for c in claims) / count,
         cost_of_mistakes=sum(c.mistake_cost for c in claims),
         straight_through=sum(not r for r in referred) / count,
+        grade=average_grade(claims),
         model_cost_per_claim=model_cost / count,
         seconds_per_claim=sum(c.seconds for c in claims) / count,
         run_seconds=run_seconds,

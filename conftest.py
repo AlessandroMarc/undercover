@@ -6,10 +6,12 @@ import httpx
 import jwt
 import pytest
 from fastapi.testclient import TestClient
+from openrouter import OpenRouter
 
-from backend import agent_service, auth
+from backend import agent_service, auth, judge
 from backend.database import engine, seed
 from backend.main import app
+from backend.tests.judging import JUDGE_URL, answer
 from backend.tests.sign_in import PUBLIC_KEYS, SUPABASE_URL
 
 
@@ -31,6 +33,36 @@ def supabase_keys(monkeypatch):
     monkeypatch.setenv("VITE_SUPABASE_URL", SUPABASE_URL)
     monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", lambda _: PUBLIC_KEYS)
     auth.public_keys.cache_clear()
+
+
+@pytest.fixture
+def judge_answers(monkeypatch):
+    """Answer the judge's calls with a handler of the test's own, in place of
+    OpenRouter's Decisions endpoint, at the tests' own address."""
+    monkeypatch.setattr(judge, "JUDGE_URL", JUDGE_URL)
+
+    def answer_with(handler):
+        transport = httpx.MockTransport(handler)
+        stand_in = OpenRouter(
+            api_key="test-key", client=httpx.Client(transport=transport)
+        )
+        monkeypatch.setattr(judge, "client", lambda: stand_in)
+
+    return answer_with
+
+
+@pytest.fixture(autouse=True)
+def judged(judge_answers):
+    """Stand in for the judge, grading every explanation a B, and keep the body of
+    each request to it."""
+    requests: list[dict] = []
+
+    def grade(request: httpx.Request) -> httpx.Response:
+        requests.append(json.loads(request.content))
+        return httpx.Response(200, json=answer())
+
+    judge_answers(grade)
+    return requests
 
 
 @pytest.fixture

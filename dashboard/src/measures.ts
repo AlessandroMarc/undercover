@@ -1,8 +1,9 @@
 import type { Measures } from "./api";
-import { duration, modelCost, money, percent } from "./format";
+import { duration, grade, modelCost, money, percent } from "./format";
 
 // A run that's running or stopped has no run time.
 const NOT_FINISHED = "Not finished";
+export const NOT_GRADED = "Not graded";
 
 // The scoreboard's measures, in order, each with how it's shown.
 export const MEASURES: {
@@ -13,6 +14,10 @@ export const MEASURES: {
   { label: "Accuracy", show: (m) => percent(m.accuracy) },
   { label: "Cost of mistakes", show: (m) => money(m.cost_of_mistakes) },
   { label: "Straight-through", show: (m) => percent(m.straight_through) },
+  {
+    label: "Grade",
+    show: (m) => (m.grade === null ? NOT_GRADED : grade(m.grade)),
+  },
   {
     label: "Model cost per claim",
     show: (m) => modelCost(m.model_cost_per_claim),

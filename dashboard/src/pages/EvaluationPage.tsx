@@ -3,6 +3,7 @@ import { useParams } from "react-router";
 import { api, type ScoredClaim, type ScoredEvaluation } from "../api";
 import { DecisionPayout, RightChip, RunChip } from "../components/Chips";
 import { ClaimLink } from "../components/ClaimLink";
+import { Check, GradeChip } from "../components/Judging";
 import { StateMessage } from "../components/StateMessage";
 import { ModelName } from "../components/ModelName";
 import {
@@ -51,7 +52,11 @@ function MeasuresPanel({
           model={evaluation.model}
           reasoningEffort={evaluation.reasoning_effort}
         />
-        . Started {dateTime(evaluation.started_at)}.
+        , version {evaluation.version}. Started{" "}
+        {dateTime(evaluation.started_at)}. Model cost{" "}
+        <span className="mono">{modelCost(evaluation.model_cost)}</span> and
+        judge cost{" "}
+        <span className="mono">{modelCost(evaluation.judge_cost)}</span>.
       </p>
       <dl className="facts measures">
         {MEASURES.map(({ label, show }) => (
@@ -70,7 +75,8 @@ function ScoredClaims({ claims }: Readonly<{ claims: ScoredClaim[] }>) {
     <section className="panel" aria-labelledby="claims-title">
       <h2 id="claims-title">Claims</h2>
       <p className="muted small">
-        A claim the agent didn't decide counts as a referral.
+        A claim the agent didn't decide counts as a referral, and the judge
+        gives it an F.
       </p>
       <div className="table-scroll">
         <table className="table">
@@ -81,6 +87,9 @@ function ScoredClaims({ claims }: Readonly<{ claims: ScoredClaim[] }>) {
               <th>Handler</th>
               <th>Agent</th>
               <th>Score</th>
+              <th>Grade</th>
+              <th>Same grounds</th>
+              <th>Same section</th>
               <th className="num">Mistake cost</th>
               <th className="num">Model cost</th>
               <th className="num">Time</th>
@@ -112,6 +121,15 @@ function ScoredClaims({ claims }: Readonly<{ claims: ScoredClaim[] }>) {
                 </td>
                 <td>
                   <RightChip right={claim.right} />
+                </td>
+                <td>
+                  <GradeChip grade={claim.grade} />
+                </td>
+                <td>
+                  {claim.grade && <Check chance={claim.grade.same_grounds} />}
+                </td>
+                <td>
+                  {claim.grade && <Check chance={claim.grade.same_section} />}
                 </td>
                 <td className="num mono">{money(claim.mistake_cost)}</td>
                 <td className="num mono">{modelCost(claim.model_cost)}</td>

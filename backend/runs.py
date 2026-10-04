@@ -3,15 +3,17 @@ service works. Only the service writes them, under /api/runs; the dashboard read
 them under /api/dispatches and /api/evaluations."""
 
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import Connection, RowMapping, delete, insert, select, update
 
-from backend import agent_service
+from backend import agent_service, judge
 from backend.database import (
     LABELED_SETS,
     claims,
+    grades,
     handler_decisions,
     now,
     run_claims,
@@ -19,6 +21,7 @@ from backend.database import (
     waiting_claim,
 )
 from backend.dependencies import Database, signed_in_handler
+from backend.free_models import free_model
 from backend.lookups import (
     CLAIM_NOT_FOUND,
     RUN_NOT_FOUND,
@@ -28,11 +31,13 @@ from backend.lookups import (
 )
 from backend.models import (
     Accepted,
+    ClaimGrade,
     DecisionKind,
     DispatchSummary,
     Evaluation,
     EvaluationSet,
     HeldPayout,
+    Letter,
     Run,
     RunClaimsRequest,
     RunKind,
@@ -52,6 +57,16 @@ from backend.scoreboard import (
 
 # A copy's id is its original's with the evaluation's number, such as CLM-1104-E7.
 COPY_ID = "{claim_id}-E{number}"
+# The grade of a copy the agent didn't decide, which the judge isn't asked about.
+UNDECIDED = ClaimGrade(score=0, letter=Letter.F, same_grounds=0, same_section=0, cost=0)
+# The record of a copy the judge couldn't grade.
+NOT_GRADED = {
+    "score": None,
+    "letter": None,
+    "same_grounds": None,
+    "same_section": None,
+    "cost": 0,
+}
 # Claims a dispatch left that the next one picks up.
 UNFINISHED = {Status.IN_PROGRESS, Status.WAITING}
 
@@ -181,6 +196,54 @@ def evaluation_row(db: Connection, run_id: str) -> RowMapping:
     return row
 
 
+def handler_explanations(
+    db: Connection, evaluation_set: EvaluationSet
+) -> dict[str, judge.Explanation]:
+    """Return the handlers' decisions on a labeled set's claims, with their reasons
+    and references, by claim."""
+    query = select(handler_decisions).where(
+        handler_decisions.c.evaluation_set == evaluation_set
+    )
+    return {
+        d["claim_id"]: judge.Explanation(d["decision"], d["reason"], d["reference"])
+        for d in db.execute(query).mappings()
+    }
+
+
+def grade_copy(copy: RowMapping, handler: judge.Explanation) -> ClaimGrade | None:
+    """Grade a copy's explanation against the handler's: an F without asking the
+    judge for a copy the agent didn't decide."""
+    if copy["decision"] is None:
+        return UNDECIDED
+    agent = judge.Explanation(copy["decision"], copy["reason"], copy["section"])
+    return judge.grade(handler, agent)
+
+
+def grade_copies(db: Connection, row: RowMapping) -> None:
+    """Grade an evaluation's copies, in parallel, one thread for each, and record
+    the grades. With a free model there's no judge, so nothing is graded."""
+    if free_model():
+        return
+    handlers = handler_explanations(db, row["evaluation_set"])
+    copies = claims_of(db, row["run_id"])
+    with ThreadPoolExecutor(max_workers=len(copies)) as pool:
+        graded = list(
+            pool.map(lambda copy: grade_copy(copy, handlers[copy["copy_of"]]), copies)
+        )
+    db.execute(
+        insert(grades),
+        [
+            {
+                "claim_id": copy["claim_id"],
+                "run_id": row["run_id"],
+                **(grade.model_dump() if grade else NOT_GRADED),
+                "graded_at": now(),
+            }
+            for copy, grade in zip(copies, graded, strict=True)
+        ],
+    )
+
+
 @router.post("/api/runs/dispatches", operation_id="create_dispatch")
 def create_dispatch(request: StartDispatchRequest, db: Database) -> Run:
     """Record a new dispatch on the current version, with its claims to come."""
@@ -212,16 +275,21 @@ def record_run_claims(run_id: str, request: RunClaimsRequest, db: Database) -> R
 
 @router.post("/api/runs/{run_id}/finish", operation_id="finish_run")
 def finish_run(run_id: str, db: Database) -> Run:
-    """Finish a running run; a dispatch gets its summary from its claims as they are."""
+    """Finish a running run: a dispatch gets its summary, an evaluation its grades."""
     row = running_run(db, run_id)
     summary = None
     if row["kind"] == RunKind.DISPATCH:
         summary = summarize(claims_of(db, run_id)).model_dump()
-    db.execute(
+    else:
+        grade_copies(db, row)
+    # A run stopped while its copies were graded stays stopped.
+    finished = db.execute(
         update(runs)
-        .where(runs.c.run_id == run_id)
+        .where(runs.c.run_id == run_id, runs.c.status == RunStatus.RUNNING)
         .values(status=RunStatus.FINISHED, finished_at=now(), summary=summary)
     )
+    if finished.rowcount == 0:
+        raise HTTPException(409, f"Run {run_id} is not running")
     return find_run(db, run_id)
 
 

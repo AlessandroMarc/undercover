@@ -135,7 +135,8 @@ function EvaluationRow({ evaluation }: Readonly<{ evaluation: Evaluation }>) {
         </Link>
         <p>{evaluationSetName(evaluation.evaluation_set, evaluation.size)}</p>
         <p className="muted small">
-          {dateTime(evaluation.started_at)}, {agentsAtOnce(evaluation.agents)},{" "}
+          {dateTime(evaluation.started_at)}, version {evaluation.version},{" "}
+          {agentsAtOnce(evaluation.agents)},{" "}
           <ModelName
             model={evaluation.model}
             reasoningEffort={evaluation.reasoning_effort}

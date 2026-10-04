@@ -56,6 +56,15 @@ class VersionStatus(StrEnum):
     UNDER_TEST = "under_test"
 
 
+class Letter(StrEnum):
+    """The judge's levels, from different grounds to better expressed."""
+
+    F = "F"
+    C = "C"
+    B = "B"
+    A = "A"
+
+
 class DiffLineKind(StrEnum):
     CONTEXT = "context"
     ADDED = "added"
@@ -444,14 +453,28 @@ class Measures(BaseModel):
     accuracy: float
     cost_of_mistakes: float
     straight_through: float
+    grade: float | None = Field(description="From 0 to 3, or null with none graded")
     model_cost_per_claim: float
     seconds_per_claim: float
     run_seconds: float | None
 
 
+class ClaimGrade(BaseModel):
+    """The judge's grade of an explanation: its score from 0 to 3, the likeliest
+    level, and the chances of the same grounds and the same section as the
+    handler's."""
+
+    score: float
+    letter: Letter
+    same_grounds: float
+    same_section: float
+    cost: float
+
+
 class ScoredClaim(RunClaim):
     copy_of: str
     reason: str | None
+    grade: ClaimGrade | None
     handler_decision: DecisionKind
     handler_payout: float
     right: bool
@@ -462,6 +485,7 @@ class Evaluation(RunDetails):
     evaluation_set: EvaluationSet
     tiny: bool
     size: int
+    judge_cost: float
     measures: Measures
 
 

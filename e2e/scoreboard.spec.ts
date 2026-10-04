@@ -54,13 +54,34 @@ test("the Scoreboard shows an evaluation played out through the API", async ({
   const evaluation = `Evaluation #${String(number)}`;
   const row = page.getByRole("row", { name: new RegExp(`^${evaluation} `) });
   await expect(row.getByText("Finished")).toBeVisible();
-  for (const shown of ["80%", "40%", "$620.00", "60%", "$0.0125", "40 s"])
+  for (const shown of [
+    "80%",
+    "40%",
+    "$620.00",
+    "60%",
+    "1.76",
+    "$0.0125",
+    "40 s",
+  ])
     await expect(row.getByText(shown, { exact: true })).toBeVisible();
   await expect(row.getByRole("cell").last()).toHaveText(/^\d+ s$/);
 
   await row.getByRole("link", { name: evaluation }).click();
   await expect(page).toHaveURL(`/scoreboard/${run_id}`);
+  await expect(page.getByText(/judge cost/)).toContainText(
+    "judge cost $0.0001",
+  );
   const scored = page.getByRole("region", { name: "Claims" });
+  for (const original of ["CLM-1104", "CLM-1106", "CLM-1110", "CLM-1112"]) {
+    const row = scored.getByRole("row", { name: new RegExp(copyOf(original)) });
+    await expect(row.getByText("B", { exact: true })).toBeVisible();
+    await expect(row.getByText("2.20", { exact: true })).toBeVisible();
+  }
+  const undecided = scored.getByRole("row", {
+    name: new RegExp(copyOf("CLM-1114")),
+  });
+  await expect(undecided.getByText("F", { exact: true })).toBeVisible();
+  await expect(undecided.getByText("0.00", { exact: true })).toBeVisible();
   for (const original of ["CLM-1106", "CLM-1112", "CLM-1114"])
     await expect(
       scored

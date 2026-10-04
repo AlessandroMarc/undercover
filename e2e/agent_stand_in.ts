@@ -1,18 +1,14 @@
 // Stands in for the agent's service in the end-to-end tests: it accepts each claim
 // the backend asks it to resume, listing them at /api/resumed, and each dispatch
 // or evaluation it asks it to start, listing them at /api/started.
-import { createServer, type ServerResponse } from "node:http";
+import { createServer } from "node:http";
 import { json } from "node:stream/consumers";
 import type { Started } from "./api";
+import { reply } from "./stand_in.ts";
 
 const resumed: string[] = [];
 const started: Started[] = [];
 const STARTS = new Set(["/api/dispatches", "/api/evaluations"]);
-
-function reply(response: ServerResponse, status: number, body: unknown) {
-  response.writeHead(status, { "Content-Type": "application/json" });
-  response.end(JSON.stringify(body));
-}
 
 createServer((request, response) => {
   const url = request.url ?? "";

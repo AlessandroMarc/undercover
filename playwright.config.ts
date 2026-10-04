@@ -1,5 +1,10 @@
 import { defineConfig } from "@playwright/test";
-import { AGENT_STAND_IN, AUTH_STAND_IN, DASHBOARD } from "./e2e/api";
+import {
+  AGENT_STAND_IN,
+  AUTH_STAND_IN,
+  DASHBOARD,
+  JUDGE_STAND_IN,
+} from "./e2e/api";
 import { HANDLERS, TEST_PASSWORD } from "./e2e/handlers";
 
 // The tests run their own backend and dashboard, on their own ports and
@@ -31,7 +36,14 @@ export default defineConfig({
         MODEL_NAME: "",
         UNDERCOVER_AGENT: AGENT_STAND_IN,
         VITE_SUPABASE_URL: AUTH_STAND_IN,
+        JUDGE_URL: JUDGE_STAND_IN,
+        OPENROUTER_API_KEY: "e2e-key",
       },
+    },
+    {
+      command: "node e2e/judge_stand_in.ts",
+      url: `${JUDGE_STAND_IN}/health`,
+      env: { PORT: new URL(JUDGE_STAND_IN).port },
     },
     {
       command: "node e2e/agent_stand_in.ts",

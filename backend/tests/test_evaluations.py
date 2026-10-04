@@ -124,6 +124,7 @@ def test_an_evaluation_not_yet_worked_counts_every_copy_as_a_referral(client):
         "accuracy": 0.2,
         "cost_of_mistakes": 200.0,
         "straight_through": 0.0,
+        "grade": None,
         "model_cost_per_claim": 0.0,
         "seconds_per_claim": 0.0,
         "run_seconds": None,

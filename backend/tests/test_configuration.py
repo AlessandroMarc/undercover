@@ -1,5 +1,6 @@
 """The claim agent's configuration in versions."""
 
+import httpx
 import pytest
 from sqlalchemy import select, update
 
@@ -181,3 +182,26 @@ def test_a_versions_scores_average_the_whole_set_evaluations_its_rounds_ran(clie
     scores = client.get("/api/configuration").json()["versions"][0]["scores"]
     assert scores["evaluation"] is None
     assert scores["held_out"]["accuracy"] == pytest.approx(sum(accuracies) / 2)
+
+
+def test_a_run_with_nothing_graded_leaves_the_grade_to_the_others(
+    client, judge_answers
+):
+    graded, ungraded = (create_evaluation(client).json() for _ in range(2))
+    for evaluation in (graded, ungraded):
+        for copy in evaluation["claims"]:
+            start(client, copy["claim_id"])
+            decide(client, copy["claim_id"], "refer", 0)
+    in_a_round(graded, ungraded)
+    # Count the five tiny claims as a whole set, to keep the test short.
+    with engine().begin() as db:
+        db.execute(update(runs).values(tiny=False))
+    finish(client, graded["run_id"])
+    judge_answers(lambda request: httpx.Response(500, json={"error": "Down"}))
+    finish(client, ungraded["run_id"])
+
+    assert get_evaluation(client, ungraded["run_id"])["measures"]["grade"] is None
+    held_out = client.get("/api/configuration").json()["versions"][0]["scores"][
+        "held_out"
+    ]
+    assert held_out["grade"] == pytest.approx(2.2)

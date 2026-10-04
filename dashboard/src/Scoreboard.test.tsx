@@ -1,12 +1,14 @@
 import {
   cleanup,
   fireEvent,
+  render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { Claim, Evaluation, ScoredClaim, ScoredEvaluation } from "./api";
+import { Check } from "./components/Judging";
 import {
   Refusal,
   type Routes,
@@ -41,12 +43,14 @@ const finished: Evaluation = {
   finished_at: "2026-10-03T17:04:54+00:00",
   seconds: 161,
   model_cost: 0.3125,
+  judge_cost: 0.0005,
   size: 25,
   measures: {
     decision_accuracy: 0.8,
     accuracy: 0.64,
     cost_of_mistakes: 1600,
     straight_through: 0.88,
+    grade: 2.2,
     model_cost_per_claim: 0.0125,
     seconds_per_claim: 40,
     run_seconds: 161,
@@ -64,7 +68,7 @@ const running: Evaluation = {
   finished_at: null,
   seconds: null,
   size: 5,
-  measures: { ...finished.measures, run_seconds: null },
+  measures: { ...finished.measures, grade: null, run_seconds: null },
 };
 
 function showScoreboard(routes: Routes = {}) {
@@ -88,11 +92,22 @@ it("lists the evaluations in the backend's order, with their measures", async ()
   expect(newest.getByText("Running")).toBeDefined();
   expect(older.getByText("Evaluation set, 25 claims")).toBeDefined();
   expect(older.getByText("openai/gpt-6-luna")).toBeDefined();
-  for (const shown of ["80%", "64%", "$1,600.00", "88%", "$0.0125", "40 s"])
+  for (const shown of [
+    "80%",
+    "64%",
+    "$1,600.00",
+    "88%",
+    "2.20",
+    "$0.0125",
+    "40 s",
+  ])
     expect(older.getByText(shown)).toBeDefined();
+  expect(newest.getByText("Not graded")).toBeDefined();
   expect(older.getByText("2 min 41 s")).toBeDefined();
   expect(newest.queryByText("2 min 41 s")).toBeNull();
-  expect(older.getByText(/Oct 3, .*, 25 claim agents at once/)).toBeDefined();
+  expect(
+    older.getByText(/Oct 3, .*, version 1, 25 claim agents at once/),
+  ).toBeDefined();
   const link = older.getByRole("link", { name: "Evaluation #7" });
   expect(link.getAttribute("href")).toBe("/scoreboard/run-7");
 });
@@ -151,6 +166,13 @@ const copy: ScoredClaim = {
   handler_payout: 250,
   right: true,
   mistake_cost: 0,
+  grade: {
+    score: 2.2,
+    letter: "B",
+    same_grounds: 0.8,
+    same_section: 0.3,
+    cost: 0.0001,
+  },
 };
 
 const scored: ScoredEvaluation = {
@@ -184,6 +206,7 @@ const scored: ScoredEvaluation = {
       handler_payout: 0,
       right: false,
       mistake_cost: 50,
+      grade: null,
     },
   ],
 };
@@ -199,9 +222,23 @@ it("shows an evaluation's claims beside the handlers' decisions", async () => {
     measures.getByText(label).nextSibling?.textContent;
   expect(shown("Decision accuracy")).toBe("80%");
   expect(shown("Run time")).toBe("2 min 41 s");
+  expect(shown("Grade")).toBe("2.20");
+  expect(measures.getByText(/judge cost/).textContent).toContain(
+    "Model cost $0.3125 and judge cost $0.0005.",
+  );
   const rows = (await panel("Claims")).getAllByRole("row").slice(1);
   const [right, held, undecided] = rows.map((row) => within(row));
   expect(right.getByText("Right").className).toBe("chip score-right");
+  expect(right.getByText("B").className).toBe("chip grade-B");
+  expect(right.getByText("2.20")).toBeDefined();
+  const column = (name: string) =>
+    within(screen.getByRole("region", { name: "Claims" }))
+      .getAllByRole("columnheader")
+      .findIndex((header) => header.textContent === name);
+  const cells = right.getAllByRole("cell");
+  expect(cells[column("Same grounds")].textContent).toBe("Yes");
+  expect(cells[column("Same section")].textContent).toBe("No");
+  expect(undecided.getByText("Not graded")).toBeDefined();
   expect(right.getAllByText("$250.00")).toHaveLength(2);
   expect(held.getByText("Miss").className).toBe("chip score-miss");
   expect(held.getByText("$680.00")).toBeDefined();
@@ -292,4 +329,13 @@ it("shows a stopped evaluation as stopped, with no run time", async () => {
   expect(measures.getByText("Run time").nextSibling?.textContent).toBe(
     "Not finished",
   );
+});
+
+it("says the judge found a check from even odds", () => {
+  render(
+    <p>
+      <Check chance={0.5} /> <Check chance={0.49} />
+    </p>,
+  );
+  expect(screen.getByText("Yes No")).toBeDefined();
 });

@@ -11,6 +11,7 @@ import {
   type ServerResponse,
 } from "node:http";
 import { json } from "node:stream/consumers";
+import { reply } from "./stand_in.ts";
 
 interface Handler {
   handler_id: string;
@@ -83,16 +84,12 @@ function session(handler: Handler) {
   };
 }
 
-function reply(response: ServerResponse, status: number, body?: unknown) {
-  response.writeHead(status, {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": dashboard,
-  });
-  response.end(body === undefined ? undefined : JSON.stringify(body));
+function answer(response: ServerResponse, status: number, body?: unknown) {
+  reply(response, status, body, { "Access-Control-Allow-Origin": dashboard });
 }
 
 function refuse(response: ServerResponse) {
-  reply(response, 400, {
+  answer(response, 400, {
     code: "invalid_credentials",
     error_code: "invalid_credentials",
     msg: "Invalid login credentials",
@@ -109,7 +106,7 @@ async function token(request: IncomingMessage, response: ServerResponse) {
       : refreshTokens.get(body.refresh_token ?? "");
   if (!handler || (grant === "password" && body.password !== password))
     refuse(response);
-  else reply(response, 200, session(handler));
+  else answer(response, 200, session(handler));
 }
 
 function signedInUser(request: IncomingMessage, response: ServerResponse) {
@@ -118,8 +115,8 @@ function signedInUser(request: IncomingMessage, response: ServerResponse) {
     Buffer.from(bearer, "base64url").toString() || "{}",
   ) as { email?: string };
   const handler = handlers.find((h) => h.email === email);
-  if (handler) reply(response, 200, user(handler));
-  else reply(response, 401, { msg: "Invalid token" });
+  if (handler) answer(response, 200, user(handler));
+  else answer(response, 401, { msg: "Invalid token" });
 }
 
 createServer((request, response) => {
@@ -137,12 +134,12 @@ createServer((request, response) => {
       refuse(response);
     });
   } else if (path === "/auth/v1/.well-known/jwks.json") {
-    reply(response, 200, publicKeys);
+    answer(response, 200, publicKeys);
   } else if (path === "/auth/v1/user") {
     signedInUser(request, response);
   } else if (request.method === "POST" && path === "/auth/v1/logout") {
-    reply(response, 204);
+    answer(response, 204);
   } else {
-    reply(response, 404, { msg: "Not found" });
+    answer(response, 404, { msg: "Not found" });
   }
 }).listen(Number(process.env.PORT), "127.0.0.1");

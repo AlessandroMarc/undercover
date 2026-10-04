@@ -1,5 +1,5 @@
 import type { Settings, SettingsValues } from "./api";
-import { money } from "./format";
+import { grade, money } from "./format";
 
 // How the Settings page shows each setting: its group, its label, its unit and
 // its limits. Accuracy and the fractions of cost and time are kept from 0 to 1
@@ -172,7 +172,7 @@ export function fromInput(unit: Unit, input: string): number {
 export function shown(unit: Unit, value: number): string {
   if (unit === "dollars") return money(value);
   if (unit === "percent") return `${toInput(unit, value)}%`;
-  if (unit === "grade") return `${value.toFixed(2)} of 3`;
+  if (unit === "grade") return `${grade(value)} of 3`;
   return String(value);
 }
 
