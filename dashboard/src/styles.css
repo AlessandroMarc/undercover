@@ -16,6 +16,8 @@
   --link: light-dark(#0b6e8f, #6fcbe8);
   --green-text: light-dark(#037a5b, #6ff0c9);
   --red-text: light-dark(#b8204a, #ff8fa8);
+  --disabled-surface: light-dark(#e3eaec, #163640);
+  --disabled-ink: light-dark(#7a949c, #6f8a92);
   --mono: "JetBrains Mono", ui-monospace, monospace;
 
   /* The same as the computer, unless the appearance chosen in Settings says. */
@@ -98,11 +100,27 @@ p {
   max-width: 1320px;
   margin: 0 auto;
   padding: 20px 24px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 24px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px 40px;
   align-items: center;
-  justify-content: space-between;
+}
+
+/* The nav starts at the same place whoever is signed in. */
+.header .nav {
+  justify-self: start;
+}
+
+.header .who {
+  white-space: nowrap;
+}
+
+@media (max-width: 960px) {
+  .header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
 }
 
 .brand {
@@ -158,6 +176,7 @@ p {
   color: var(--muted);
   margin: -8px 0 20px;
   max-width: 60ch;
+  text-wrap: pretty;
 }
 
 .message {
@@ -319,6 +338,13 @@ p {
 
 .facts.measures {
   margin: 12px 0 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* A long fact, such as a reason, under the short ones, the width of the panel. */
+.facts .fact-wide {
+  grid-column: 1 / -1;
+  max-width: 80ch;
 }
 
 .facts.measures dd {
@@ -353,6 +379,65 @@ p {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
+}
+
+/* A table whose cells fill in as the page refreshes, such as an evaluation's
+   claims while it runs: its columns keep the widths set here, so a value that
+   arrives never moves the others. */
+.table.steady {
+  table-layout: fixed;
+}
+
+.table.steady td {
+  white-space: nowrap;
+}
+
+.table.steady td:has(.two-lines) {
+  white-space: normal;
+}
+
+.col-claim {
+  width: 8.5rem;
+}
+
+.col-id {
+  width: 6rem;
+}
+
+.col-decision {
+  width: 12.5rem;
+}
+
+.col-chip {
+  width: 6.5rem;
+}
+
+.col-money {
+  width: 7rem;
+}
+
+.col-time {
+  width: 6rem;
+}
+
+.col-reason {
+  width: 22rem;
+}
+
+/* Headings wrap rather than run into the next column. */
+.table.steady thead th {
+  white-space: normal;
+}
+
+/* A long text shown in two lines, with room kept for both, so a row keeps
+   its height when the text arrives. */
+.two-lines {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  min-height: 3em;
 }
 
 .table th,
@@ -394,6 +479,24 @@ p {
 .table .num {
   text-align: right;
   white-space: nowrap;
+}
+
+/* Numbers in tables line up: in JetBrains Mono with tabular figures, so a
+   value that changes on a refresh keeps its width. */
+.table td.num {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Mono inside a number's cell is already the cell's size, and a word in place
+   of a number, such as "None", is in the body font. */
+.table td.num .mono {
+  font-size: inherit;
+}
+
+.table td.num .muted {
+  font-family: "Instrument Sans", system-ui, sans-serif;
 }
 
 .claim-layout {
@@ -467,9 +570,13 @@ p {
 
 .instructions {
   margin: 12px 0 0;
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: var(--inset);
+  max-width: 100ch;
   white-space: pre-wrap;
   font-family: var(--mono);
-  font-size: 0.82rem;
+  font-size: 0.87rem;
   line-height: 1.6;
 }
 
@@ -498,9 +605,11 @@ p {
   font-weight: 600;
 }
 
+/* A payout waiting for a sign-off, tinted Marigold as a state that needs
+   someone to act. */
 .sign-off {
   margin-top: 16px;
-  background: var(--inset);
+  background: color-mix(in srgb, var(--marigold) 22%, var(--panel));
   border-radius: 12px;
   padding: 14px 16px;
 }
@@ -563,15 +672,24 @@ p {
   background: var(--inset);
 }
 
-.button:disabled {
-  opacity: 0.5;
-  cursor: default;
+.panel .button.quiet[aria-disabled="true"],
+.panel .button.quiet:disabled {
+  background: var(--disabled-surface);
+  color: var(--disabled-ink);
+}
+
+.button:disabled,
+.action-form button:disabled {
+  background: var(--disabled-surface);
+  color: var(--disabled-ink);
+  cursor: not-allowed;
 }
 
 .action-form button[aria-disabled="true"],
 .button[aria-disabled="true"] {
-  opacity: 0.5;
-  cursor: default;
+  background: var(--disabled-surface);
+  color: var(--disabled-ink);
+  cursor: not-allowed;
 }
 
 .form-error {
@@ -609,15 +727,10 @@ p {
 }
 
 .sections-read {
-  background: var(--inset);
-  border-radius: 12px;
-  padding: 12px 16px;
-  margin-bottom: 12px;
-}
-
-.sections-read ul {
-  margin: 6px 0 0;
+  margin: 0;
   padding-left: 18px;
+  display: grid;
+  gap: 4px;
 }
 
 .step code {
@@ -719,7 +832,13 @@ fieldset.panel legend + * {
   clear: both;
 }
 
+/* The settings' Save stays in reach while the form scrolls. */
 .settings-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 12px 0;
+  background: var(--page);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -740,22 +859,26 @@ fieldset.panel legend + * {
   color: var(--muted);
 }
 
+/* A setting's field, with its unit inside the same box. */
 .setting-input {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  max-width: 200px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--inset);
   color: var(--ink);
 }
 
 .setting-input input {
   font: inherit;
   font-family: var(--mono);
-  width: 100%;
-  max-width: 160px;
+  flex: 1;
+  min-width: 0;
   border: none;
-  border-radius: 10px;
-  padding: 8px 12px;
-  background: var(--inset);
+  padding: 8px 0;
+  background: transparent;
   color: var(--ink);
   text-align: right;
 }
@@ -905,7 +1028,6 @@ fieldset.panel legend + * {
   padding-left: 18px;
   display: grid;
   gap: 4px;
-  min-width: 200px;
 }
 
 .table caption {
@@ -1021,12 +1143,55 @@ fieldset.panel legend + * {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 }
 
-.round-reason {
-  min-width: 180px;
+/* Each round is a body of its own: its short fields, then its reason and
+   reviews on a line beneath, shaded together. */
+.table.rounds tbody tr:nth-child(n) td {
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.table.rounds tbody:nth-of-type(odd) tr td {
+  background: var(--inset);
+}
+
+.table.rounds tbody:nth-of-type(odd) tr td + td {
+  box-shadow: -1px 0 0 var(--inset);
+}
+
+.table.rounds tbody:nth-of-type(odd) tr:first-child td:first-child {
+  border-top-left-radius: 8px;
+}
+
+.table.rounds tbody:nth-of-type(odd) tr:first-child td:last-child {
+  border-top-right-radius: 8px;
+}
+
+.table.rounds tbody:nth-of-type(odd) tr:last-child td:first-child {
+  border-bottom-left-radius: 8px;
+}
+
+.table.rounds tbody:nth-of-type(odd) tr:last-child td:last-child {
+  border-bottom-right-radius: 8px;
+}
+
+.round-verdict {
+  min-width: 14rem;
+}
+
+.table .round-details {
+  padding-top: 0;
+}
+
+.round-details > div {
+  display: grid;
+  gap: 4px;
+  max-width: 100ch;
 }
 
 .round-stage {
   display: block;
+  min-width: 10rem;
   margin-top: 4px;
   color: var(--muted);
 }

@@ -6,22 +6,40 @@ import { DecisionPanel } from "../components/DecisionPanel";
 import { StateMessage } from "../components/StateMessage";
 import { PageHeader } from "../components/PageHeader";
 import { HistoryPanel, PolicyPanel } from "../components/PolicyPanels";
+import { SectionsRead } from "../components/SectionsRead";
 import { StepList } from "../components/StepList";
 import { date, label, money } from "../format";
-import { evaluationPage } from "../paths";
+import { evaluationPage, QUEUE } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
 export function ClaimPage() {
   const { claimId = "" } = useParams();
   const load = useCallback(() => api.getClaim(claimId), [claimId]);
   const { data: claim, error, reload } = useLoad(load, REFRESH_MS);
+  const loadSteps = useCallback(() => api.listSteps(claimId), [claimId]);
+  const steps = useLoad(loadSteps, REFRESH_MS);
 
-  if (!claim) return <StateMessage error={error} notFound="Claim not found" />;
+  if (!claim)
+    return (
+      <StateMessage
+        error={error}
+        notFound="Claim not found. Choose one from the queue."
+      />
+    );
 
   return (
     <>
       <PageHeader
-        eyebrow={<span className="mono">{claim.claim_id}</span>}
+        eyebrow={
+          <>
+            {claim.evaluation_id ? (
+              <Link to={evaluationPage(claim.evaluation_id)}>Evaluation</Link>
+            ) : (
+              <Link to={QUEUE}>Queue</Link>
+            )}{" "}
+            <span className="mono">/ {claim.claim_id}</span>
+          </>
+        }
         title={claim.summary}
         status={<StatusChip status={claim.status} />}
         lead={
@@ -35,17 +53,21 @@ export function ClaimPage() {
           )
         }
       />
+      {/* The agent's steps grow at the end of the right column, and the sections
+          it read at the end of the left, so neither moves anything as the
+          page refreshes. */}
       <div className="claim-layout">
         <div className="column">
           <ClaimDetails claim={claim} />
           <ItemsPanel claim={claim} />
           <DocumentsPanel claim={claim} />
+          <PolicyPanel policyId={claim.policy_id} />
+          <HistoryPanel customerId={claim.customer_id} />
+          <SectionsRead steps={steps.data} />
         </div>
         <div className="column">
           <DecisionPanel claim={claim} onSignedOff={reload} />
-          <StepList claimId={claim.claim_id} />
-          <PolicyPanel policyId={claim.policy_id} />
-          <HistoryPanel customerId={claim.customer_id} />
+          <StepList steps={steps.data} error={steps.error} />
         </div>
       </div>
     </>

@@ -15,7 +15,7 @@ export const MEASURES: {
   { label: "Cost of mistakes", show: (m) => money(m.cost_of_mistakes) },
   { label: "Straight-through", show: (m) => percent(m.straight_through) },
   {
-    label: "Grade",
+    label: "Grade (of 3)",
     show: (m) => (m.grade === null ? NOT_GRADED : grade(m.grade)),
   },
   {

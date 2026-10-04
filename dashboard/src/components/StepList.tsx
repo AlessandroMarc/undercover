@@ -1,25 +1,22 @@
-import { useCallback } from "react";
-import { api, type Step } from "../api";
+import type { Step } from "../api";
 import { time } from "../format";
-import { REFRESH_MS, useLoad } from "../useLoad";
 import { StateMessage } from "./StateMessage";
 
 const SUMMARY_LENGTH = 90;
 
-export function StepList({ claimId }: Readonly<{ claimId: string }>) {
-  const load = useCallback(() => api.listSteps(claimId), [claimId]);
-  const { data: steps, error } = useLoad(load, REFRESH_MS);
-
+// The agent's steps on a claim as it works, oldest first, so a new step joins
+// the end and moves nothing above it.
+export function StepList({
+  steps,
+  error,
+}: Readonly<{ steps?: Step[]; error?: Error }>) {
   return (
     <section className="panel" aria-labelledby="steps-title">
       <h2 id="steps-title">Agent at work</h2>
       {!steps && <StateMessage error={error} />}
       {steps?.length === 0 && (
-        <p className="muted">
-          No steps yet. They appear here as the agent works.
-        </p>
+        <StateMessage empty="No steps yet. They appear here as the agent works on the claim." />
       )}
-      {steps && steps.length > 0 && <SectionsRead steps={steps} />}
       {steps && steps.length > 0 && (
         <ol className="steps">
           {steps.map((step) => (
@@ -33,23 +30,6 @@ export function StepList({ claimId }: Readonly<{ claimId: string }>) {
         </ol>
       )}
     </section>
-  );
-}
-
-function SectionsRead({ steps }: Readonly<{ steps: Step[] }>) {
-  const read = [
-    ...new Set(steps.filter((s) => s.kind === "reading").map((s) => s.content)),
-  ];
-  if (read.length === 0) return null;
-  return (
-    <div className="sections-read">
-      <h3>Sections read</h3>
-      <ul>
-        {read.map((section) => (
-          <li key={section}>{section}</li>
-        ))}
-      </ul>
-    </div>
   );
 }
 

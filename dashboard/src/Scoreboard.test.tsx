@@ -7,8 +7,12 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { Claim, Evaluation, ScoredClaim, ScoredEvaluation } from "./api";
+import type { Claim, Evaluation } from "./api";
 import { Check } from "./components/Judging";
+import {
+  finishedEvaluation as finished,
+  scoredEvaluation as scored,
+} from "./fixtures";
 import {
   Refusal,
   type Routes,
@@ -26,36 +30,6 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
-
-const finished: Evaluation = {
-  run_id: "run-7",
-  number: 7,
-  kind: "evaluation",
-  agents: 25,
-  version: 1,
-  round_id: null,
-  model: "openai/gpt-6-luna",
-  reasoning_effort: "low",
-  evaluation_set: "evaluation",
-  tiny: false,
-  status: "finished",
-  started_at: "2026-10-03T17:02:13+00:00",
-  finished_at: "2026-10-03T17:04:54+00:00",
-  seconds: 161,
-  model_cost: 0.3125,
-  judge_cost: 0.0005,
-  size: 25,
-  measures: {
-    decision_accuracy: 0.8,
-    accuracy: 0.64,
-    cost_of_mistakes: 1600,
-    straight_through: 0.88,
-    grade: 2.2,
-    model_cost_per_claim: 0.0125,
-    seconds_per_claim: 40,
-    run_seconds: 161,
-  },
-};
 
 const running: Evaluation = {
   ...finished,
@@ -115,7 +89,9 @@ it("lists the evaluations in the backend's order, with their measures", async ()
 it("says when there are no evaluations yet", async () => {
   stubApi({ "GET /api/evaluations": [] });
   renderAt("/scoreboard");
-  expect(await screen.findByText("No evaluations yet.")).toBeDefined();
+  expect(
+    await screen.findByText(/^No evaluations yet\. Start one above/),
+  ).toBeDefined();
 });
 
 it("starts an evaluation with the choices made", async () => {
@@ -151,66 +127,6 @@ it.each([
   expect((await form.findByRole("alert")).textContent).toBe(detail);
 });
 
-const copy: ScoredClaim = {
-  ...summary,
-  claim_id: "CLM-1104-E9",
-  started_at: "2026-10-03T17:02:14+00:00",
-  seconds: 40,
-  model_cost: 0.0125,
-  status: "decided",
-  decision: "approve",
-  payout: 250,
-  copy_of: "CLM-1104",
-  reason: "The delay was covered.",
-  handler_decision: "approve",
-  handler_payout: 250,
-  right: true,
-  mistake_cost: 0,
-  grade: {
-    score: 2.2,
-    letter: "B",
-    same_grounds: 0.8,
-    same_section: 0.3,
-    cost: 0.0001,
-  },
-};
-
-const scored: ScoredEvaluation = {
-  ...finished,
-  run_id: "run-9",
-  number: 9,
-  evaluation_set: "held_out",
-  tiny: true,
-  size: 5,
-  claims: [
-    copy,
-    {
-      ...copy,
-      claim_id: "CLM-1112-E9",
-      copy_of: "CLM-1112",
-      status: "waiting_for_sign_off",
-      payout: 1200,
-      handler_payout: 680,
-      right: false,
-      mistake_cost: 520,
-    },
-    {
-      ...copy,
-      claim_id: "CLM-1114-E9",
-      copy_of: "CLM-1114",
-      status: "in_progress",
-      decision: null,
-      payout: null,
-      reason: null,
-      handler_decision: "decline",
-      handler_payout: 0,
-      right: false,
-      mistake_cost: 50,
-      grade: null,
-    },
-  ],
-};
-
 it("shows an evaluation's claims beside the handlers' decisions", async () => {
   stubApi({ "GET /api/evaluations/run-9": scored });
   renderAt("/scoreboard/run-9");
@@ -222,7 +138,7 @@ it("shows an evaluation's claims beside the handlers' decisions", async () => {
     measures.getByText(label).nextSibling?.textContent;
   expect(shown("Decision accuracy")).toBe("80%");
   expect(shown("Run time")).toBe("2 min 41 s");
-  expect(shown("Grade")).toBe("2.20");
+  expect(shown("Grade (of 3)")).toBe("2.20");
   expect(measures.getByText(/judge cost/).textContent).toContain(
     "Model cost $0.3125 and judge cost $0.0005.",
   );
@@ -254,7 +170,11 @@ it("shows an evaluation's claims beside the handlers' decisions", async () => {
 it("says when an evaluation doesn't exist", async () => {
   stubApi({});
   renderAt("/scoreboard/run-404");
-  expect(await screen.findByText("Evaluation not found")).toBeDefined();
+  expect(
+    await screen.findByText(
+      "Evaluation not found. Choose one on the Scoreboard.",
+    ),
+  ).toBeDefined();
 });
 
 it("shows a copy's evaluation, and no sign-off for a held copy", async () => {

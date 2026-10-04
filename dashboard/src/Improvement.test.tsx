@@ -15,6 +15,7 @@ import {
   START,
 } from "./improvementTesting";
 import {
+  wholeText,
   marcus,
   panel,
   Refusal,
@@ -276,14 +277,18 @@ it("shows Marcus what he can't do in place of the buttons", async () => {
   expect(proposal.queryByRole("button", { name: "Reject" })).toBeNull();
   expect(
     await proposal.findByText(
-      "Only a handler who can sign off payouts over $1,000.00 can approve or reject the improver's proposals. Marcus Oyelaran can't.",
+      wholeText(
+        "Only a handler who can sign off payouts over $1,000.00 can approve or reject the improver's proposals. Marcus Oyelaran can't.",
+      ),
     ),
   ).toBeDefined();
   cleanup();
   showPage(empty, { "GET /api/me": marcus });
   expect(
     await screen.findByText(
-      "Only a handler who can sign off payouts over $1,000.00 can start a round. Marcus Oyelaran can't.",
+      wholeText(
+        "Only a handler who can sign off payouts over $1,000.00 can start a round. Marcus Oyelaran can't.",
+      ),
     ),
   ).toBeDefined();
   expect(screen.queryByRole("button", { name: "Start a round" })).toBeNull();
@@ -320,7 +325,7 @@ it("lists the rounds with their scores, verdicts, reviews and cost", async () =>
   };
   showPage(improvement(finished));
   const rounds = await panel("Rounds");
-  const [header, row] = rounds.getAllByRole("row");
+  const [header, row, details] = rounds.getAllByRole("row");
   const headings = within(header).getAllByRole("columnheader");
   const cells = within(row).getAllByRole("cell");
   const column = (name: string) =>
@@ -333,15 +338,13 @@ it("lists the rounds with their scores, verdicts, reviews and cost", async () =>
   );
   expect(cells[column("Held-out grade")].className).toContain("num");
   expect(cells[column("Verdict")].textContent).toBe("Kept accuracy improved");
-  expect(cells[column("Reviews")].textContent).toContain(
-    "Dana Whitfield rejected the change",
+  const reviews = details.textContent;
+  expect(reviews).toContain(
+    "The improver's reason: Two stolen phones were approved",
   );
-  expect(cells[column("Reviews")].textContent).toContain(
-    "Keep each rule general",
-  );
-  expect(cells[column("Reviews")].textContent).toContain(
-    "Dana Whitfield approved the change",
-  );
+  expect(reviews).toContain("Dana Whitfield rejected the change");
+  expect(reviews).toContain("Keep each rule general");
+  expect(reviews).toContain("Dana Whitfield approved the change");
   expect(cells[column("Cost")].textContent).toBe("$0.1234 of $0.50");
   expect(cells[column("Cost")].className).toContain("num");
 });
@@ -370,8 +373,28 @@ it("charts each version tried against version 1", async () => {
     expect(chart.querySelector(".chart-first")?.textContent).toBe("Version 1");
     expect(chart.textContent).toContain("Version tried");
   }
-  expect(within(charts[0]).getByText("100%")).toBeDefined();
-  expect(within(charts[1]).getByText("3.00")).toBeDefined();
+  // Each axis starts a step below the lowest score, so close scores stand apart.
+  const ticks = (chart: HTMLElement) =>
+    [...chart.querySelectorAll(".chart-tick text")].map(
+      (tick) => tick.textContent,
+    );
+  expect(ticks(charts[0])).toEqual([
+    "40%",
+    "50%",
+    "60%",
+    "70%",
+    "80%",
+    "90%",
+    "100%",
+  ]);
+  expect(ticks(charts[1])).toEqual([
+    "0.50",
+    "1.00",
+    "1.50",
+    "2.00",
+    "2.50",
+    "3.00",
+  ]);
   expect(within(charts[0]).getByRole("img").getAttribute("aria-label")).toBe(
     "Held-out accuracy. Version 1 60%, version 2 56%, version 3 72%.",
   );

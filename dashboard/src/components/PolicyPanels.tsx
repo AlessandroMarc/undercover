@@ -68,7 +68,9 @@ export function HistoryPanel({ customerId }: Readonly<{ customerId: string }>) {
     <section className="panel" aria-labelledby="history-title">
       <h2 id="history-title">Earlier claims</h2>
       {!history && <StateMessage error={error} />}
-      {history?.length === 0 && <p className="muted">No earlier claims</p>}
+      {history?.length === 0 && (
+        <StateMessage empty="No earlier claims: this is the customer's first claim with us." />
+      )}
       {history && history.length > 0 && (
         <ul className="history">
           {history.map((claim) => (

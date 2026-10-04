@@ -1,11 +1,12 @@
 import { useCallback } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { api, type ScoredClaim, type ScoredEvaluation } from "../api";
 import { DecisionPayout, RightChip, RunChip } from "../components/Chips";
 import { ClaimLink } from "../components/ClaimLink";
 import { Check, GradeChip } from "../components/Judging";
 import { StateMessage } from "../components/StateMessage";
 import { ModelName } from "../components/ModelName";
+import { PageHeader } from "../components/PageHeader";
 import {
   agentsAtOnce,
   dateTime,
@@ -15,6 +16,7 @@ import {
   money,
 } from "../format";
 import { MEASURES } from "../measures";
+import { SCOREBOARD } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
 export function EvaluationPage() {
@@ -23,14 +25,21 @@ export function EvaluationPage() {
   const { data: evaluation, error } = useLoad(load, REFRESH_MS);
 
   if (!evaluation)
-    return <StateMessage error={error} notFound="Evaluation not found" />;
+    return (
+      <StateMessage
+        error={error}
+        notFound="Evaluation not found. Choose one on the Scoreboard."
+      />
+    );
 
   return (
     <>
-      <div className="title-row">
-        <h1>Evaluation #{evaluation.number}</h1>
-        <RunChip status={evaluation.status} />
-      </div>
+      <PageHeader
+        eyebrow={<Link to={SCOREBOARD}>Scoreboard</Link>}
+        title={`Evaluation #${String(evaluation.number)}`}
+        status={<RunChip status={evaluation.status} />}
+        lead="How the agent did on each copy of the set's claims, beside our handlers' decisions."
+      />
       <div className="column">
         <MeasuresPanel evaluation={evaluation} />
         <ScoredClaims claims={evaluation.claims} />
@@ -79,7 +88,21 @@ function ScoredClaims({ claims }: Readonly<{ claims: ScoredClaim[] }>) {
         gives it an F.
       </p>
       <div className="table-scroll">
-        <table className="table">
+        <table className="table steady scored-claims">
+          <colgroup>
+            <col className="col-claim" />
+            <col className="col-id" />
+            <col className="col-decision" />
+            <col className="col-decision" />
+            <col className="col-chip" />
+            <col className="col-chip" />
+            <col className="col-chip" />
+            <col className="col-chip" />
+            <col className="col-money" />
+            <col className="col-money" />
+            <col className="col-time" />
+            <col className="col-reason" />
+          </colgroup>
           <thead>
             <tr>
               <th>Copy</th>
@@ -134,7 +157,11 @@ function ScoredClaims({ claims }: Readonly<{ claims: ScoredClaim[] }>) {
                 <td className="num mono">{money(claim.mistake_cost)}</td>
                 <td className="num mono">{modelCost(claim.model_cost)}</td>
                 <td className="num mono">{duration(claim.seconds)}</td>
-                <td className="small">{claim.reason}</td>
+                <td className="small">
+                  <span className="two-lines" title={claim.reason ?? undefined}>
+                    {claim.reason}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>

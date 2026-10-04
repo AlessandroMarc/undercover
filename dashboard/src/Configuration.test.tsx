@@ -1,52 +1,16 @@
 import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { Configuration, VersionDetails, VersionSummary } from "./api";
+import {
+  configuration,
+  firstVersion as first,
+  versionDetails as details,
+} from "./fixtures";
 import { renderAt, stubApi } from "./testing";
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
-
-const first: VersionSummary = {
-  number: 1,
-  status: "kept",
-  model: "openai/gpt-6-luna",
-  reasoning_effort: "low",
-  model_before: null,
-  reasoning_effort_before: null,
-  based_on: null,
-  lines_added: 0,
-  lines_removed: 0,
-  reason: "The claim agent as the claims team built it",
-  proposed_by: "The claims team",
-  round_id: null,
-  approved_by: null,
-  approved_at: null,
-  created_at: "2026-10-04T09:00:00+00:00",
-  verdict: "kept",
-  verdict_reason: "the first version",
-  scores: { evaluation: null, held_out: null },
-};
-
-const second: VersionSummary = {
-  ...first,
-  number: 2,
-  status: "current",
-  model: "google/gemini-3.5-flash-lite",
-  reasoning_effort: "minimal",
-  model_before: "openai/gpt-6-luna",
-  reasoning_effort_before: "low",
-  based_on: 1,
-  lines_added: 12,
-  lines_removed: 3,
-  reason: "Add a rule for stolen phones",
-  proposed_by: "Round 1",
-  approved_by: "Dana Whitfield",
-  approved_at: "2026-10-05T14:05:00+00:00",
-};
-
-const configuration: Configuration = { current: 2, versions: [second, first] };
 
 it("shows the current version and every version with its status", async () => {
   stubApi({ "GET /api/configuration": configuration });
@@ -71,7 +35,9 @@ it("shows the current version and every version with its status", async () => {
   expect(within(rows[2]).getByText("Kept")).toBeDefined();
   expect(rows[2].textContent).toContain("The first version");
   expect(
-    within(rows[2]).getByRole("link", { name: "1" }).getAttribute("href"),
+    within(rows[2])
+      .getByRole("link", { name: "Version 1" })
+      .getAttribute("href"),
   ).toBe("/configuration/versions/1");
 });
 
@@ -93,23 +59,6 @@ it("sends the old Instructions page to the Configuration page", async () => {
     await screen.findByRole("heading", { name: "Configuration", level: 1 }),
   ).toBeDefined();
 });
-
-const details: VersionDetails = {
-  ...second,
-  instructions: "# Working a claim\n\n## Contents of the claims manual",
-  diff: {
-    added: 1,
-    removed: 1,
-    hunks: [
-      [
-        { kind: "context", text: "Read the claim." },
-        { kind: "removed", text: "Refer a stolen phone." },
-        { kind: "added", text: "Decline a phone left unattended." },
-      ],
-      [{ kind: "context", text: "Record the decision." }],
-    ],
-  },
-};
 
 it("shows a version's diff and its instructions, read only", async () => {
   stubApi({ "GET /api/configuration/versions/2": details });
@@ -145,5 +94,9 @@ it("says version 1 has nothing before it", async () => {
 it("says when a version doesn't exist", async () => {
   stubApi({});
   renderAt("/configuration/versions/9");
-  expect(await screen.findByText("Version not found")).toBeDefined();
+  expect(
+    await screen.findByText(
+      "Version not found. Choose one on the Configuration page.",
+    ),
+  ).toBeDefined();
 });

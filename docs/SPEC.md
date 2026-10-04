@@ -24,12 +24,22 @@ The agent works the queue in dispatches, with many claims at once:
 - A handler starts a dispatch on the queue page, choosing how many claim agents work at once, from 1 to 25. A dispatch works every claim left in progress and every waiting claim, oldest submitted first. Code chooses the claims and keeps track of the dispatch, with no model, and only one dispatch or evaluation runs at a time. The agent can also work one named claim.
 - Each claim goes to a claim agent of its own that works that one claim from a clean start and reports back in a line: the decision and payout, or what went wrong. Every step on a claim is recorded on that claim.
 - For each claim the agent looks up the sections of the policy wording and the claims manual it needs, the way a handler would, rather than being handed whole documents. It works out an approval's payout with UnderCover's payout rules, which are part of our systems.
-- An approval over the sign-off limit pauses the agent's work on that claim, keeping everything it has worked out, until a handler signs off. As soon as a handler signs off, the agent picks the claim up from where it stopped and pays it, and between the sign-off and the payment the claim shows as in progress. If the agent isn't running at that moment, the next dispatch picks it up. The payment records who signed off and when. For now a handler can only sign off.
+- An approval over the approval limit pauses the agent's work on that claim, keeping everything it has worked out, until a handler signs off. As soon as a handler who can sign off over the limit does, the agent picks the claim up from where it stopped and pays it, and between the sign-off and the payment the claim shows as in progress. If the agent isn't running at that moment, the next dispatch picks it up. The payment records who signed off and when. For now a handler can only sign off.
 - Work survives a restart. If the agent is stopped partway through a claim, by a crash, a restart or Ctrl-C, the next dispatch carries on with that claim from where it got to, and that doesn't count as a new attempt. A dispatch that was stopped shows as stopped.
 - Problems are put right automatically. A claim that hits a rate limit or a timeout waits and carries on from where it got to, as the same attempt, and one still hitting them after its waits stays in progress for the next dispatch. A claim that fails with any other error before it is decided goes back in the queue and the same dispatch tries it once more from the start, and a claim that fails twice is left for a handler. One bad claim never stops a dispatch, and no claim is ever decided or paid twice, even when a step runs again after a restart.
 - When a dispatch finishes, its summary is built from our records, with no model writing it: how many claims were approved, declined and referred, each payout waiting for a sign-off, and each claim left for a handler or for the next dispatch.
 - The tokens and cost of every model call, and the time the agent spends working on each claim, leaving out any wait for a sign-off, are recorded with the dispatch or evaluation they happened in.
 - Evaluations check the agent's work against our handlers' decisions. An evaluation works copies of one of our two labeled sets of claims, whole or its five tiny claims, through the same dispatcher and claim agent. The copies never show in the queue, a dispatch never picks them up, nobody can sign them off, and an approval held for sign-off counts as finished. An evaluation stopped partway shows as stopped. Each evaluation is scored with our measures: how often the decision matches the handler's, how often the payout does too, the cost of the mistakes, the share of claims handled straight through, the model cost and time per claim, and the time for the whole run.
+
+## Improving the agent
+
+The claim agent's instructions, model and reasoning effort make up one configuration, kept in versions, and a judge grades each of the agent's explanations in an evaluation against our handler's reason. A second agent, the improver, improves the configuration in rounds, which a senior handler starts on the Improvement page:
+
+- A round first makes sure the current version has one evaluation on the evaluation set and two on the held-out set. The improver then follows its recipe: it reads the results, proposes a new version with its reason, and waits for a handler to approve or reject it. A rejection's reason goes back to the improver, which may propose again.
+- An approved version is evaluated once on the evaluation set and twice on the held-out set, and our rule keeps it or rolls it back: it must meet our objectives on the held-out set, improve at least one measure by more than its noise and make none worse by more than its tolerance. A kept version becomes the current version. The improver then proposes a better recipe for the next round, which a handler approves or rejects in the same way.
+- The improver can't change our objectives, the noise and tolerance, the spending limit, the models allowed, the approval limit, the evaluation sets or the judge, and nothing it proposes takes effect until a handler approves it.
+- Each round has a spending limit covering the improver's own model calls, all of the round's evaluations and the judge. The improver is refused an evaluation that is likely to cost more than what's left, and once the limit is spent no new claim starts in the round's evaluations.
+- Only one round is open at a time, and a senior handler can stop it. A round stopped before its verdict leaves the current version as it was.
 
 ## What the team needs to see
 
@@ -38,13 +48,16 @@ The agent works the queue in dispatches, with many claims at once:
 - A scoreboard of the evaluations, newest first, with their measures, each opening to its claims beside the handlers' decisions with the misses easy to spot.
 - Each claim in full, with the agent's decision and its reasons.
 - What the agent is doing on a claim while it works, step by step, including the sections it read and any attempt that failed.
-- The claim agent's instructions, read only.
+- The claim agent's configuration: every version, what it changed from the one before, why, who proposed and approved it, and its held-out scores.
+- The improvement rounds as they happen: where a round has got to, a proposal waiting with its change shown as a diff, the rounds so far with the held-out scores before and after, the verdict and why, who approved or rejected what and when, and the cost, a chart of each version tried, and the recipe's versions.
+- The platform's settings: the approval limit, our objectives, the noise and tolerance, the spending limit for each round and the claim agents at once in its evaluations, with who changed them and when, and the models the claim agent may use.
 
 ## Rules
 
-- A payout over $1,000 needs a handler's sign-off. The agent can approve such a claim, but the payment waits until a handler signs off. The system must block the payment until then, even if the agent tries to pay.
+- Our handlers sign in with their email and password. Every page needs a signed-in handler, and the system checks the handler on every action they take.
+- A payout over the approval limit, $1,000 to start with and a setting, needs a sign-off from a handler who can sign off over it. The agent can approve such a claim, but the payment waits until that sign-off. The system must block the payment until then, even if the agent tries to pay. Only such a handler can also start or stop a round, approve or reject the improver's proposals or change a setting; anyone else is told what they can't do and why.
 - Decisions follow the policy wording and the claims manual. The wording comes first, and the manual says how to read it.
-- Our handlers' own decisions on these claims are in `data/evals/`. We use them to check the agent's work. The agent must never see them.
+- Our handlers' own decisions on these claims are in `data/evals/`. We use them to check the agent's work, and the dashboard shows them beside the agent's for both labeled sets. The claim agent must never see them. The improver reads our handlers' decisions and reasons on the evaluation set, to learn from the misses, but nothing in the agent reads the held-out set's: those claims only score its changes.
 - Amounts are in US dollars.
 
 ## Our records
@@ -53,6 +66,7 @@ Everything is in `data/`, described in `data/README.md`: the claims queue, the p
 
 ## Not for now
 
-- No sign-in. Everyone who uses the screens sees everything.
+- No sign-up. Our handlers' accounts are set up for them.
+- Rejecting a held payout. For now a handler can only sign off.
 - No real payments.
 - No messages to customers.

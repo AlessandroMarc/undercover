@@ -8,9 +8,10 @@ import {
   percent,
   verdictLabels,
 } from "../format";
-import { evaluationPage, recipePage, versionPage } from "../paths";
+import { evaluationPage } from "../paths";
 import { RoundChip, RunChip, VerdictChip } from "./Chips";
 import { RoundProgress } from "./RoundProgress";
+import { RecipeLink, VersionLink } from "./VersionLink";
 
 // The open or newest round: its status, where it has got to or how it ended,
 // who started it, its recipe, the version it tried, its cost against its limit,
@@ -37,8 +38,8 @@ export function RoundPanel({ round }: Readonly<{ round: RoundView }>) {
         </div>
         <div>
           <dt>Recipe</dt>
-          <dd className="mono">
-            <Link to={recipePage(round.recipe)}>{round.recipe}</Link>
+          <dd>
+            <RecipeLink number={round.recipe} />
           </dd>
         </div>
         <div>
@@ -46,8 +47,8 @@ export function RoundPanel({ round }: Readonly<{ round: RoundView }>) {
           {round.version === null ? (
             <dd className="muted">None yet</dd>
           ) : (
-            <dd className="mono">
-              <Link to={versionPage(round.version)}>{round.version}</Link>
+            <dd>
+              <VersionLink number={round.version} />
             </dd>
           )}
         </div>

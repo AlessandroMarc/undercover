@@ -66,7 +66,10 @@ export function duration(seconds: number): string {
   const whole = Math.round(seconds);
   const minutes = Math.floor(whole / 60);
   const rest = `${String(whole % 60)} s`;
-  return minutes > 0 ? `${String(minutes)} min ${rest}` : rest;
+  if (minutes === 0) return rest;
+  return whole % 60 === 0
+    ? `${String(minutes)} min`
+    : `${String(minutes)} min ${rest}`;
 }
 
 export function date(isoDate: string): string {

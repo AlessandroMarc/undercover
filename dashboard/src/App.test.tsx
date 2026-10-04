@@ -92,14 +92,20 @@ it("shows a policy without add-ons and a customer with no earlier claims", async
   });
   renderAt("/claims/CLM-1002");
   expect(await screen.findByText("None")).toBeDefined();
-  expect(await screen.findByText("No earlier claims")).toBeDefined();
+  expect(
+    await screen.findByText(
+      /^No earlier claims: this is the customer's first claim/,
+    ),
+  ).toBeDefined();
 });
 
 it("says when a claim doesn't exist, and stops asking for it", async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   const fetchMock = stubApi({});
   renderAt("/claims/CLM-9999");
-  expect(await screen.findByText("Claim not found")).toBeDefined();
+  expect(
+    await screen.findByText("Claim not found. Choose one from the queue."),
+  ).toBeDefined();
   await vi.advanceTimersByTimeAsync(5000);
   expect(sent(fetchMock, "GET /api/claims/CLM-9999")).toHaveLength(1);
   vi.useRealTimers();
@@ -116,5 +122,7 @@ it("shows other errors loading a claim", async () => {
 it("says when a page doesn't exist", async () => {
   stubApi({});
   renderAt("/nowhere");
-  expect(await screen.findByText("Page not found")).toBeDefined();
+  expect(
+    await screen.findByText("Page not found. Choose a page from the header."),
+  ).toBeDefined();
 });

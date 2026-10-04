@@ -131,10 +131,7 @@ function VersionsTried({ page }: Readonly<{ page: Improvement }>) {
     <section className="panel" aria-labelledby="tried-title">
       <h2 id="tried-title">Versions tried</h2>
       {page.versions_tried.length === 0 ? (
-        <p className="muted">
-          No version tried yet. Each version a round tries shows here with its
-          held-out accuracy and grade.
-        </p>
+        <StateMessage empty="No version tried yet. Each version a round tries shows here with its held-out accuracy and grade." />
       ) : (
         <VersionChart first={page.first_version} tried={page.versions_tried} />
       )}

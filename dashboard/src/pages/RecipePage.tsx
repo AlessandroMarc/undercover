@@ -15,7 +15,12 @@ export function RecipePage() {
   const { data: recipe, error } = useLoad(load, REFRESH_MS);
 
   if (!recipe)
-    return <StateMessage error={error} notFound="Recipe not found" />;
+    return (
+      <StateMessage
+        error={error}
+        notFound="Recipe not found. Choose one on the Improvement page."
+      />
+    );
 
   return (
     <>
@@ -23,7 +28,7 @@ export function RecipePage() {
         eyebrow={<Link to={IMPROVEMENT}>Improvement</Link>}
         title={`Recipe ${String(recipe.number)}`}
         status={recipe.current && <VersionChip status="current" />}
-        lead={recipe.reason}
+        lead="One version of the recipe the improver follows in a round, why it was made, and what changed from the one before."
       />
       <div className="column">
         <RecipeFacts recipe={recipe} />
@@ -74,6 +79,10 @@ function RecipeFacts({ recipe }: Readonly<{ recipe: RecipeDetails }>) {
         <div>
           <dt>Made</dt>
           <dd>{dateTime(recipe.created_at)}</dd>
+        </div>
+        <div className="fact-wide">
+          <dt>Reason</dt>
+          <dd>{recipe.reason}</dd>
         </div>
       </dl>
     </section>

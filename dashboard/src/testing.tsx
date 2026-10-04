@@ -117,6 +117,14 @@ export function renderAt(path: string) {
   );
 }
 
+// Matches the element whose whole text is the text given, even when its words
+// are split across elements, such as an amount set in mono.
+export function wholeText(text: string) {
+  return (_: string, element: Element | null) =>
+    element?.textContent === text &&
+    [...element.children].every((child) => child.textContent !== text);
+}
+
 // Finds the panel headed by the given heading, to look inside it.
 export async function panel(heading: string) {
   return within(await screen.findByRole("region", { name: heading }));

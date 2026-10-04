@@ -4,7 +4,6 @@ new recipe before it takes effect, and the backend keeps or rolls back each vers
 by the business's rule."""
 
 import contextvars
-import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
@@ -38,6 +37,7 @@ from langgraph.types import Command
 
 from agent import improver_api
 from agent.connection import Refused
+from agent.json_text import as_json
 from agent.openrouter import chat_model, usage_of
 
 # The improver's model calls in a round, counted across its stretches of work.
@@ -79,7 +79,7 @@ def round_of(runtime: ToolRuntime[RoundContext] | Runtime[RoundContext]) -> str:
 @tool
 def read_results(runtime: ToolRuntime[RoundContext]) -> str:
     """Read the current version of the claim agent's configuration, its scores, its mistakes and weakest explanations on the evaluation set, the earlier rounds, the objectives, the round's spending limit and the models allowed."""  # noqa: E501
-    return json.dumps(improver_api.get_improver_view(round_of(runtime)), indent=2)
+    return as_json(improver_api.get_improver_view(round_of(runtime)), indent=2)
 
 
 @tool(parse_docstring=True)
@@ -117,7 +117,7 @@ def run_evaluation(runtime: ToolRuntime[RoundContext]) -> str:
     else:
         refused = ""
     verdict = improver_api.record_verdict(round_id)
-    return f"{refused}{verdict['summary']}\n{json.dumps(verdict['scores'], indent=2)}"
+    return f"{refused}{verdict['summary']}\n{as_json(verdict['scores'], indent=2)}"
 
 
 @tool(parse_docstring=True)

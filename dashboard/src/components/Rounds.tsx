@@ -1,4 +1,3 @@
-import { Link } from "react-router";
 import type { Measures, RoundReview, RoundSummary } from "../api";
 import {
   dateTime,
@@ -9,43 +8,45 @@ import {
   whereRoundIs,
 } from "../format";
 import { NOT_GRADED } from "../measures";
-import { recipePage, versionPage } from "../paths";
 import { RoundChip, VerdictChip } from "./Chips";
+import { StateMessage } from "./StateMessage";
+import { RecipeLink, VersionLink } from "./VersionLink";
 
-// Every round, newest first: what it tried and why, the held-out scores before
-// and after, its verdict and why, who approved or rejected what and when, and
-// what it cost against its limit.
+const HEADINGS = [
+  ["Round", ""],
+  ["Recipe", ""],
+  ["Version tried", ""],
+  ["Held-out accuracy", "num"],
+  ["Held-out grade", "num"],
+  ["Verdict", ""],
+  ["Cost", "num"],
+];
+
+// Every round, newest first: what it tried, the held-out scores before and
+// after, its verdict and why, and what it cost against its limit, with the
+// improver's reason and who approved or rejected what and when on a line of
+// its own beneath.
 export function Rounds({ rounds }: Readonly<{ rounds: RoundSummary[] }>) {
   return (
     <section className="panel" aria-labelledby="rounds-title">
       <h2 id="rounds-title">Rounds</h2>
       {rounds.length === 0 ? (
-        <p className="muted">
-          No rounds yet. Starting a round has the improver read the latest
-          results and propose a change to the claim agent for a handler to
-          approve.
-        </p>
+        <StateMessage empty="No rounds yet. Starting a round has the improver read the latest results and propose a change to the claim agent for a handler to approve." />
       ) : (
         <div className="table-scroll">
           <table className="table rounds">
             <thead>
               <tr>
-                <th>Round</th>
-                <th>Recipe</th>
-                <th>Version tried</th>
-                <th>Reason</th>
-                <th className="num">Held-out accuracy</th>
-                <th className="num">Held-out grade</th>
-                <th>Verdict</th>
-                <th>Reviews</th>
-                <th className="num">Cost</th>
+                {HEADINGS.map(([heading, className]) => (
+                  <th key={heading} className={className || undefined}>
+                    {heading}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody>
-              {rounds.map((round) => (
-                <RoundRow key={round.round_id} round={round} />
-              ))}
-            </tbody>
+            {rounds.map((round) => (
+              <RoundRows key={round.round_id} round={round} />
+            ))}
           </table>
         </div>
       )}
@@ -53,62 +54,73 @@ export function Rounds({ rounds }: Readonly<{ rounds: RoundSummary[] }>) {
   );
 }
 
-function RoundRow({ round }: Readonly<{ round: RoundSummary }>) {
+function RoundRows({ round }: Readonly<{ round: RoundSummary }>) {
   return (
-    <tr>
-      <td>
-        <span className="nowrap">
-          <span className="mono">{round.number}</span>{" "}
-          <RoundChip status={round.status} />
-        </span>
-        {round.status === "open" && (
-          <span className="round-stage small">{whereRoundIs(round)}</span>
-        )}
-      </td>
-      <td className="mono">
-        <Link to={recipePage(round.recipe)}>{round.recipe}</Link>
-      </td>
-      {round.version === null ? (
-        <td className="muted">None</td>
-      ) : (
-        <td className="mono">
-          <Link to={versionPage(round.version)}>{round.version}</Link>
+    <tbody>
+      <tr>
+        <td>
+          <span className="nowrap">
+            <span className="mono">{round.number}</span>{" "}
+            <RoundChip status={round.status} />
+          </span>
+          {round.status === "open" && (
+            <span className="round-stage small">{whereRoundIs(round)}</span>
+          )}
         </td>
-      )}
-      <td className="round-reason">
-        {round.reason ?? <span className="muted">No change</span>}
-      </td>
-      <td className="num nowrap">
-        <BeforeAfter
-          round={round}
-          show={(measures) => percent(measures.accuracy)}
-        />
-      </td>
-      <td className="num nowrap">
-        <BeforeAfter
-          round={round}
-          show={(measures) =>
-            measures.grade === null ? NOT_GRADED : grade(measures.grade)
-          }
-        />
-      </td>
-      <td>
-        {round.verdict ? (
-          <>
-            <VerdictChip verdict={round.verdict} />{" "}
-            <span className="small">{round.verdict_reason}</span>
-          </>
+        <td className="nowrap">
+          <RecipeLink number={round.recipe} />
+        </td>
+        {round.version === null ? (
+          <td className="muted">None</td>
         ) : (
-          <span className="muted">{round.stopped_because ?? "None"}</span>
+          <td className="nowrap">
+            <VersionLink number={round.version} />
+          </td>
         )}
-      </td>
-      <td>
-        <Reviews reviews={round.reviews} />
-      </td>
-      <td className="num nowrap">
-        {modelCost(round.cost)} of {money(round.spending_limit)}
-      </td>
-    </tr>
+        <td className="num">
+          <BeforeAfter
+            round={round}
+            show={(measures) => percent(measures.accuracy)}
+          />
+        </td>
+        <td className="num">
+          <BeforeAfter
+            round={round}
+            show={(measures) =>
+              measures.grade === null ? NOT_GRADED : grade(measures.grade)
+            }
+          />
+        </td>
+        <td className="round-verdict">
+          {round.verdict ? (
+            <>
+              <VerdictChip verdict={round.verdict} />{" "}
+              <span className="small">{round.verdict_reason}</span>
+            </>
+          ) : (
+            <span className="muted">{round.stopped_because ?? "None"}</span>
+          )}
+        </td>
+        <td className="num">
+          {modelCost(round.cost)} of {money(round.spending_limit)}
+        </td>
+      </tr>
+      {(round.reason !== null || round.reviews.length > 0) && (
+        <tr>
+          <td colSpan={HEADINGS.length} className="round-details small">
+            <div>
+              {round.reason && (
+                <p>
+                  <span className="muted">The improver's reason:</span>{" "}
+                  {round.reason}
+                </p>
+              )}
+              <Reviews reviews={round.reviews} />
+            </div>
+          </td>
+        </tr>
+      )}
+    </tbody>
   );
 }
 
@@ -129,13 +141,14 @@ function BeforeAfter({
 }
 
 function Reviews({ reviews }: Readonly<{ reviews: RoundReview[] }>) {
-  if (reviews.length === 0) return <span className="muted">None</span>;
+  if (reviews.length === 0) return null;
   return (
     <ul className="reviews">
       {reviews.map((review) => (
         <li key={review.reviewed_at}>
-          {review.reviewed_by} {review.review} the {review.kind},{" "}
-          {dateTime(review.reviewed_at)}
+          <span className="nowrap">{review.reviewed_by}</span> {review.review}{" "}
+          the {review.kind},{" "}
+          <span className="nowrap">{dateTime(review.reviewed_at)}</span>
           {review.rejection_reason && (
             <span className="muted">: {review.rejection_reason}</span>
           )}

@@ -11,6 +11,7 @@ import { AgentsChoice, FIRST_CHOICE } from "../components/AgentsChoice";
 import { RunChip } from "../components/Chips";
 import { StateMessage } from "../components/StateMessage";
 import { ModelName } from "../components/ModelName";
+import { PageHeader } from "../components/PageHeader";
 import {
   agentsAtOnce,
   dateTime,
@@ -24,11 +25,10 @@ import { REFRESH_MS, useLoad } from "../useLoad";
 export function ScoreboardPage() {
   return (
     <>
-      <h1>Scoreboard</h1>
-      <p className="lead">
-        Each evaluation works copies of a labeled set's claims, which never show
-        in the queue, and scores the agent's decisions against our handlers'.
-      </p>
+      <PageHeader
+        title="Scoreboard"
+        lead="Each evaluation works copies of a labeled set's claims, which never show in the queue, and scores the agent's decisions against our handlers'."
+      />
       <div className="column">
         <StartEvaluation />
         <Evaluations />
@@ -95,7 +95,7 @@ function Evaluations() {
       <h2 id="evaluations-title">Evaluations</h2>
       {!evaluations && <StateMessage error={error} />}
       {evaluations?.length === 0 && (
-        <p className="muted">No evaluations yet.</p>
+        <StateMessage empty="No evaluations yet. Start one above to score the agent on a labeled set." />
       )}
       {evaluations && evaluations.length > 0 && (
         <div className="table-scroll">

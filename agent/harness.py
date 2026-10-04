@@ -1,7 +1,6 @@
 """The harness: it builds the claim agent's graph and works a claim with it."""
 
 import contextvars
-import json
 import logging
 import os
 import time
@@ -39,6 +38,7 @@ from psycopg_pool import ConnectionPool
 from agent import api
 from agent.connection import Refused
 from agent.console import describe
+from agent.json_text import as_json
 from agent.openrouter import chat_model, usage_of
 from agent.tools import CLAIM_TOOLS, ClaimContext, ClaimState
 
@@ -118,7 +118,7 @@ def record_reply(claim_id: str, reply: BaseMessage) -> None:
         api.record_step(claim_id, "message", reply.text)
     if isinstance(reply, AIMessage):
         for call in reply.tool_calls:
-            args = ", ".join(f"{k}={json.dumps(v)}" for k, v in call["args"].items())
+            args = ", ".join(f"{k}={as_json(v)}" for k, v in call["args"].items())
             api.record_step(claim_id, "tool_call", f"{call['name']}({args})")
 
 

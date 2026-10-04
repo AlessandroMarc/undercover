@@ -1,12 +1,11 @@
-import { Link } from "react-router";
 import { api, type VersionSummary } from "../api";
 import { VersionChip } from "../components/Chips";
 import { HeldOutAccuracy } from "../components/HeldOutAccuracy";
 import { PageHeader } from "../components/PageHeader";
 import { StateMessage } from "../components/StateMessage";
 import { VersionChanges } from "../components/VersionChanges";
-import { label } from "../format";
-import { versionPage } from "../paths";
+import { VersionLink } from "../components/VersionLink";
+import { label, NO_APPROVAL_NEEDED } from "../format";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
 export function ConfigurationPage() {
@@ -49,8 +48,8 @@ function CurrentVersion({ version }: Readonly<{ version: VersionSummary }>) {
       <dl className="facts">
         <div>
           <dt>Version</dt>
-          <dd className="mono">
-            <Link to={versionPage(version.number)}>{version.number}</Link>
+          <dd>
+            <VersionLink number={version.number} />
           </dd>
         </div>
         <div>
@@ -92,8 +91,8 @@ function Versions({ versions }: Readonly<{ versions: VersionSummary[] }>) {
           <tbody>
             {versions.map((version) => (
               <tr key={version.number}>
-                <td className="mono">
-                  <Link to={versionPage(version.number)}>{version.number}</Link>
+                <td className="nowrap">
+                  <VersionLink number={version.number} />
                 </td>
                 <td>
                   <VersionChip status={version.status} />
@@ -103,7 +102,9 @@ function Versions({ versions }: Readonly<{ versions: VersionSummary[] }>) {
                 </td>
                 <td>{version.reason}</td>
                 <td>{version.proposed_by}</td>
-                <td>{version.approved_by ?? "Nobody"}</td>
+                <td className="nowrap">
+                  {version.approved_by ?? NO_APPROVAL_NEEDED}
+                </td>
                 <td className="num">
                   <HeldOutAccuracy scores={version.scores} />
                 </td>

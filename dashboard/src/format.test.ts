@@ -33,6 +33,7 @@ it("formats lengths of time in minutes and seconds", () => {
   expect(duration(41.4)).toBe("41 s");
   expect(duration(161)).toBe("2 min 41 s");
   expect(duration(0)).toBe("0 s");
+  expect(duration(120)).toBe("2 min");
 });
 
 it("shows the judge's grade to two places", () => {

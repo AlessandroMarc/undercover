@@ -5,7 +5,7 @@ export function ModelName({
 }: Readonly<{ model: string; reasoningEffort: string }>) {
   return (
     <>
-      <span className="mono">{model}</span> at {reasoningEffort}
+      <span className="mono nowrap">{model}</span> at {reasoningEffort}
     </>
   );
 }

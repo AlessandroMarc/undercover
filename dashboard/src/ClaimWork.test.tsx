@@ -9,6 +9,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import type { Claim, Decision, Step } from "./api";
 import { time } from "./format";
 import {
+  wholeText,
   Refusal,
   type Routes,
   claim,
@@ -285,7 +286,9 @@ it("tells a handler who can't sign off over the limit why", async () => {
   const panel = await decisionPanel();
   expect(
     await panel.findByText(
-      "Only a handler who can sign off payouts over $1,000.00 can sign this off. Marcus Oyelaran can't.",
+      wholeText(
+        "Only a handler who can sign off payouts over $1,000.00 can sign this off. Marcus Oyelaran can't.",
+      ),
     ),
   ).toBeDefined();
   expect(panel.queryByRole("button", { name: "Sign off" })).toBeNull();

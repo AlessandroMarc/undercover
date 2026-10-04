@@ -16,7 +16,7 @@ export function VersionChart({
         <Chart
           title="Held-out accuracy"
           top={1}
-          ticks={[0, 0.5, 1]}
+          step={0.1}
           show={percent}
           first={first.accuracy}
           points={tried.map((point) => ({ ...point, value: point.accuracy }))}
@@ -24,7 +24,7 @@ export function VersionChart({
         <Chart
           title="Held-out grade"
           top={3}
-          ticks={[0, 1, 2, 3]}
+          step={0.5}
           show={grade}
           first={first.grade}
           points={tried.map((point) => ({ ...point, value: point.grade }))}
@@ -64,24 +64,39 @@ interface Plotted extends VersionPoint {
   value: number | null;
 }
 
+// Where a chart's axis starts: a step below the lowest score, rounded down to
+// a step, so close scores are told apart rather than flattened against zero.
+function axisStart(values: number[], step: number): number {
+  const lowest = Math.min(...values);
+  return Math.max(0, (Math.floor(lowest / step) - 1) * step);
+}
+
 function Chart({
   title,
   top,
-  ticks,
+  step,
   show,
   first,
   points,
 }: Readonly<{
   title: string;
   top: number;
-  ticks: number[];
+  step: number;
   show: (value: number) => string;
   first: number | null;
   points: Plotted[];
 }>) {
   const scored = points.filter((point) => point.value !== null);
+  const values = [first, ...scored.map((point) => point.value)].filter(
+    (value) => value !== null,
+  );
+  const start = axisStart(values.length > 0 ? values : [top], step);
+  const ticks = Array.from(
+    { length: Math.round((top - start) / step) + 1 },
+    (_, index) => start + index * step,
+  );
   const y = (value: number) =>
-    TOP + (1 - value / top) * (HEIGHT - TOP - BOTTOM);
+    TOP + (1 - (value - start) / (top - start)) * (HEIGHT - TOP - BOTTOM);
   const x = (index: number) =>
     LEFT + ((index + 1) / (points.length + 1)) * (WIDTH - LEFT - RIGHT);
   const bottom = HEIGHT - BOTTOM;

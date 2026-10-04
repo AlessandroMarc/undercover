@@ -17,7 +17,7 @@ test("the header opens the Configuration page, with version 1 current", async ({
     .filter({ hasText: "The claims team" });
   await expect(first.getByText("Current")).toBeVisible();
 
-  await first.getByRole("link", { name: "1" }).click();
+  await first.getByRole("link", { name: "Version 1" }).click();
   await expect(page).toHaveURL("/configuration/versions/1");
   const instructions = page.getByRole("region", { name: "Instructions" });
   await expect(

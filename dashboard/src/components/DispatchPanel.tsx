@@ -32,7 +32,9 @@ export function DispatchPanel() {
         <AgentsChoice agents={agents} onChange={setAgents} />
       </ActionForm>
       {dispatch === undefined && <StateMessage error={error} />}
-      {dispatch === null && <p className="muted">No dispatch yet.</p>}
+      {dispatch === null && (
+        <StateMessage empty="No dispatch yet. Choose the claim agents at once and press Start a dispatch to work the queue." />
+      )}
       {dispatch && <DispatchDetails dispatch={dispatch} />}
     </section>
   );
@@ -62,7 +64,7 @@ function DispatchDetails({ dispatch }: Readonly<{ dispatch: Run }>) {
       {dispatch.claims.length > 0 ? (
         <RunClaims claims={dispatch.claims} />
       ) : (
-        <p className="muted">No claims in this dispatch.</p>
+        <StateMessage empty="No claims in this dispatch: the queue had none waiting or in progress when it started." />
       )}
       {dispatch.summary && <Summary summary={dispatch.summary} />}
     </>
@@ -122,7 +124,7 @@ function Summary({ summary }: Readonly<{ summary: DispatchSummary }>) {
   const only = (ids: string[]) => ids.map((claim_id) => ({ claim_id }));
   return (
     <div className="dispatch-summary">
-      <h3 id="dispatch-summary-title">Summary</h3>
+      <h3 id="dispatch-summary-title">When it finished</h3>
       <ul aria-labelledby="dispatch-summary-title">
         <li>
           {summary.approved} approved, {summary.declined} declined and{" "}

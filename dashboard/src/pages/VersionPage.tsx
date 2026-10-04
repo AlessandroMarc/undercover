@@ -17,7 +17,12 @@ export function VersionPage() {
   const { data: version, error } = useLoad(load, REFRESH_MS);
 
   if (!version)
-    return <StateMessage error={error} notFound="Version not found" />;
+    return (
+      <StateMessage
+        error={error}
+        notFound="Version not found. Choose one on the Configuration page."
+      />
+    );
 
   return (
     <>
@@ -25,7 +30,7 @@ export function VersionPage() {
         eyebrow={<Link to={CONFIGURATION}>Configuration</Link>}
         title={`Version ${String(version.number)}`}
         status={<VersionChip status={version.status} />}
-        lead={version.reason}
+        lead="One version of the claim agent: its instructions, model and reasoning effort, why it was made, and what changed from the version before."
       />
       <div className="column">
         <VersionFacts version={version} />
@@ -93,6 +98,10 @@ function VersionFacts({ version }: Readonly<{ version: VersionDetails }>) {
           <dd>
             <HeldOutAccuracy scores={version.scores} />
           </dd>
+        </div>
+        <div className="fact-wide">
+          <dt>Reason</dt>
+          <dd>{version.reason}</dd>
         </div>
       </dl>
       {version.diff !== null && version.verdict_reason && (

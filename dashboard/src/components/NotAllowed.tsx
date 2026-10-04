@@ -10,8 +10,13 @@ export function NotAllowed({ action }: Readonly<{ action: string }>) {
   const { data: settings } = useLoad(api.getSettings);
   return (
     <p className="not-allowed">
-      {settings &&
-        `Only a handler who can sign off payouts over ${money(settings.current.approval_limit)} can ${action}. ${handler.name} can't.`}
+      {settings && (
+        <>
+          Only a handler who can sign off payouts over{" "}
+          <span className="mono">{money(settings.current.approval_limit)}</span>{" "}
+          can {action}. {handler.name} can't.
+        </>
+      )}
     </p>
   );
 }

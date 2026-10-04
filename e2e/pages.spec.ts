@@ -13,8 +13,12 @@ test("the queue lists every claim", async ({ page }) => {
 
 test("a claim opens from the queue", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("link", { name: "CLM-1001" }).click();
-  await expect(page).toHaveURL("/claims/CLM-1001");
+  // A dispatch another test plays out can push the queue's table down as the
+  // click lands, so the click is tried again until the claim opens.
+  await expect(async () => {
+    await page.getByRole("link", { name: "CLM-1001" }).click();
+    await expect(page).toHaveURL("/claims/CLM-1001", { timeout: 1000 });
+  }).toPass();
   await expect(page.getByText(/My flight home from Rome/)).toBeVisible();
   await expect(
     page.getByText("Hotel Aurelia Fiumicino", { exact: false }),

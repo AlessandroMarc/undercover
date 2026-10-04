@@ -1,7 +1,6 @@
 """The claim agent's tools, each calling the backend operation it is named after, and
 the context and state they read."""
 
-import json
 import operator
 from dataclasses import dataclass
 from typing import Annotated, Any, TypedDict
@@ -12,6 +11,7 @@ from langgraph.graph.message import add_messages
 from langgraph.types import Command
 
 from agent import api
+from agent.json_text import as_json
 
 
 @dataclass
@@ -41,25 +41,25 @@ class ClaimState(TypedDict):
 @tool
 def get_claim(runtime: ToolRuntime[ClaimContext]) -> str:
     """Get your claim in full: the story, the items claimed and the documents."""
-    return json.dumps(api.get_claim(runtime.context.claim_id))
+    return as_json(api.get_claim(runtime.context.claim_id))
 
 
 @tool
 def get_policy(policy_id: str) -> str:
     """Get a policy: the plan, add-ons, purchase date, trip and travelers."""
-    return json.dumps(api.get_policy(policy_id))
+    return as_json(api.get_policy(policy_id))
 
 
 @tool
 def get_claim_history(customer_id: str) -> str:
     """Get a customer's earlier claims, with the outcome and the amount paid."""
-    return json.dumps(api.get_claim_history(customer_id))
+    return as_json(api.get_claim_history(customer_id))
 
 
 @tool
 def search_documents(query: str) -> str:
     """Find the sections of the wording and the manual containing one word or phrase."""
-    return json.dumps(api.search_documents(query))
+    return as_json(api.search_documents(query))
 
 
 @tool(response_format="content_and_artifact")
@@ -69,7 +69,7 @@ def read_section(
     """Read one section of the policy wording or the claims manual in full."""
     section = api.read_section(document, number)
     read = f"{section['document_title']}, section {number}: {section['title']}"
-    return json.dumps(section), ("reading", read)
+    return as_json(section), ("reading", read)
 
 
 @tool
@@ -87,7 +87,7 @@ def calculate_payout(
 ) -> str:
     """Work out the payout on your claim with UnderCover's payout rules."""
     claim_id = runtime.context.claim_id
-    return json.dumps(api.calculate_payout(claim_id, benefit, lines, paid_by_others))
+    return as_json(api.calculate_payout(claim_id, benefit, lines, paid_by_others))
 
 
 @tool
@@ -101,7 +101,7 @@ def record_decision(
     """Record the decision on your claim, once, which ends your work on it."""
     claim_id = runtime.context.claim_id
     claim = api.record_decision(claim_id, decision, payout, section, reason)
-    message = ToolMessage(json.dumps(claim), tool_call_id=runtime.tool_call_id)
+    message = ToolMessage(as_json(claim), tool_call_id=runtime.tool_call_id)
     update = {
         "messages": [message],
         "decision": claim["decision"],

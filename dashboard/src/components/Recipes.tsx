@@ -1,9 +1,8 @@
-import { Link } from "react-router";
 import type { RecipeSummary } from "../api";
 import { NO_APPROVAL_NEEDED } from "../format";
-import { recipePage } from "../paths";
 import { VersionChip } from "./Chips";
 import { LineCounts } from "./LineCounts";
+import { RecipeLink } from "./VersionLink";
 
 // The recipe's versions, newest first, each opening its page.
 export function Recipes({ recipes }: Readonly<{ recipes: RecipeSummary[] }>) {
@@ -29,9 +28,7 @@ export function Recipes({ recipes }: Readonly<{ recipes: RecipeSummary[] }>) {
             {recipes.map((recipe) => (
               <tr key={recipe.number}>
                 <td className="nowrap">
-                  <Link className="mono" to={recipePage(recipe.number)}>
-                    {recipe.number}
-                  </Link>
+                  <RecipeLink number={recipe.number} />
                   {recipe.current && (
                     <>
                       {" "}

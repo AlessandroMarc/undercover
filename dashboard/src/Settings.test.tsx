@@ -8,6 +8,7 @@ import {
 import { afterEach, expect, it, vi } from "vitest";
 import type { SettingsPage } from "./api";
 import {
+  wholeText,
   Refusal,
   marcus,
   panel,
@@ -153,7 +154,9 @@ it("shows the settings read only to a handler who can't change them", async () =
   renderAt("/settings");
   expect(
     await screen.findByText(
-      "Only a handler who can sign off payouts over $1,000.00 can change the settings. Marcus Oyelaran can't.",
+      wholeText(
+        "Only a handler who can sign off payouts over $1,000.00 can change the settings. Marcus Oyelaran can't.",
+      ),
     ),
   ).toBeDefined();
   expect(screen.queryByRole("button", { name: "Save" })).toBeNull();

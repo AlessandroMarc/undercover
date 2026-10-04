@@ -2,6 +2,7 @@ import type {
   Evaluation,
   Improvement,
   Measures,
+  RecipeDetails,
   RoundView,
   WaitingProposal,
 } from "./api";
@@ -139,3 +140,24 @@ export function showPage(page: Improvement, routes: Routes = {}) {
   renderAt("/improvement");
   return fetchMock;
 }
+
+// Recipe 1 as its page shows it.
+export const firstRecipe: RecipeDetails = {
+  ...empty.recipes[0],
+  recipe: "1. Read the results.\n",
+  diff: null,
+};
+
+// A round that finished with its version kept.
+export const finishedRound = {
+  ...open,
+  status: "finished",
+  stage: null,
+  waiting: null,
+  version: 2,
+  reason: "Two stolen phones were approved",
+  verdict: "kept",
+  verdict_reason: "accuracy improved",
+  held_out_before: measures(0.6, 1.5),
+  held_out_after: measures(0.72, 1.9),
+} as const;
