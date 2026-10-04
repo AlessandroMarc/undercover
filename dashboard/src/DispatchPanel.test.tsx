@@ -64,7 +64,7 @@ function showQueue(dispatch: Run | null) {
 }
 
 const dispatchPanel = () => panel("Dispatch");
-const NO_DISPATCH = /^No dispatch yet\. Choose the claim agents at once/;
+const NO_DISPATCH = /^No dispatch yet\. Start one to work the waiting claims/;
 
 const started = (fetchMock: ReturnType<typeof stubApi>) =>
   sent(fetchMock, "POST /api/dispatches");

@@ -12,9 +12,6 @@ import { inWords, label } from "../format";
 import { CONFIGURATION } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
-const LEAD =
-  "One version of the claim agent: its instructions, model and reasoning effort, why it was made, and what changed from the version before.";
-
 export function VersionPage() {
   const { number = "" } = useParams();
   const load = useCallback(() => api.getVersionDetails(number), [number]);
@@ -26,7 +23,6 @@ export function VersionPage() {
         <PageHeader
           eyebrow={<Link to={CONFIGURATION}>Configuration</Link>}
           title={`Version ${number}`}
-          lead={LEAD}
         />
         <StateMessage
           error={error}
@@ -41,7 +37,6 @@ export function VersionPage() {
         eyebrow={<Link to={CONFIGURATION}>Configuration</Link>}
         title={`Version ${String(version.number)}`}
         status={<VersionChip status={version.status} />}
-        lead={LEAD}
       />
       <div className="column">
         <VersionFacts version={version} />
@@ -63,8 +58,8 @@ export function VersionPage() {
         <section className="panel" aria-labelledby="instructions-title">
           <h2 id="instructions-title">Instructions</h2>
           <p className="muted small">
-            What each claim agent reads before it starts on a claim, ending with
-            the contents of the policy wording and the claims manual. Read only.
+            The claim agent's system prompt, followed by the policy wording and
+            the claims manual.
           </p>
           <pre className="instructions">{version.instructions}</pre>
         </section>

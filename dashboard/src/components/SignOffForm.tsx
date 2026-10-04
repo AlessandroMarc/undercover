@@ -1,3 +1,4 @@
+import { Signature } from "lucide-react";
 import { api } from "../api";
 import { ActionForm } from "./ActionForm";
 
@@ -9,6 +10,7 @@ export function SignOffForm({
   return (
     <ActionForm
       label="Sign off"
+      icon={<Signature />}
       action={() => api.signOff(claimId).then(onSignedOff)}
     />
   );

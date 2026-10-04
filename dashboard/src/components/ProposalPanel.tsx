@@ -1,3 +1,4 @@
+import { Check, X } from "lucide-react";
 import { useId, useState } from "react";
 import {
   api,
@@ -137,6 +138,7 @@ function Review({
             if (!sending) setConfirming(true);
           }}
         >
+          <Check />
           Approve
         </button>
         <button
@@ -148,6 +150,7 @@ function Review({
             setRejecting(!rejecting);
           }}
         >
+          <X />
           Reject
         </button>
       </div>

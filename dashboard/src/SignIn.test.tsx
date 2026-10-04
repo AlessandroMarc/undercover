@@ -64,6 +64,7 @@ it("shows who is signed in, and signs them out", async () => {
   expect(who.getByText("Dana Whitfield")).toBeDefined();
   expect(who.getByText("Senior Claims Handler")).toBeDefined();
 
+  fireEvent.click(who.getByRole("button", { name: "Account" }));
   fireEvent.click(who.getByRole("button", { name: "Sign out" }));
   expect(
     await screen.findByRole("heading", { name: "Sign in", level: 1 }),

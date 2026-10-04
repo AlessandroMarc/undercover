@@ -19,9 +19,6 @@ import { MEASURES } from "../measures";
 import { SCOREBOARD } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
-const LEAD =
-  "How the agent did on each copy of the set's claims, beside our handlers' decisions.";
-
 export function EvaluationPage() {
   const { runId = "" } = useParams();
   const load = useCallback(() => api.getEvaluation(runId), [runId]);
@@ -33,7 +30,6 @@ export function EvaluationPage() {
         <PageHeader
           eyebrow={<Link to={SCOREBOARD}>Scoreboard</Link>}
           title="Evaluation"
-          lead={LEAD}
         />
         <StateMessage
           error={error}
@@ -48,7 +44,6 @@ export function EvaluationPage() {
         eyebrow={<Link to={SCOREBOARD}>Scoreboard</Link>}
         title={`Evaluation #${String(evaluation.number)}`}
         status={<RunChip status={evaluation.status} />}
-        lead={LEAD}
       />
       <div className="column">
         <MeasuresPanel evaluation={evaluation} />
@@ -94,8 +89,8 @@ function ScoredClaims({ claims }: Readonly<{ claims: ScoredClaim[] }>) {
     <section className="panel" aria-labelledby="claims-title">
       <h2 id="claims-title">Claims</h2>
       <p className="muted small">
-        A claim the agent didn't decide counts as a referral, and the judge
-        gives it an F.
+        A claim the agent didn't decide counts as a referral and gets an F from
+        the judge.
       </p>
       <div className="table-scroll">
         <table className="table steady scored-claims">

@@ -1,17 +1,7 @@
-import {
-  Link,
-  Navigate,
-  NavLink,
-  Outlet,
-  Route,
-  Routes,
-  useMatch,
-} from "react-router";
-import { Brand } from "./components/Brand";
+import { Navigate, Outlet, Route, Routes } from "react-router";
+import { PageFrame } from "./components/PageFrame";
 import { RequireHandler } from "./components/RequireHandler";
-import { SignOutButton } from "./components/SignOutButton";
 import { StateMessage } from "./components/StateMessage";
-import { useHandler } from "./handler";
 import { ClaimPage } from "./pages/ClaimPage";
 import { ConfigurationPage } from "./pages/ConfigurationPage";
 import { EvaluationPage } from "./pages/EvaluationPage";
@@ -43,7 +33,9 @@ export function App() {
       <Route
         element={
           <RequireHandler>
-            <SignedInLayout />
+            <PageFrame>
+              <Outlet />
+            </PageFrame>
           </RequireHandler>
         }
       >
@@ -68,43 +60,5 @@ export function App() {
         />
       </Route>
     </Routes>
-  );
-}
-
-function SignedInLayout() {
-  const handler = useHandler();
-  // A claim's page belongs to the queue.
-  const queuePage = useMatch(QUEUE);
-  const claimPage = useMatch(CLAIM_PAGE);
-  const onQueue = queuePage !== null || claimPage !== null;
-  return (
-    <>
-      <header className="header">
-        <Link to={QUEUE} className="brand">
-          <Brand />
-        </Link>
-        <nav className="nav" aria-label="Main">
-          <Link
-            to={QUEUE}
-            className={onQueue ? "active" : undefined}
-            aria-current={onQueue ? "page" : undefined}
-          >
-            Queue
-          </Link>
-          <NavLink to={SCOREBOARD}>Scoreboard</NavLink>
-          <NavLink to={IMPROVEMENT}>Improvement</NavLink>
-          <NavLink to={CONFIGURATION}>Configuration</NavLink>
-          <NavLink to={SETTINGS}>Settings</NavLink>
-        </nav>
-        <div className="who" role="group" aria-label="Signed in">
-          <span className="who-name">{handler.name}</span>
-          <span className="who-role muted">{handler.role}</span>
-          <SignOutButton className="button quiet" />
-        </div>
-      </header>
-      <main className="page">
-        <Outlet />
-      </main>
-    </>
   );
 }

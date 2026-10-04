@@ -1,3 +1,4 @@
+import { CircleStop, Play } from "lucide-react";
 import { useState } from "react";
 import {
   api,
@@ -7,6 +8,7 @@ import {
 } from "../api";
 import { ActionForm } from "../components/ActionForm";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { FormError } from "../components/FormError";
 import { NotAllowed } from "../components/NotAllowed";
 import { PageHeader } from "../components/PageHeader";
 import { ProposalPanel } from "../components/ProposalPanel";
@@ -39,7 +41,7 @@ export function ImprovementPage() {
   const header = (
     <PageHeader
       title="Improvement"
-      lead="Rounds of the improver, which proposes changes to the claim agent for a handler to approve, and keeps each version only if the business's rule does."
+      lead="Use self-improvement and recursive self-improvement with a goal of increasing claim agent accuracy."
       action={page && <RoundAction open={open} onDone={reload} />}
     />
   );
@@ -56,9 +58,7 @@ export function ImprovementPage() {
       <div className="column">
         {page.round && <RoundPanel round={page.round} />}
         {refusal && stillAbout(refusal, page.round?.waiting) && (
-          <p className="form-error" role="alert">
-            {refusal.message}
-          </p>
+          <FormError>{refusal.message}</FormError>
         )}
         {page.round?.waiting && (
           <ProposalPanel
@@ -98,6 +98,7 @@ function RoundAction({
   return (
     <ActionForm
       label="Start a round"
+      icon={<Play />}
       action={() => api.startRound().then(onDone)}
     />
   );
@@ -119,13 +120,10 @@ function StopRound({
           setConfirming(true);
         }}
       >
+        <CircleStop />
         Stop the round
       </button>
-      {stop.error && (
-        <p className="form-error" role="alert">
-          {stop.error}
-        </p>
-      )}
+      {stop.error && <FormError>{stop.error}</FormError>}
       <ConfirmDialog
         open={confirming}
         title={`Stop round ${String(round.number)}?`}
@@ -152,7 +150,7 @@ function VersionsTried({ page }: Readonly<{ page: Improvement }>) {
     <section className="panel" aria-labelledby="tried-title">
       <h2 id="tried-title">Versions tried</h2>
       {page.versions_tried.length === 0 ? (
-        <StateMessage empty="No version tried yet. Each version a round tries shows here with its held-out accuracy and grade." />
+        <StateMessage empty="No version tried yet. Start a round to try one." />
       ) : (
         <VersionChart first={page.first_version} tried={page.versions_tried} />
       )}

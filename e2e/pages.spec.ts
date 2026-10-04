@@ -22,7 +22,9 @@ test("a claim opens from the queue", async ({ page }) => {
   await expect(page.getByText("POL-2001")).toBeVisible();
 });
 
-test("signing out lands on the sign-in page", async ({ browser }) => {
+test("signing out from the account menu lands on the sign-in page", async ({
+  browser,
+}) => {
   // A browser of its own, so signing out leaves the other tests signed in.
   const context = await browser.newContext({
     storageState: HANDLERS.dana.storage,
@@ -32,6 +34,7 @@ test("signing out lands on the sign-in page", async ({ browser }) => {
   const who = page.getByLabel("Signed in");
   await expect(who.getByText("Dana Whitfield")).toBeVisible();
   await expect(who.getByText("Senior Claims Handler")).toBeVisible();
+  await who.getByRole("button", { name: "Account" }).click();
   await who.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL("/sign-in");
   await expect(

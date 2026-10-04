@@ -22,11 +22,7 @@ export function ClaimPage() {
   if (!claim)
     return (
       <>
-        <PageHeader
-          eyebrow={<Link to={QUEUE}>Queue</Link>}
-          title={claimId}
-          lead="A claim, with the agent's decision, its work step by step and the policy behind it."
-        />
+        <PageHeader eyebrow={<Link to={QUEUE}>Queue</Link>} title={claimId} />
         <StateMessage
           error={error}
           notFound="Claim not found. Choose one from the queue."
@@ -56,7 +52,7 @@ export function ClaimPage() {
               <Link to={evaluationPage(claim.evaluation_id)}>evaluation</Link>
             </>
           ) : (
-            `${claim.customer_name}'s claim, with the agent's decision, its work step by step and the policy behind it.`
+            `${claim.customer_name}'s ${label(claim.claim_type).toLowerCase()} claim`
           )
         }
       />

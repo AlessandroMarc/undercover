@@ -1,3 +1,4 @@
+import { Monitor, Moon, Save, Sun, type LucideIcon } from "lucide-react";
 import { useId, useState } from "react";
 import {
   api,
@@ -6,6 +7,7 @@ import {
   type SettingsPage as SettingsData,
 } from "../api";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { FormError } from "../components/FormError";
 import { NotAllowed } from "../components/NotAllowed";
 import { PageHeader } from "../components/PageHeader";
 import { StateMessage } from "../components/StateMessage";
@@ -26,10 +28,14 @@ import { type Appearance, chooseAppearance, savedAppearance } from "../theme";
 import { useAction } from "../useAction";
 import { useLoad } from "../useLoad";
 
-const APPEARANCES: { appearance: Appearance; label: string }[] = [
-  { appearance: "light", label: "Light" },
-  { appearance: "dark", label: "Dark" },
-  { appearance: "system", label: "Same as this computer" },
+const APPEARANCES: {
+  appearance: Appearance;
+  label: string;
+  icon: LucideIcon;
+}[] = [
+  { appearance: "light", label: "Light", icon: Sun },
+  { appearance: "dark", label: "Dark", icon: Moon },
+  { appearance: "system", label: "Same as this computer", icon: Monitor },
 ];
 
 function lastChange(settings: Settings): string {
@@ -48,7 +54,7 @@ export function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        lead="The platform's settings, which every part of UnderCover reads. A handler who can sign off payouts over the limit can change them, and each change is recorded."
+        lead="The approval limit and the rules for improving the claim agent."
       />
       {page ? (
         <SettingsPanels page={page} onSaved={setSaved} />
@@ -103,14 +109,11 @@ function SettingsForm({
           className="button"
           disabled={changes.length === 0 || save.sending}
         >
+          <Save />
           Save
         </button>
       </div>
-      {save.error && (
-        <p className="form-error" role="alert">
-          {save.error}
-        </p>
-      )}
+      {save.error && <FormError>{save.error}</FormError>}
       {settingGroups.map((group) => (
         <fieldset className="panel" key={group}>
           <legend>{GROUPS[group].title}</legend>
@@ -267,8 +270,7 @@ function ModelsAllowed({ models }: Readonly<{ models: ModelAllowed[] }>) {
     <section className="panel" aria-labelledby="models-title">
       <h2 id="models-title">Models allowed</h2>
       <p className="muted small">
-        The models the claim agent may use, set in data/models.json. They can't
-        be changed here.
+        The models the claim agent can use, set in data/models.json.
       </p>
       <div className="table-scroll">
         <table className="table">
@@ -301,10 +303,10 @@ function AppearanceChoice() {
   return (
     <fieldset className="panel">
       <legend>Appearance</legend>
-      <p className="muted small">Kept in this browser only.</p>
-      <div className="choices">
+      <p className="muted small">Saved in this browser only.</p>
+      <div className="appearances">
         {APPEARANCES.map((choice) => (
-          <label key={choice.appearance} className="choice">
+          <label key={choice.appearance} className="appearance">
             <input
               type="radio"
               name="appearance"
@@ -314,6 +316,7 @@ function AppearanceChoice() {
                 setAppearance(choice.appearance);
               }}
             />
+            <choice.icon />
             {choice.label}
           </label>
         ))}

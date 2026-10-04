@@ -45,27 +45,27 @@ export type SettingGroup = (typeof settingGroups)[number];
 export const GROUPS: Record<SettingGroup, { title: string; lead: string }> = {
   approval: {
     title: "Approval",
-    lead: "A payout over the limit waits for a handler who can sign it off. A new limit applies to the decisions recorded after it.",
+    lead: "Payouts over the limit wait for a senior handler's sign-off. A new limit applies to later decisions only.",
   },
   objectives: {
     title: "Objectives on the held-out set",
-    lead: "The floors a new version of the claim agent must meet to be kept.",
+    lead: "The lowest scores a new version of the claim agent can have and be kept.",
   },
   noise: {
     title: "Noise",
-    lead: "How far a measure must improve before it counts. Accuracy and the grade are differences; cost and time are shares of the old value.",
+    lead: "The smallest improvement that counts. Accuracy and grade are in points; cost and time are a share of the old value.",
   },
   tolerance: {
     title: "Tolerance",
-    lead: "How far a measure may get worse in a version that improves another.",
+    lead: "How much a measure can get worse when another improves.",
   },
   spending: {
     title: "Spending",
-    lead: "What one round of the improver may spend on its own model calls, its evaluations and the judge.",
+    lead: "The most one round of the improver can spend, including its evaluations and the judge.",
   },
   evaluations: {
     title: "The improver's evaluations",
-    lead: "How many claim agents work at once in the evaluations of a round.",
+    lead: "How many claim agents work at once in a round's evaluations.",
   },
 };
 

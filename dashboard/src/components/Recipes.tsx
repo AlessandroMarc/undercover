@@ -10,8 +10,8 @@ export function Recipes({ recipes }: Readonly<{ recipes: RecipeSummary[] }>) {
     <section className="panel" aria-labelledby="recipes-title">
       <h2 id="recipes-title">Recipes</h2>
       <p className="muted small">
-        The steps the improver follows in each round. A round may propose a
-        better recipe, which the next round follows once a handler approves it.
+        The steps the improver follows in each round. A round may propose a new
+        recipe for the next.
       </p>
       <div className="table-scroll">
         <table className="table">

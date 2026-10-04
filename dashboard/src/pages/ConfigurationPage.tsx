@@ -20,7 +20,7 @@ export function ConfigurationPage() {
   const header = (
     <PageHeader
       title="Configuration"
-      lead="The claim agent's instructions, model and reasoning effort, kept in versions. Every dispatch uses the current version. A change the improver proposes is tested once a handler approves it, and becomes current only if the business's rule keeps it."
+      lead="All versions of the claim agent's configuration."
     />
   );
 

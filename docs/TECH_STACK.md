@@ -11,7 +11,7 @@
   - Every claim graph run is traced in Langfuse, in a session named after the claim and its thread, and tagged with its run's id in `langfuse_tags`.
   - The claim agents of a run use its version's model and reasoning effort, `openai/gpt-6-luna` at low in version 1. Each model call's cost comes from OpenRouter's `usage.cost` on the reply. `uv run -m agent` reads `UNDERCOVER_API` from the shell's environment, never `.env`; the agent's service gets `.env` from `npm run dev`.
   - The improver is a LangChain `create_agent` on the round's model, `openai/gpt-6-luna` at medium by default, with the lab's four tools. `HumanInTheLoopMiddleware` pauses it for a handler's approval, with its progress saved by a `PostgresSaver` of its own on the round's thread; `ModelCallLimitMiddleware` caps its model calls in a round at 20; parallel tool calls are off. Each stretch of its work is traced in Langfuse in the round's session.
-- `dashboard/`: React, Vite and TypeScript. `auth.ts` is the one module that uses `@supabase/supabase-js`, with `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, which Vite reads from `.env` in development mode only.
+- `dashboard/`: React, Vite and TypeScript, with icons from `lucide-react`. `auth.ts` is the one module that uses `@supabase/supabase-js`, with `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, which Vite reads from `.env` in development mode only.
 - `e2e/`: Playwright tests, with stand-ins for the agent's service, Supabase Auth and the judge.
 - `data/`: the business data the backend starts from. The agent never sees `data/evals/`, which holds the answer key.
 

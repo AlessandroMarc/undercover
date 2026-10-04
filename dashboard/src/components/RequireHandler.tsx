@@ -4,6 +4,7 @@ import { api } from "../api";
 import { HandlerContext, type SignInState, useSignedIn } from "../handler";
 import { SIGN_IN } from "../paths";
 import { useLoad } from "../useLoad";
+import { PageFrame } from "./PageFrame";
 import { StateMessage } from "./StateMessage";
 import { SignOutButton } from "./SignOutButton";
 
@@ -27,10 +28,10 @@ function HandlerProvider({ children }: Readonly<{ children: ReactNode }>) {
   const { data: handler, error } = useLoad(api.getSignedInHandler);
   if (!handler)
     return (
-      <main className="page">
+      <PageFrame>
         <StateMessage error={error} />
         {error && <SignOutButton className="button" />}
-      </main>
+      </PageFrame>
     );
   return <HandlerContext value={handler}>{children}</HandlerContext>;
 }

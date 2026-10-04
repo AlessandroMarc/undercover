@@ -1,3 +1,4 @@
+import { Play } from "lucide-react";
 import { Fragment, useState } from "react";
 import { api, type DispatchSummary, type Run, type RunClaim } from "../api";
 import {
@@ -27,13 +28,14 @@ export function DispatchPanel() {
       </div>
       <ActionForm
         label="Start a dispatch"
+        icon={<Play />}
         action={() => api.startDispatch(agents)}
       >
         <AgentsChoice agents={agents} onChange={setAgents} />
       </ActionForm>
       {dispatch === undefined && <StateMessage error={error} />}
       {dispatch === null && (
-        <StateMessage empty="No dispatch yet. Choose the claim agents at once and press Start a dispatch to work the queue." />
+        <StateMessage empty="No dispatch yet. Start one to work the waiting claims." />
       )}
       {dispatch && <DispatchDetails dispatch={dispatch} />}
     </section>

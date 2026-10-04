@@ -4,10 +4,16 @@ import {
   date,
   duration,
   grade,
+  initials,
   label,
   modelCost,
   money,
 } from "./format";
+
+it("takes a handler's initials from their first and last names", () => {
+  expect(initials("Dana Whitfield")).toBe("DW");
+  expect(initials("Mary Ann Okafor")).toBe("MO");
+});
 
 it("formats money in US dollars", () => {
   expect(money(1150)).toBe("$1,150.00");

@@ -1,3 +1,4 @@
+import { Play } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import {
@@ -27,7 +28,7 @@ export function ScoreboardPage() {
     <>
       <PageHeader
         title="Scoreboard"
-        lead="Each evaluation works copies of a labeled set's claims, which never show in the queue, and scores the agent's decisions against our handlers'."
+        lead="How the claim agent scores against our handlers' decisions."
       />
       <div className="column">
         <StartEvaluation />
@@ -49,6 +50,7 @@ function StartEvaluation() {
       <h2 id="start-title">Start an evaluation</h2>
       <ActionForm
         label="Start an evaluation"
+        icon={<Play />}
         action={() => api.startEvaluation(evaluationSet, tiny, agents)}
       >
         <label>

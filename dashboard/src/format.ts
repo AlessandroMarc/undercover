@@ -88,6 +88,14 @@ export function agentsAtOnce(agents: number): string {
   return `${String(agents)} claim ${agents === 1 ? "agent" : "agents"} at once`;
 }
 
+// A handler's initials, from their first and last names, such as DW for Dana
+// Whitfield.
+export function initials(name: string): string {
+  const [first = "", ...rest] = name.split(" ");
+  const last = rest.at(-1) ?? "";
+  return (first.charAt(0) + last.charAt(0)).toUpperCase();
+}
+
 export function label(code: string): string {
   const words = code.replaceAll("_", " ");
   return words.charAt(0).toUpperCase() + words.slice(1);

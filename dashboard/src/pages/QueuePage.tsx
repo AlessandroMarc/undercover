@@ -1,4 +1,12 @@
-import { api, statuses } from "../api";
+import {
+  Bot,
+  CircleCheck,
+  Flag,
+  Inbox,
+  type LucideIcon,
+  Signature,
+} from "lucide-react";
+import { api, type Status, statuses } from "../api";
 import { DecisionChip, StatusChip } from "../components/Chips";
 import { ClaimLink } from "../components/ClaimLink";
 import { StateMessage } from "../components/StateMessage";
@@ -7,14 +15,18 @@ import { PageHeader } from "../components/PageHeader";
 import { date, label, money, statusLabels } from "../format";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
+// Each state's icon on its tile.
+const STATUS_ICONS: Record<Status, LucideIcon> = {
+  waiting: Inbox,
+  in_progress: Bot,
+  waiting_for_sign_off: Signature,
+  decided: CircleCheck,
+  left_for_handler: Flag,
+};
+
 export function QueuePage() {
   const { data: claims, error } = useLoad(api.listClaims, REFRESH_MS);
-  const header = (
-    <PageHeader
-      title="Claims queue"
-      lead="Every claim our customers have made, and the dispatch that works the waiting ones with claim agents."
-    />
-  );
+  const header = <PageHeader title="Claims queue" />;
   if (!claims)
     return (
       <>
@@ -29,15 +41,19 @@ export function QueuePage() {
       <section className="tiles" aria-label="Claims by state">
         {statuses.map((status) => {
           const count = claims.filter((c) => c.status === status).length;
+          const Icon = STATUS_ICONS[status];
           return (
             <div
-              className="panel tile"
+              className={`tile status-${status}`}
               key={status}
               role="group"
               aria-label={`${statusLabels[status]}: ${String(count)}`}
             >
-              <StatusChip status={status} />
-              <span className="tile-count mono">{count}</span>
+              <p className="tile-label">{statusLabels[status]}</p>
+              <p className="tile-figure">
+                <span className="tile-count">{count}</span>
+                <Icon />
+              </p>
             </div>
           );
         })}

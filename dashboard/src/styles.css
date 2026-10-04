@@ -18,6 +18,12 @@
   --red-text: light-dark(#b8204a, #ff8fa8);
   --disabled-surface: light-dark(#e3eaec, #163640);
   --disabled-ink: light-dark(#7a949c, #6f8a92);
+  /* The header's band, darker than the page in both modes, and a menu raised
+     above the page. */
+  --header: light-dark(var(--midnight), #000000);
+  --on-header: #ffffff;
+  --raised: light-dark(#ffffff, #0b2c37);
+  --shadow: light-dark(rgb(7 59 76 / 0.07), rgb(0 0 0 / 0.5));
   --sans: "Instrument Sans", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
 
@@ -50,6 +56,25 @@ body {
 
 a {
   color: var(--link);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+/* An icon in a button, a menu or a message, the size of the text beside it. */
+svg.lucide {
+  flex: none;
+  width: 1.1em;
+  height: 1.1em;
 }
 
 h1,
@@ -96,38 +121,47 @@ p {
   white-space: nowrap;
 }
 
+/* The header: a band across the page in Midnight, with the brand, the main
+   nav and the handler signed in. */
 .header {
+  background: var(--header);
+  color: var(--on-header);
+}
+
+.header-bar {
   max-width: 1320px;
+  height: 64px;
   margin: 0 auto;
-  padding: 20px 24px;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 12px 40px;
+  padding: 0 24px;
+  display: flex;
+  align-items: stretch;
+  gap: 40px;
+}
+
+/* Sea Green shows on the band; the menu, on its own surface, keeps the
+   usual ring. */
+.header-bar > .brand:focus-visible,
+.nav a:focus-visible,
+.avatar-button:focus-visible {
+  outline-color: var(--sea-green);
+}
+
+/* The brand, always on the header's Midnight or the sign-in page's. */
+.brand {
+  display: flex;
   align-items: center;
-}
-
-/* The nav starts at the same place whoever is signed in. */
-.header .nav {
-  justify-self: start;
-}
-
-.header .who {
+  gap: 8px;
+  color: var(--on-header);
+  font-size: 1.3rem;
+  font-weight: 700;
+  text-decoration: none;
   white-space: nowrap;
 }
 
-@media (max-width: 960px) {
-  .header {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-  }
-}
-
-.brand {
-  color: var(--ink);
-  font-size: 1.35rem;
-  font-weight: 700;
-  text-decoration: none;
+.brand svg.lucide {
+  width: 26px;
+  height: 26px;
+  color: var(--sea-green);
 }
 
 .tagline {
@@ -135,41 +169,188 @@ p {
   font-style: italic;
   font-weight: 400;
   font-size: 1.3rem;
-  color: var(--muted);
-  margin-left: 4px;
+  color: var(--sea-mist);
 }
 
+/* Plain links, with a Sea Green bar under the page you're on. */
 .nav {
   display: flex;
-  gap: 6px;
+  align-items: stretch;
+  gap: 8px;
 }
 
 .nav a {
-  color: var(--ink);
-  text-decoration: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  color: var(--sea-mist);
   font-weight: 500;
-  padding: 6px 14px;
-  border-radius: 999px;
+  text-decoration: none;
 }
 
+.nav a:hover,
 .nav a.active {
-  background: var(--panel);
+  color: var(--on-header);
+}
+
+.nav a.active::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--sea-green);
 }
 
 .who {
+  margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+}
+
+.who-text {
+  display: grid;
+  text-align: right;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .who-name {
   font-weight: 600;
 }
 
+.who-role {
+  font-size: 0.82rem;
+  color: var(--sea-mist);
+}
+
+.account {
+  position: relative;
+}
+
+.avatar-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px 3px 3px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--sea-mist);
+  cursor: pointer;
+}
+
+.avatar-button:hover,
+.avatar-button[aria-expanded="true"] {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--sea-green);
+  color: var(--midnight);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 10;
+  min-width: 260px;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow:
+    0 12px 32px var(--shadow),
+    0 2px 6px var(--shadow);
+}
+
+.account-who {
+  display: grid;
+  margin-bottom: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--inset);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible,
+.menu-item.active {
+  background: var(--inset);
+}
+
+.menu-item svg.lucide {
+  color: var(--muted);
+}
+
+@media (max-width: 960px) {
+  .header-bar {
+    height: auto;
+    flex-wrap: wrap;
+    gap: 0 24px;
+    padding: 10px 16px 0;
+  }
+
+  /* The links wrap on a narrow screen, so none is out of sight. */
+  .header .nav {
+    order: 1;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    gap: 0 8px;
+    margin-left: -12px;
+  }
+
+  .nav a {
+    height: 40px;
+  }
+}
+
+@media (max-width: 560px) {
+  .who-text {
+    display: none;
+  }
+}
+
 .page {
   max-width: 1320px;
   margin: 0 auto;
-  padding: 8px 24px 48px;
+  padding: 32px 24px 56px;
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding: 24px 16px 48px;
+  }
 }
 
 .lead {
@@ -201,12 +382,21 @@ p {
   color: var(--muted);
 }
 
+/* The sign-in page: its card in the middle of the header's Midnight, or of
+   the page in dark mode, where the header's black would hide a black card. */
 .sign-in {
-  max-width: 440px;
-  margin: 0 auto;
-  padding: 72px 24px;
+  min-height: 100vh;
+  padding: 48px 16px;
   display: grid;
+  grid-template-columns: minmax(0, 440px);
+  justify-content: center;
+  align-content: center;
   gap: 24px;
+  background: light-dark(var(--midnight), var(--page));
+}
+
+.sign-in .brand {
+  justify-self: center;
 }
 
 .sign-in-panel {
@@ -231,6 +421,53 @@ p {
   background: var(--panel);
   border-radius: 16px;
   padding: 20px 24px;
+  box-shadow: 0 1px 3px var(--shadow);
+}
+
+/* The queue's tiles, one for each state, filled in the state's color as its
+   chip is. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.tile {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 16px;
+  padding: 18px 20px 20px;
+  border-radius: 16px;
+  color: var(--midnight);
+}
+
+/* Large text (18.66px bold or more), which white on Cerulean and Raspberry
+   is clear enough for. */
+.tile-label {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.tile-figure {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tile-figure svg.lucide {
+  width: 28px;
+  height: 28px;
+}
+
+.tile-count {
+  font-family: var(--mono);
+  font-size: 2.4rem;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .chip {
@@ -285,24 +522,6 @@ p {
 .grade-F {
   background: var(--raspberry);
   color: #ffffff;
-}
-
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.tile {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.tile-count {
-  font-size: 1.8rem;
-  font-weight: 500;
 }
 
 .table-scroll {
@@ -621,6 +840,11 @@ p {
   margin: 12px 0 16px;
 }
 
+/* A form that ends its panel leaves the panel's own padding below it. */
+.action-form:last-child {
+  margin-bottom: 0;
+}
+
 .action-form label {
   display: grid;
   gap: 4px;
@@ -655,10 +879,19 @@ p {
 
 .action-form button,
 .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: var(--sea-green);
   color: var(--midnight);
   font-weight: 600;
   cursor: pointer;
+}
+
+.action-form button:enabled:not([aria-disabled="true"]):hover,
+.button:enabled:not([aria-disabled="true"]):hover {
+  background: color-mix(in srgb, var(--sea-green) 88%, var(--midnight));
 }
 
 .button.quiet {
@@ -669,6 +902,10 @@ p {
 /* On a panel, a quiet button takes the inset color, so it keeps its shape. */
 .panel .button.quiet {
   background: var(--inset);
+}
+
+.button.quiet:enabled:not([aria-disabled="true"]):hover {
+  background: color-mix(in srgb, var(--ink) 10%, var(--panel));
 }
 
 .button:disabled,
@@ -684,10 +921,18 @@ p {
 
 .form-error {
   flex-basis: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   color: var(--ink);
   background: color-mix(in srgb, var(--raspberry) 20%, transparent);
   border-radius: 8px;
   padding: 8px 12px;
+}
+
+.form-error svg.lucide {
+  margin-top: 0.2em;
+  color: var(--red-text);
 }
 
 .steps {
@@ -873,21 +1118,64 @@ fieldset.panel legend + * {
   text-align: right;
 }
 
-.choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 24px;
-  margin-top: 12px;
+/* The appearances as cards to pick, each a radio button under its icon. */
+.appearances {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 200px));
+  gap: 12px;
+  margin-top: 16px;
 }
 
-.choice {
-  display: flex;
-  align-items: center;
+.appearance {
+  position: relative;
+  display: grid;
+  justify-items: center;
   gap: 8px;
+  padding: 18px 12px 14px;
+  border-radius: 12px;
+  background: var(--inset);
+  font-size: 0.9rem;
+  text-align: center;
+  cursor: pointer;
 }
 
-.choice input {
-  accent-color: var(--green-text);
+.appearance svg.lucide {
+  width: 28px;
+  height: 28px;
+  color: var(--muted);
+}
+
+.appearance input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.appearance:hover {
+  background: color-mix(in srgb, var(--ink) 8%, var(--inset));
+}
+
+.appearance:has(input:checked) {
+  background: var(--sea-green);
+  color: var(--midnight);
+  font-weight: 600;
+}
+
+.appearance:has(input:checked) svg.lucide {
+  color: var(--midnight);
+}
+
+.appearance:has(input:focus-visible) {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .appearance:has(input:checked) {
+    outline: 3px solid Highlight;
+  }
 }
 
 .confirm-dialog {

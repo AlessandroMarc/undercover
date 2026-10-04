@@ -122,8 +122,6 @@ it.each(PAGES)(
     const title = await screen.findByRole("heading", { level: 1 });
     expect(title.textContent).not.toBe("");
     expect(title.closest(".page-header")).not.toBeNull();
-    const lead = document.querySelector(".page-header .lead");
-    expect(lead?.textContent.length).toBeGreaterThan(30);
     await waitFor(() => {
       expect(screen.queryByText("Loading...")).toBeNull();
     });
@@ -146,7 +144,7 @@ const EMPTY_STATES: [string, Routes, RegExp][] = [
   [
     "/",
     { "GET /api/claims": [summary], "GET /api/dispatches/latest": null },
-    /^No dispatch yet\. Choose the claim agents at once and press Start a dispatch/,
+    /^No dispatch yet\. Start one to work the waiting claims\.$/,
   ],
   [
     "/scoreboard",

@@ -26,7 +26,7 @@ export function SignInPage() {
       <section className="panel sign-in-panel">
         <PageHeader
           title="Sign in"
-          lead="For UnderCover's claims handlers. There's no sign-up: a manager adds each handler."
+          lead="For UnderCover claims handlers. Ask your manager for an account."
         />
         <ActionForm
           label="Sign in"

@@ -1,3 +1,4 @@
+import { LogOut } from "lucide-react";
 import { signOut } from "../auth";
 
 export function SignOutButton({ className }: Readonly<{ className: string }>) {
@@ -9,6 +10,7 @@ export function SignOutButton({ className }: Readonly<{ className: string }>) {
         void signOut();
       }}
     >
+      <LogOut />
       Sign out
     </button>
   );

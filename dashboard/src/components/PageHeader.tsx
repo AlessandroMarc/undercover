@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-// The top of every page: its title, a line on what the page is for, and the
-// page's main action on the right.
+// The top of every page: its title, a line on what the page is for when it
+// isn't plain from the title, and the page's main action on the right.
 export function PageHeader({
   title,
   lead,
@@ -10,7 +10,7 @@ export function PageHeader({
   action,
 }: Readonly<{
   title: string;
-  lead: ReactNode;
+  lead?: ReactNode;
   eyebrow?: ReactNode;
   status?: ReactNode;
   action?: ReactNode;
@@ -23,7 +23,7 @@ export function PageHeader({
           <h1>{title}</h1>
           {status}
         </div>
-        <p className="lead">{lead}</p>
+        {lead && <p className="lead">{lead}</p>}
       </div>
       {action && <div className="page-header-action">{action}</div>}
     </div>

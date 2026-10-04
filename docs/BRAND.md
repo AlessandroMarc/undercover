@@ -25,7 +25,13 @@ Use Sea Green, Marigold and Coral when three things sit side by side, such as a 
 - **Light mode**: page background `#F0F4F5`, white panels and cards
 - **Dark mode**: page background `#04232E`, black panels and cards
 
-Panels are rounded with no outline. Sea Green and Marigold are too bright for small text, so darken them for headings and body text on light backgrounds and lighten them on dark ones.
+Panels are rounded with no outline, and a faint shadow. Sea Green and Marigold are too bright for small text, so darken them for headings and body text on light backgrounds and lighten them on dark ones.
+
+The header is a band of Midnight across the top of the page (black in dark mode), with white text and the brand's mark, a shield with a check, in Sea Green.
+
+## Icons
+
+Lucide icons, where an icon says something at a glance: a state, an action's button, a choice. Beside text, an icon is the text's size; on a tile or a card of its own, it can be larger. Never emojis.
 
 ## Avoid
 

@@ -10,9 +10,6 @@ import { dateTime } from "../format";
 import { IMPROVEMENT } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
-const LEAD =
-  "One version of the recipe the improver follows in a round, why it was made, and what changed from the one before.";
-
 export function RecipePage() {
   const { number = "" } = useParams();
   const load = useCallback(() => api.getRecipe(number), [number]);
@@ -24,7 +21,6 @@ export function RecipePage() {
         <PageHeader
           eyebrow={<Link to={IMPROVEMENT}>Improvement</Link>}
           title={`Recipe ${number}`}
-          lead={LEAD}
         />
         <StateMessage
           error={error}
@@ -39,7 +35,6 @@ export function RecipePage() {
         eyebrow={<Link to={IMPROVEMENT}>Improvement</Link>}
         title={`Recipe ${String(recipe.number)}`}
         status={recipe.current && <VersionChip status="current" />}
-        lead={LEAD}
       />
       <div className="column">
         <RecipeFacts recipe={recipe} />
@@ -59,10 +54,6 @@ export function RecipePage() {
         </section>
         <section className="panel" aria-labelledby="recipe-title">
           <h2 id="recipe-title">Recipe</h2>
-          <p className="muted small">
-            The steps the improver follows in a round, after its goals. Read
-            only.
-          </p>
           <pre className="instructions">{recipe.recipe}</pre>
         </section>
       </div>
