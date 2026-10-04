@@ -142,7 +142,7 @@ it("starts an evaluation with the choices made", async () => {
 });
 
 it.each([
-  [409, "A dispatch or an evaluation is already running"],
+  [409, "A dispatch is running"],
   [503, "The agent's service isn't running"],
 ])("shows a refusal with status %i", async (status, detail) => {
   showScoreboard({ "POST /api/evaluations": new Refusal(status, detail) });

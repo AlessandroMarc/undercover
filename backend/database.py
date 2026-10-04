@@ -53,7 +53,15 @@ FIRST_VERSION = {
     "verdict": Verdict.KEPT,
     "verdict_reason": "the first version",
 }
-FIRST_MODEL = ("openai/gpt-6-luna", "low")
+# The model the claim agent and the improver use, unless a student is on a free one.
+LUNA = "openai/gpt-6-luna"
+FIRST_MODEL = (LUNA, "low")
+FIRST_RECIPE = {
+    "number": 1,
+    "recipe": (INSTRUCTIONS / "recipe.md").read_text(encoding="utf-8"),
+    "reason": "The lab's first recipe, which adds a rule for each mistake",
+    "proposed_by": "The claims team",
+}
 HELD_OUT_CLAIMS = "evals/held_out_claims.json"
 SCHEMA = "undercover"
 CONNECTIONS = 4
@@ -182,6 +190,66 @@ steps = Table(
     Column("content", Text, nullable=False),
     Column("created_at", Text, nullable=False),
 )
+# The improver's rounds, each to the settings, the recipe and the version of the
+# claim agent in force when it started.
+rounds = Table(
+    "rounds",
+    metadata,
+    Column("number", Integer, primary_key=True),
+    Column("round_id", Text, nullable=False, unique=True),
+    Column("thread_id", Text, nullable=False),
+    Column("status", Text, nullable=False),
+    Column("settings", Integer, ForeignKey("settings.number"), nullable=False),
+    Column("recipe", Integer, nullable=False),
+    Column("starting_version", Integer, nullable=False),
+    # The sets of the first evaluations the starting version still needed.
+    Column("first_evaluations", JSON, nullable=False),
+    Column("improver_model", Text, nullable=False),
+    Column("improver_reasoning_effort", Text, nullable=False),
+    Column("started_by", Text, nullable=False),
+    Column("started_at", Text, nullable=False),
+    Column("finished_at", Text),
+    Column("stopped_by", Text),
+    Column("stopped_because", Text),
+    Column("held_out_before", JSON),
+    Column("held_out_after", JSON),
+)
+recipes = Table(
+    "recipes",
+    metadata,
+    Column("number", Integer, primary_key=True, autoincrement=False),
+    Column("recipe", Text, nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("proposed_by", Text, nullable=False),
+    Column("round_id", Text, ForeignKey("rounds.round_id")),
+    Column("approved_by", Text),
+    Column("approved_at", Text),
+    Column("created_at", Text, nullable=False),
+)
+# The improver's proposals, each waiting for a handler until it is reviewed.
+proposals = Table(
+    "proposals",
+    metadata,
+    Column("proposal_id", Text, primary_key=True),
+    Column("round_id", Text, ForeignKey("rounds.round_id"), nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("proposal", JSON, nullable=False),
+    Column("proposed_at", Text, nullable=False),
+    Column("review", Text),
+    Column("reviewed_by", Text),
+    Column("reviewed_at", Text),
+    Column("rejection_reason", Text),
+)
+improver_calls = Table(
+    "improver_calls",
+    metadata,
+    Column("improver_call_id", Integer, primary_key=True),
+    Column("round_id", Text, ForeignKey("rounds.round_id"), nullable=False),
+    Column("input_tokens", Integer, nullable=False),
+    Column("output_tokens", Integer, nullable=False),
+    Column("cost", Float, nullable=False),
+    Column("created_at", Text, nullable=False),
+)
 versions = Table(
     "versions",
     metadata,
@@ -193,7 +261,7 @@ versions = Table(
     Column("proposed_by", Text, nullable=False),
     # The version this one changes, which was current when it was proposed.
     Column("based_on", Integer, ForeignKey("versions.number")),
-    Column("round_id", Text),
+    Column("round_id", Text, ForeignKey("rounds.round_id")),
     Column("approved_by", Text),
     Column("approved_at", Text),
     Column("created_at", Text, nullable=False),
@@ -208,7 +276,7 @@ runs = Table(
     Column("kind", Text, nullable=False),
     Column("agents", Integer, nullable=False),
     Column("version", Integer, ForeignKey("versions.number"), nullable=False),
-    Column("round_id", Text),
+    Column("round_id", Text, ForeignKey("rounds.round_id")),
     Column("model", Text, nullable=False),
     Column("reasoning_effort", Text, nullable=False),
     Column("evaluation_set", Text),
@@ -435,6 +503,7 @@ def seed(db: Engine) -> dict[str, int]:
         )
         connection.execute(insert(claims), [waiting_claim(c) for c in claim_rows])
         seed_first_version(connection)
+        connection.execute(insert(recipes).values(**FIRST_RECIPE, created_at=now()))
         labeled = seed_evaluations(connection)
     return {
         "claims": len(claim_rows),

@@ -29,6 +29,7 @@ from backend.database import (
 )
 from backend.dependencies import Database, SignedIn, senior
 from backend.documents import search, sections, titles
+from backend.improvement import router as improvement
 from backend.lookups import CLAIM_NOT_FOUND, current_settings, run_row
 from backend.models import (
     Claim,
@@ -57,6 +58,7 @@ from backend.models import (
 )
 from backend.money import dollars
 from backend.payout import needs_sign_off, work_out_payout
+from backend.round_state import round_row, why_no_claim_starts
 from backend.runs import router as runs
 from backend.views import to_claim, to_summary
 
@@ -74,6 +76,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="UnderCover", lifespan=lifespan)
 app.include_router(runs)
 app.include_router(configuration)
+app.include_router(improvement)
 
 SignsOffOverTheLimit = Annotated[Handler, Depends(senior("sign this off"))]
 
@@ -120,6 +123,17 @@ def started_thread(db: Connection, claim_id: str) -> str:
     if thread_id is None:
         raise HTTPException(409, f"Claim {claim_id} has not been started")
     return thread_id
+
+
+def refuse_a_round_that_cant_go_on(db: Connection, run_id: str) -> None:
+    """Raise a 409 when an evaluation belongs to a round that was stopped or has
+    spent its limit, so no new claim starts in it."""
+    round_id = run_row(db, run_id)["round_id"]
+    if round_id is None:
+        return
+    reason = why_no_claim_starts(db, round_row(db, round_id))
+    if reason:
+        raise HTTPException(409, reason)
 
 
 def check_run(db: Connection, run_id: str | None) -> None:
@@ -209,8 +223,11 @@ def get_signed_in_handler(handler: SignedIn) -> Handler:
 @app.post("/api/claims/{claim_id}/start", operation_id="start_claim")
 def start_claim(claim_id: str, request: StartRequest, db: Database) -> Claim:
     """Start work on a waiting claim, which moves it to in progress."""
-    if find_claim(db, claim_id)["status"] != Status.WAITING:
+    claim = find_claim(db, claim_id)
+    if claim["status"] != Status.WAITING:
         raise HTTPException(409, f"Claim {claim_id} is not waiting")
+    if claim["evaluation_id"]:
+        refuse_a_round_that_cant_go_on(db, claim["evaluation_id"])
     db.execute(
         update(claims)
         .where(claims.c.claim_id == claim_id)

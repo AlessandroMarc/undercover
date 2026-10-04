@@ -11,6 +11,9 @@ from backend.tests.claim_requests import decide, start
 from backend.tests.settings_requests import STARTING
 from backend.tests.sign_in import DANA, OTHER_KEY, SUPABASE_URL, signed_in
 
+ROUND = "/api/improvement/rounds/round-1"
+PROPOSAL = f"{ROUND}/proposals/proposal-1"
+
 # Every operation a handler takes, with a body it would accept.
 HANDLER_ACTIONS = {
     "get_signed_in_handler": ("GET", "/api/me", None),
@@ -22,6 +25,10 @@ HANDLER_ACTIONS = {
         {"evaluation_set": "held_out", "tiny": True, "agents": 5},
     ),
     "change_settings": ("PUT", "/api/settings", STARTING),
+    "start_round": ("POST", "/api/improvement/rounds", None),
+    "stop_round": ("POST", f"{ROUND}/stop", None),
+    "approve_proposal": ("POST", f"{PROPOSAL}/approval", None),
+    "reject_proposal": ("POST", f"{PROPOSAL}/rejection", {"reason": "Too broad"}),
 }
 
 NOT_SIGNED_IN = {

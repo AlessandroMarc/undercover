@@ -59,13 +59,19 @@ def senior(action: str) -> Callable[[Handler, Connection], Handler]:
     names the action and says why."""
 
     def senior_handler(handler: SignedIn, db: Database) -> Handler:
-        if not handler.can_approve_over_limit:
-            limit = dollars(current_settings(db).approval_limit)
-            raise HTTPException(
-                403,
-                f"Only a handler who can sign off payouts over {limit} can "
-                f"{action}. {handler.name} can't.",
-            )
+        refuse_unless_senior(db, handler, action)
         return handler
 
     return senior_handler
+
+
+def refuse_unless_senior(db: Connection, handler: Handler, action: str) -> None:
+    """Raise a 403 that names the action and says why, unless the handler can sign
+    off payouts over the limit."""
+    if not handler.can_approve_over_limit:
+        limit = dollars(current_settings(db).approval_limit)
+        raise HTTPException(
+            403,
+            f"Only a handler who can sign off payouts over {limit} can {action}. "
+            f"{handler.name} can't.",
+        )

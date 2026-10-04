@@ -7,9 +7,9 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import Connection, RowMapping, delete, insert, select, update
+from sqlalchemy import Connection, RowMapping, delete, func, insert, select, update
 
-from backend import agent_service, judge
+from backend import agent_service, judge, spending
 from backend.database import (
     LABELED_SETS,
     claims,
@@ -25,8 +25,10 @@ from backend.free_models import free_model
 from backend.lookups import (
     CLAIM_NOT_FOUND,
     RUN_NOT_FOUND,
+    allowed_models,
     current_version_number,
     run_row,
+    settings_number,
     version_row,
 )
 from backend.models import (
@@ -38,6 +40,8 @@ from backend.models import (
     EvaluationSet,
     HeldPayout,
     Letter,
+    RoundEvaluationRequest,
+    RoundStatus,
     Run,
     RunClaimsRequest,
     RunKind,
@@ -46,6 +50,17 @@ from backend.models import (
     StartDispatchRequest,
     StartEvaluationRequest,
     Status,
+)
+from backend.money import dollars
+from backend.round_state import (
+    EVALUATIONS,
+    evaluations_of,
+    left_to_spend,
+    open_round,
+    round_row,
+    stop,
+    tried_version,
+    why_no_claim_starts,
 )
 from backend.scoreboard import (
     claims_of,
@@ -67,6 +82,7 @@ NOT_GRADED = {
     "same_section": None,
     "cost": 0,
 }
+FIRST_EVALUATIONS_CUT_SHORT = "The spending limit cut short its first evaluations"
 # Claims a dispatch left that the next one picks up.
 UNFINISHED = {Status.IN_PROGRESS, Status.WAITING}
 
@@ -114,10 +130,11 @@ def summarize(rows: list[RowMapping]) -> DispatchSummary:
     )
 
 
-def new_run(db: Connection, kind: RunKind, fields: dict[str, Any]) -> RowMapping:
-    """Record a new run, running, on the current version of the claim agent with
-    its model and reasoning effort, and return its row."""
-    version = version_row(db, current_version_number(db))
+def new_run(
+    db: Connection, kind: RunKind, fields: dict[str, Any], version: RowMapping
+) -> RowMapping:
+    """Record a new run, running, on a version of the claim agent with its model
+    and reasoning effort, and return its row."""
     run_id = str(uuid.uuid4())
     db.execute(
         insert(runs).values(
@@ -188,6 +205,86 @@ def make_copies(
     return [copy["claim_id"] for copy in copies]
 
 
+def evaluation_of(db: Connection, fields: dict[str, Any], version: RowMapping) -> Run:
+    """Record a new evaluation on a version, with a waiting copy of each claim."""
+    row = new_run(db, RunKind.EVALUATION, fields, version)
+    records = originals(db, fields["evaluation_set"], fields["tiny"])
+    put_claims(db, row["run_id"], make_copies(db, row, records))
+    return find_run(db, row["run_id"])
+
+
+def set_size(db: Connection, evaluation_set: EvaluationSet) -> int:
+    """How many claims a labeled set holds."""
+    query = select(func.count()).where(
+        handler_decisions.c.evaluation_set == evaluation_set
+    )
+    return db.execute(query).scalar_one()
+
+
+def version_to_evaluate(db: Connection, row: RowMapping) -> RowMapping:
+    """Return the version a round's next evaluation is of: its version under test
+    until its verdict, or before it has one, its starting version until its first
+    evaluations are done. Raise a 409 for any other, so a version's scores never
+    change after its verdict."""
+    tried = tried_version(db, row["round_id"])
+    if tried is not None and tried["verdict"] is not None:
+        raise HTTPException(409, f"Version {tried['number']} already has its verdict")
+    version = tried or version_row(db, row["starting_version"])
+    needed = len(EVALUATIONS) if tried else len(row["first_evaluations"])
+    if len(evaluations_of(db, row["round_id"], version["number"])) >= needed:
+        raise HTTPException(
+            409,
+            f"Round {row['number']} has run every evaluation version "
+            f"{version['number']} needs",
+        )
+    return version
+
+
+def refuse_what_the_round_cant_afford(
+    db: Connection, row: RowMapping, version: RowMapping
+) -> None:
+    """Raise a 409 when the evaluations a version still needs are likely to cost
+    more than what's left of the round's limit, so the first of the three checks
+    all three."""
+    done = len(evaluations_of(db, row["round_id"], version["number"]))
+    claims_left = sum(set_size(db, s) for s in EVALUATIONS[done:])
+    models = {model.model: model for model in allowed_models(db)}
+    current = version_row(db, current_version_number(db))
+    per_claim = spending.cost_per_claim(
+        db, models[version["model"]], models[current["model"]]
+    )
+    estimate, left = claims_left * per_claim, left_to_spend(db, row)
+    if estimate > left:
+        raise HTTPException(
+            409,
+            f"The evaluations could cost about {dollars(estimate)}, and "
+            f"{dollars(left)} of the round's limit is left",
+        )
+
+
+def cut_short(db: Connection, row: RowMapping) -> bool:
+    """Say whether a round's evaluation was cut short: its round was stopped, or
+    spent its limit before every copy started."""
+    if row["round_id"] is None:
+        return False
+    round_ = round_row(db, row["round_id"])
+    if why_no_claim_starts(db, round_) is None:
+        return False
+    unstarted = any(
+        claim["status"] == Status.WAITING for claim in claims_of(db, row["run_id"])
+    )
+    return round_["status"] != RoundStatus.OPEN or unstarted
+
+
+def stop_a_round_in_its_first_evaluations(db: Connection, row: RowMapping) -> None:
+    """Stop an open round whose first evaluation the limit cut short, before its
+    improver runs."""
+    round_ = round_row(db, row["round_id"])
+    first = row["version"] == round_["starting_version"]
+    if round_["status"] == RoundStatus.OPEN and first:
+        stop(db, round_, None, FIRST_EVALUATIONS_CUT_SHORT)
+
+
 def evaluation_row(db: Connection, run_id: str) -> RowMapping:
     """Return an evaluation's row, or raise a 404."""
     row = run_row(db, run_id)
@@ -247,17 +344,36 @@ def grade_copies(db: Connection, row: RowMapping) -> None:
 @router.post("/api/runs/dispatches", operation_id="create_dispatch")
 def create_dispatch(request: StartDispatchRequest, db: Database) -> Run:
     """Record a new dispatch on the current version, with its claims to come."""
-    row = new_run(db, RunKind.DISPATCH, request.model_dump())
+    current = version_row(db, current_version_number(db))
+    row = new_run(db, RunKind.DISPATCH, request.model_dump(), current)
     return find_run(db, row["run_id"])
 
 
 @router.post("/api/runs/evaluations", operation_id="create_evaluation")
 def create_evaluation(request: StartEvaluationRequest, db: Database) -> Run:
     """Record a new evaluation on the current version, with a copy of each claim."""
-    row = new_run(db, RunKind.EVALUATION, request.model_dump())
-    records = originals(db, request.evaluation_set, request.tiny)
-    put_claims(db, row["run_id"], make_copies(db, row, records))
-    return find_run(db, row["run_id"])
+    current = version_row(db, current_version_number(db))
+    return evaluation_of(db, request.model_dump(), current)
+
+
+@router.post(
+    "/api/runs/rounds/{round_id}/evaluations", operation_id="create_round_evaluation"
+)
+def create_round_evaluation(
+    round_id: str, request: RoundEvaluationRequest, db: Database
+) -> Run:
+    """Record a round's whole-set evaluation of the version it is evaluating."""
+    row = open_round(db, round_id)
+    version = version_to_evaluate(db, row)
+    if version["number"] != row["starting_version"]:
+        refuse_what_the_round_cant_afford(db, row, version)
+    fields = {
+        "evaluation_set": request.evaluation_set,
+        "tiny": False,
+        "agents": settings_number(db, row["settings"]).agents,
+        "round_id": round_id,
+    }
+    return evaluation_of(db, fields, version)
 
 
 @router.put("/api/runs/{run_id}/claims", operation_id="record_run_claims")
@@ -275,18 +391,21 @@ def record_run_claims(run_id: str, request: RunClaimsRequest, db: Database) -> R
 
 @router.post("/api/runs/{run_id}/finish", operation_id="finish_run")
 def finish_run(run_id: str, db: Database) -> Run:
-    """Finish a running run: a dispatch gets its summary, an evaluation its grades."""
+    """Finish a run: a dispatch gets its summary, an evaluation its grades or a stop."""
     row = running_run(db, run_id)
-    summary = None
+    status, summary = RunStatus.FINISHED, None
     if row["kind"] == RunKind.DISPATCH:
         summary = summarize(claims_of(db, run_id)).model_dump()
+    elif cut_short(db, row):
+        status = RunStatus.STOPPED
+        stop_a_round_in_its_first_evaluations(db, row)
     else:
         grade_copies(db, row)
     # A run stopped while its copies were graded stays stopped.
     finished = db.execute(
         update(runs)
         .where(runs.c.run_id == run_id, runs.c.status == RunStatus.RUNNING)
-        .values(status=RunStatus.FINISHED, finished_at=now(), summary=summary)
+        .values(status=status, finished_at=now(), summary=summary)
     )
     if finished.rowcount == 0:
         raise HTTPException(409, f"Run {run_id} is not running")

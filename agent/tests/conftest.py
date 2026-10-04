@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from langchain_core.callbacks import BaseCallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import api, dispatcher, harness, service
+from agent import connection, dispatcher, harness, improver, service
 from agent.tests.stubs import graph_on
 from backend.main import app
 
@@ -16,8 +16,8 @@ from backend.main import app
 @pytest.fixture(autouse=True)
 def backend(monkeypatch):
     """Send the agent's requests to the test backend, at the same address."""
-    test_backend = TestClient(app, base_url=str(api.backend.base_url))
-    monkeypatch.setattr(api, "backend", test_backend)
+    test_backend = TestClient(app, base_url=str(connection.backend.base_url))
+    monkeypatch.setattr(connection, "backend", test_backend)
 
 
 class RecordRoots(BaseCallbackHandler):
@@ -35,7 +35,8 @@ class RecordRoots(BaseCallbackHandler):
 def traces(monkeypatch):
     """Keep Langfuse out of the tests, and record the root runs it would trace."""
     roots: list[dict[str, Any]] = []
-    monkeypatch.setattr(harness, "CallbackHandler", lambda: RecordRoots(roots))
+    for module in (harness, improver):
+        monkeypatch.setattr(module, "CallbackHandler", lambda: RecordRoots(roots))
     return roots
 
 
@@ -87,16 +88,49 @@ class HeldRun:
 
 
 @pytest.fixture
-def held_run(monkeypatch):
+def hold_runs(monkeypatch):
+    """Hold each run the service starts from then on open until the test releases
+    it."""
+
+    def from_now():
+        held = HeldRun()
+        work_run = service.work_run
+
+        def hold(run, work, resuming):
+            held.resuming.append(resuming)
+            held.working.set()
+            held.release.wait(5)
+            return work_run(run, work, resuming)
+
+        monkeypatch.setattr(service, "work_run", hold)
+        return held
+
+    return from_now
+
+
+@pytest.fixture
+def held_run(hold_runs):
     """Hold each run the service starts open until the test releases it."""
-    held = HeldRun()
-    work_run = service.work_run
+    return hold_runs()
 
-    def hold(run, work, resuming):
-        held.resuming.append(resuming)
-        held.working.set()
-        held.release.wait(5)
-        return work_run(run, work, resuming)
 
-    monkeypatch.setattr(service, "work_run", hold)
-    return held
+@pytest.fixture
+def serve_rounds(versions_served):
+    """Run the agent's service, without its lifespan, with a stub improver and stub
+    claim agents for each version, which save their progress in memory."""
+    saver = InMemorySaver()
+
+    def with_models(improver_model, claim_model):
+        def claim_agents(version):
+            versions_served.append(version["number"])
+            return partial(graph_on, claim_model, saver, version["instructions"])
+
+        workers = service.RoundWorkers(
+            claim_agents, lambda round: improver_model, saver
+        )
+        service.app.dependency_overrides[service.round_workers] = lambda: workers
+        service.app.dependency_overrides[service.claim_agents] = lambda: claim_agents
+        return TestClient(service.app)
+
+    yield with_models
+    service.app.dependency_overrides.clear()

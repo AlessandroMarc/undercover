@@ -61,6 +61,7 @@ def scored(agent, handler, seconds, grade=None):
         model_cost=0.01,
         copy_of="CLM-1104",
         reason=None,
+        section=None,
         handler_decision=handler_decision,
         handler_payout=handler_payout,
         right=is_right(answer, expected),

@@ -1,5 +1,5 @@
-"""The agent's service, as the backend calls it: after each sign-off, and to start a
-dispatch or an evaluation."""
+"""The agent's service, as the backend calls it: after each sign-off, to start a
+dispatch, an evaluation or a round, and to pass on a review of a proposal."""
 
 import logging
 import os
@@ -28,8 +28,8 @@ def resume_claim(claim_id: str) -> None:
 
 
 def start(path: str, body: dict[str, Any]) -> None:
-    """Ask the agent's service to start a run, passing on its refusal while one is
-    running, or say it isn't running when it can't be reached."""
+    """Ask the agent's service to start some work, passing on its refusal while
+    something else is running, or say it isn't running when it can't be reached."""
     try:
         response = agent.post(path, json=body)
     except (httpx.ConnectError, httpx.ConnectTimeout) as error:
@@ -48,3 +48,17 @@ def start_evaluation(evaluation_set: str, tiny: bool, agents: int) -> None:
     """Ask the agent's service to start an evaluation with up to N claim agents."""
     body = {"evaluation_set": evaluation_set, "tiny": tiny, "agents": agents}
     start("/evaluations", body)
+
+
+def start_round(handler_id: str) -> None:
+    """Ask the agent's service to start a round of the improver."""
+    start("/rounds", {"handler_id": handler_id})
+
+
+def review_proposal(
+    round_id: str, proposal_id: str, review: str, handler_id: str, reason: str
+) -> None:
+    """Pass a handler's review of a proposal to the agent's service, which records
+    it and carries the improver on."""
+    body = {"review": review, "handler_id": handler_id, "reason": reason}
+    start(f"/rounds/{round_id}/proposals/{proposal_id}/review", body)

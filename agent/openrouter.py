@@ -2,7 +2,9 @@
 OPENROUTER_API_KEY. Each model call's cost comes back in its usage."""
 
 import os
+from typing import NamedTuple
 
+from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
@@ -26,3 +28,17 @@ def chat_model(model: str, reasoning_effort: str, timeout: int) -> ChatOpenAI:
         timeout=timeout,
         max_retries=RETRIES,
     )
+
+
+class Usage(NamedTuple):
+    """A model call's tokens and its cost in US dollars."""
+
+    input_tokens: int
+    output_tokens: int
+    cost: float
+
+
+def usage_of(reply: BaseMessage) -> Usage:
+    """A reply's tokens and cost, as OpenRouter reports them."""
+    usage = reply.response_metadata["token_usage"]
+    return Usage(usage["prompt_tokens"], usage["completion_tokens"], usage["cost"])

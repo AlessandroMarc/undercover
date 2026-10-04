@@ -13,6 +13,7 @@ from backend.database import (
     versions,
 )
 from backend.tests.claim_requests import decide, start
+from backend.tests.round_requests import create_round, into_round
 from backend.tests.run_requests import (
     create_dispatch,
     create_evaluation,
@@ -142,14 +143,9 @@ def test_a_version_after_one_rolled_back_changes_the_current_one(client):
     assert [line["kind"] for line in hunk] == ["context", "context", "added"]
 
 
-def in_a_round(*evaluations):
-    """Mark evaluations as a round's, as the improver's rounds will."""
-    with engine().begin() as db:
-        db.execute(
-            update(runs)
-            .where(runs.c.run_id.in_([e["run_id"] for e in evaluations]))
-            .values(round_id="round-1")
-        )
+def in_a_round(client, *evaluations):
+    """Make evaluations a new round's, as if it had run them."""
+    into_round(create_round(client).json()["round_id"], *evaluations)
 
 
 def a_held_out_decline():
@@ -169,7 +165,7 @@ def test_a_versions_scores_average_the_whole_set_evaluations_its_rounds_ran(clie
     copy = f"{a_held_out_decline()}-E{second['number']}"
     start(client, copy)
     decide(client, copy, "decline", 0)
-    in_a_round(first, second, tiny, stopped)
+    in_a_round(client, first, second, tiny, stopped)
     for evaluation in (first, second, scoreboard, tiny):
         finish(client, evaluation["run_id"])
     client.post("/api/runs/stop")
@@ -192,7 +188,7 @@ def test_a_run_with_nothing_graded_leaves_the_grade_to_the_others(
         for copy in evaluation["claims"]:
             start(client, copy["claim_id"])
             decide(client, copy["claim_id"], "refer", 0)
-    in_a_round(graded, ungraded)
+    in_a_round(client, graded, ungraded)
     # Count the five tiny claims as a whole set, to keep the test short.
     with engine().begin() as db:
         db.execute(update(runs).values(tiny=False))

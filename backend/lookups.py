@@ -50,3 +50,9 @@ def allowed_models(db: Connection) -> list[ModelAllowed]:
     prices."""
     query = select(models_allowed).order_by(models_allowed.c.position)
     return [ModelAllowed(**row) for row in db.execute(query).mappings()]
+
+
+def settings_number(db: Connection, number: int) -> Settings:
+    """Return the settings as one change left them, such as a round's."""
+    query = select(settings).where(settings.c.number == number)
+    return Settings(**db.execute(query).mappings().one())

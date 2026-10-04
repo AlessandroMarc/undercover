@@ -72,6 +72,12 @@ def test_a_dispatch_leaves_an_evaluations_copies_alone(client):
     assert claim_of(client, "CLM-1106-E1")["status"] == "waiting"
 
 
+RUNNING = {
+    "/api/dispatches": "A dispatch is running",
+    "/api/evaluations": "An evaluation is running",
+}
+
+
 @pytest.mark.parametrize(
     ("first", "second"),
     [
@@ -91,7 +97,7 @@ def test_a_dispatch_and_an_evaluation_never_run_together(
 
     refused = agent.post(second, json=body)
     assert refused.status_code == 409
-    assert refused.json()["detail"] == "A dispatch or an evaluation is already running"
+    assert refused.json()["detail"] == RUNNING[first]
     held_run.release.set()
     running.join(5)
     assert not running.is_alive()

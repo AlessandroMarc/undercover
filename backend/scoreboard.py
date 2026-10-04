@@ -124,6 +124,7 @@ def scored_claim(row: RowMapping, expected: scoring.Answer) -> ScoredClaim:
         **to_run_claim(row).model_dump(),
         copy_of=row["copy_of"],
         reason=row["reason"],
+        section=row["section"],
         grade=grade_of(row),
         handler_decision=expected.decision,
         handler_payout=expected.payout,
@@ -172,10 +173,10 @@ def average(measures: list[Measures]) -> Measures | None:
     return Measures(**averaged)
 
 
-def version_scores(db: Connection, number: int, expected: Expected) -> VersionScores:
-    """A version's scores on each set: the averages of the finished whole-set
-    evaluations that rounds ran on it. The Scoreboard's own evaluations and any
-    stopped evaluation don't count."""
+def round_evaluations(db: Connection, number: int) -> dict[str, list[RowMapping]]:
+    """Return the finished whole-set evaluations rounds ran on a version, oldest
+    first, on each set. The Scoreboard's own evaluations and any stopped
+    evaluation don't count."""
     query = select(runs).where(
         runs.c.version == number,
         runs.c.kind == RunKind.EVALUATION,
@@ -183,10 +184,23 @@ def version_scores(db: Connection, number: int, expected: Expected) -> VersionSc
         runs.c.status == RunStatus.FINISHED,
         runs.c.tiny.is_(False),
     )
-    measures: dict[str, list[Measures]] = {s: [] for s in EvaluationSet}
-    for row in db.execute(query).mappings():
-        measures[row["evaluation_set"]].append(score(db, row, expected).measures)
+    by_set: dict[str, list[RowMapping]] = {s: [] for s in EvaluationSet}
+    for row in db.execute(query.order_by(runs.c.number)).mappings():
+        by_set[row["evaluation_set"]].append(row)
+    return by_set
+
+
+def version_scores(db: Connection, number: int, expected: Expected) -> VersionScores:
+    """A version's scores on each set: the averages of the evaluations rounds ran
+    on it."""
+    by_set = round_evaluations(db, number)
+
+    def averaged(evaluation_set: EvaluationSet) -> Measures | None:
+        return average(
+            [score(db, row, expected).measures for row in by_set[evaluation_set]]
+        )
+
     return VersionScores(
-        evaluation=average(measures[EvaluationSet.EVALUATION]),
-        held_out=average(measures[EvaluationSet.HELD_OUT]),
+        evaluation=averaged(EvaluationSet.EVALUATION),
+        held_out=averaged(EvaluationSet.HELD_OUT),
     )

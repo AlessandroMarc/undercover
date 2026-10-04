@@ -5,7 +5,8 @@ from contextlib import nullcontext
 import pytest
 
 from agent import __main__ as cli
-from agent import api, harness
+from agent import harness
+from agent.connection import Refused
 from backend.tests.versions import add_version
 
 
@@ -120,7 +121,7 @@ def test_command_line_works_one_claim(monkeypatch, capsys):
     assert worked == [("CLM-1001", None, "graph")]
 
     def refuse(claim_id, run_id, graph):
-        raise api.Refused(409, f"Claim {claim_id} is not waiting")
+        raise Refused(409, f"Claim {claim_id} is not waiting")
 
     monkeypatch.setattr(cli, "work_claim", refuse)
     with pytest.raises(SystemExit) as refused:

@@ -1,6 +1,7 @@
 """The dispatcher: a LangGraph graph with no model that works a dispatch or an
 evaluation, handing each claim to a claim agent of its own, up to N at once."""
 
+import contextvars
 import logging
 import operator
 from collections.abc import Callable
@@ -137,5 +138,9 @@ def work_run(run: dict[str, Any], work: WorkInRun, resuming: set[str]) -> list[s
     return each claim's report line."""
     context = DispatchContext(run, work, resuming)
     config: RunnableConfig = {"max_concurrency": run["agents"]}
-    state = dispatcher().invoke({"claims": [], "reports": []}, config, context=context)
+    # A fresh context makes this a root run wherever it is called, such as inside
+    # the improver's tool, so it never saves into its caller's thread.
+    state = contextvars.Context().run(
+        dispatcher().invoke, {"claims": [], "reports": []}, config, context=context
+    )
     return state["reports"]

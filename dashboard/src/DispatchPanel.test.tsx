@@ -219,7 +219,7 @@ it("starts a dispatch with the claim agents chosen", async () => {
 });
 
 it.each([
-  [409, "A dispatch or an evaluation is already running"],
+  [409, "An evaluation is running"],
   [503, "The agent's service isn't running"],
 ])("shows a refusal with status %i", async (status, detail) => {
   const routes: Routes = {

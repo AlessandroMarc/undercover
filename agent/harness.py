@@ -37,8 +37,9 @@ from psycopg.rows import DictRow, dict_row
 from psycopg_pool import ConnectionPool
 
 from agent import api
+from agent.connection import Refused
 from agent.console import describe
-from agent.openrouter import chat_model
+from agent.openrouter import chat_model, usage_of
 from agent.tools import CLAIM_TOOLS, ClaimContext, ClaimState
 
 log = logging.getLogger(__name__)
@@ -48,6 +49,8 @@ NewGraph = Callable[[], ClaimGraph]
 Pool = ConnectionPool[Connection[DictRow]]
 Messages = dict[str, list[BaseMessage]]
 Start = Messages | Command | None
+# Tags for a claim's trace beside its run's, such as the round it works in.
+Tags = tuple[str, ...]
 
 # The model's errors that pass with time: a claim that hits one is left in progress,
 # with its progress saved, to carry on later.
@@ -102,7 +105,7 @@ def checkpoint_pool() -> Iterator[Pool]:
 
 def refusal(error: Exception) -> str:
     """Show the model why a tool was refused, and let any other error stop the agent."""
-    if isinstance(error, api.Refused):
+    if isinstance(error, Refused):
         return f"Refused with status {error}"
     if isinstance(error, ToolException):
         return f"Refused: {error}"
@@ -139,14 +142,7 @@ def record_result(
 
 def record_call(context: ClaimContext, reply: BaseMessage) -> None:
     """Record the tokens and the cost of one model call, as OpenRouter reports them."""
-    usage = reply.response_metadata["token_usage"]
-    api.record_model_call(
-        context.claim_id,
-        context.run_id,
-        usage["prompt_tokens"],
-        usage["completion_tokens"],
-        usage["cost"],
-    )
+    api.record_model_call(context.claim_id, context.run_id, *usage_of(reply))
 
 
 def call_model(
@@ -243,17 +239,17 @@ def thread_of(claim: dict[str, Any]) -> RunnableConfig:
 
 
 def claim_config(
-    claim: dict[str, Any], name: str, run_id: str | None
+    claim: dict[str, Any], name: str, run_id: str | None, tags: Tags
 ) -> RunnableConfig:
     """Run on the claim's thread, traced in Langfuse in the session of that thread
-    and tagged with the run, if any."""
+    and tagged with the run, if any, and any other tags, such as its round."""
     session = f"{claim['claim_id']}:{claim['thread_id']}"
     metadata: dict[str, Any] = {
         "langfuse_session_id": session,
         "langfuse_trace_name": name,
     }
     if run_id is not None:
-        metadata["langfuse_tags"] = [run_id]
+        metadata["langfuse_tags"] = [run_id, *tags]
     return thread_of(claim) | {
         "callbacks": [CallbackHandler()],
         "metadata": metadata,
@@ -283,11 +279,7 @@ def report(claim: dict[str, Any], reason: str) -> str:
 
 
 def run_claim_graph(
-    graph: ClaimGraph,
-    start: Start,
-    claim: dict[str, Any],
-    name: str,
-    run_id: str | None,
+    graph: ClaimGraph, start: Start, config: RunnableConfig, context: ClaimContext
 ) -> str | None:
     """Run the claim graph on the claim's thread, saving each step, and say what went
     wrong, if anything. A rate limit or a timeout is raised again, leaving the claim
@@ -296,11 +288,7 @@ def run_claim_graph(
         # A fresh context makes this a root run even inside the dispatcher, which
         # Langfuse needs to put it in the claim's session.
         contextvars.Context().run(
-            graph.invoke,
-            start,
-            claim_config(claim, name, run_id),
-            context=ClaimContext(claim["claim_id"], run_id),
-            durability="sync",
+            graph.invoke, start, config, context=context, durability="sync"
         )
     except TRANSIENT:
         raise
@@ -333,16 +321,23 @@ def settle(claim_id: str, error: str | None) -> str:
     return line
 
 
-def work_claim(claim_id: str, run_id: str | None, graph: ClaimGraph) -> str:
+def work_claim(
+    claim_id: str, run_id: str | None, graph: ClaimGraph, tags: Tags = ()
+) -> str:
     """Work one claim from a clean start, as a new attempt, in the run given if any,
     and report how it ended."""
     claim = api.start_claim(claim_id, str(uuid.uuid4()))
+    config = claim_config(claim, WORK_CLAIM, run_id, tags)
     with spell(claim_id, run_id):
-        error = run_claim_graph(graph, begin(claim_id), claim, WORK_CLAIM, run_id)
+        error = run_claim_graph(
+            graph, begin(claim_id), config, ClaimContext(claim_id, run_id)
+        )
         return settle(claim_id, error)
 
 
-def carry_on(claim_id: str, run_id: str | None, graph: ClaimGraph) -> str:
+def carry_on(
+    claim_id: str, run_id: str | None, graph: ClaimGraph, tags: Tags = ()
+) -> str:
     """Carry a claim in progress on from its saved progress, as the same attempt, and
     report how it ended. A claim at the pause has been signed off, so it resumes past
     it. One with nothing saved, stopped before its first step, starts on its own
@@ -354,20 +349,24 @@ def carry_on(claim_id: str, run_id: str | None, graph: ClaimGraph) -> str:
         start = Command(resume=True)
     elif saved.created_at is None and claim["decision"] is None:
         start = begin(claim_id)
+    config = claim_config(claim, CARRY_ON, run_id, tags)
     with spell(claim_id, run_id):
-        error = run_claim_graph(graph, start, claim, CARRY_ON, run_id)
+        error = run_claim_graph(graph, start, config, ClaimContext(claim_id, run_id))
         return settle(claim_id, error)
 
 
-def work_in_run(claim_id: str, run_id: str, new_graph: NewGraph) -> str:
+def work_in_run(
+    claim_id: str, run_id: str, new_graph: NewGraph, tags: Tags = ()
+) -> str:
     """Work one claim in a run on a claim graph of its own, carrying it on if it is
-    in progress or starting it if it is waiting, and report how it ended. A copy in
-    an evaluation held for sign-off is finished."""
+    in progress or starting it if it is waiting, and report how it ended, with any
+    tags for its trace beside the run's. A copy in an evaluation held for sign-off
+    is finished."""
     graph = new_graph()
     if api.get_claim(claim_id)["status"] == api.Status.IN_PROGRESS:
-        line = carry_on(claim_id, run_id, graph)
+        line = carry_on(claim_id, run_id, graph, tags)
     else:
-        line = work_claim(claim_id, run_id, graph)
+        line = work_claim(claim_id, run_id, graph, tags)
     finish_held_copy(claim_id, graph)
     return line
 

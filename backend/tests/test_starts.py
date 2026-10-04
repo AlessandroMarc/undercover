@@ -8,7 +8,7 @@ from backend.database import runs
 from backend.tests.rows import count
 from backend.tests.sign_in import MARCUS, signed_in
 
-RUNNING = "A dispatch or an evaluation is already running"
+RUNNING = "A dispatch is running"
 
 
 def start_dispatch(client, agents):
