@@ -189,3 +189,10 @@ def test_an_unknown_evaluation(client):
         json={"agents": 3, "model": "openai/gpt-6-luna", "reasoning_effort": "low"},
     ).json()
     assert client.get(f"/api/evaluations/{dispatch['run_id']}").status_code == 404
+
+
+def test_the_newest_evaluation_is_listed_first(client):
+    first = create_evaluation(client).json()
+    second = create_evaluation(client, "evaluation").json()
+    listed = [e["run_id"] for e in client.get("/api/evaluations").json()]
+    assert listed == [second["run_id"], first["run_id"]]

@@ -1,4 +1,4 @@
-import type { DecisionKind, RunStatus, Status } from "./api";
+import type { DecisionKind, EvaluationSet, RunStatus, Status } from "./api";
 
 const dollars = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -10,6 +10,13 @@ const day = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   year: "numeric",
   timeZone: "UTC",
+});
+
+const dayAndClock = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
 });
 
 const clock = new Intl.DateTimeFormat("en-US", {
@@ -28,6 +35,11 @@ const modelDollars = new Intl.NumberFormat("en-US", {
 
 export function money(amount: number): string {
   return dollars.format(amount);
+}
+
+// A share, such as 0.8, as a whole percentage: 80%.
+export function percent(share: number): string {
+  return `${String(Math.round(share * 100))}%`;
 }
 
 export function modelCost(amount: number): string {
@@ -50,6 +62,14 @@ export function time(isoTime: string): string {
   return clock.format(new Date(isoTime));
 }
 
+export function dateTime(isoTime: string): string {
+  return dayAndClock.format(new Date(isoTime));
+}
+
+export function agentsAtOnce(agents: number): string {
+  return `${String(agents)} claim ${agents === 1 ? "agent" : "agents"} at once`;
+}
+
 export function label(code: string): string {
   const words = code.replaceAll("_", " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
@@ -68,6 +88,15 @@ export const runLabels: Record<RunStatus, string> = {
   finished: "Finished",
   stopped: "Stopped",
 };
+
+export const evaluationSetLabels: Record<EvaluationSet, string> = {
+  evaluation: "Evaluation set",
+  held_out: "Held-out set",
+};
+
+export function evaluationSetName(set: EvaluationSet, size: number): string {
+  return `${evaluationSetLabels[set]}, ${String(size)} claims`;
+}
 
 export const decisionLabels: Record<DecisionKind, string> = {
   approve: "Approved",

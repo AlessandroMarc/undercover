@@ -1,10 +1,9 @@
 import { Fragment, useState } from "react";
-import { Link } from "react-router";
 import { api, type DispatchSummary, type Run, type RunClaim } from "../api";
-import { duration, modelCost, money, time } from "../format";
-import { claimPage } from "../paths";
+import { agentsAtOnce, duration, modelCost, money, time } from "../format";
 import { REFRESH_MS, useLoad } from "../useLoad";
 import { DecisionChip, RunChip, StatusChip } from "./Chips";
+import { ClaimLink } from "./ClaimLink";
 import { Message } from "./Message";
 import { ActionForm } from "./ActionForm";
 import { AgentsChoice, FIRST_CHOICE } from "./AgentsChoice";
@@ -33,13 +32,12 @@ export function DispatchPanel() {
 }
 
 function DispatchDetails({ dispatch }: Readonly<{ dispatch: Run }>) {
-  const agents = `${String(dispatch.agents)} claim ${dispatch.agents === 1 ? "agent" : "agents"}`;
   return (
     <>
       <p className="muted small">
         <span className="mono">#{dispatch.number}</span> started at{" "}
-        {time(dispatch.started_at)} with {agents} at once. Model cost{" "}
-        <span className="mono">{modelCost(dispatch.model_cost)}</span>
+        {time(dispatch.started_at)} with {agentsAtOnce(dispatch.agents)}. Model
+        cost <span className="mono">{modelCost(dispatch.model_cost)}</span>
         {dispatch.seconds !== null && (
           <>
             , took <span className="mono">{duration(dispatch.seconds)}</span>
@@ -82,9 +80,7 @@ function RunClaims({ claims }: Readonly<{ claims: RunClaim[] }>) {
           {claims.map((claim) => (
             <tr key={claim.claim_id}>
               <td className="nowrap">
-                <Link className="mono" to={claimPage(claim.claim_id)}>
-                  {claim.claim_id}
-                </Link>
+                <ClaimLink claimId={claim.claim_id} />
               </td>
               <td>{claim.customer_name}</td>
               <td>
@@ -145,9 +141,7 @@ function ClaimLine({
       {claims.map(({ claim_id, note }, index) => (
         <Fragment key={claim_id}>
           {index > 0 && ", "}
-          <Link className="mono" to={claimPage(claim_id)}>
-            {claim_id}
-          </Link>
+          <ClaimLink claimId={claim_id} />
           {note && <span className="mono"> {note}</span>}
         </Fragment>
       ))}

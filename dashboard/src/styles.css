@@ -176,7 +176,8 @@ p {
 
 .status-decided,
 .decision-approve,
-.run-finished {
+.run-finished,
+.score-right {
   background: var(--sea-green);
 }
 
@@ -198,7 +199,8 @@ p {
 }
 
 .status-left_for_handler,
-.step-failed {
+.step-failed,
+.score-miss {
   background: var(--raspberry);
   color: #ffffff;
 }
@@ -250,6 +252,27 @@ p {
 
 .stopped {
   margin-top: 8px;
+}
+
+.facts.measures {
+  margin: 12px 0 0;
+}
+
+.facts.measures dd {
+  font-size: 1.3rem;
+}
+
+.table.scoreboard thead th {
+  white-space: normal;
+  vertical-align: bottom;
+}
+
+.table.scoreboard td:first-child {
+  min-width: 260px;
+}
+
+.copy-note {
+  margin-bottom: 4px;
 }
 
 .dispatch-summary {

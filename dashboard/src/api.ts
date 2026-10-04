@@ -119,7 +119,8 @@ export interface Step {
 
 export type RunStatus = "running" | "finished" | "stopped";
 export type RunKind = "dispatch" | "evaluation";
-export type EvaluationSet = "evaluation" | "held_out";
+export const evaluationSets = ["evaluation", "held_out"] as const;
+export type EvaluationSet = (typeof evaluationSets)[number];
 
 export interface HeldPayout {
   claim_id: string;
@@ -143,22 +144,56 @@ export interface RunClaim extends ClaimSummary {
   model_cost: number;
 }
 
-export interface Run {
+export interface RunDetails {
   run_id: string;
   number: number;
   kind: RunKind;
   agents: number;
   model: string;
   reasoning_effort: string;
-  evaluation_set: EvaluationSet | null;
-  tiny: boolean | null;
   status: RunStatus;
   started_at: string;
   finished_at: string | null;
   seconds: number | null;
-  summary: DispatchSummary | null;
   model_cost: number;
+}
+
+export interface Run extends RunDetails {
+  evaluation_set: EvaluationSet | null;
+  tiny: boolean | null;
+  summary: DispatchSummary | null;
   claims: RunClaim[];
+}
+
+export interface Measures {
+  decision_accuracy: number;
+  accuracy: number;
+  cost_of_mistakes: number;
+  straight_through: number;
+  model_cost_per_claim: number;
+  seconds_per_claim: number;
+  run_seconds: number | null;
+}
+
+// An evaluation's copy of a claim beside the handler's decision on it.
+export interface ScoredClaim extends RunClaim {
+  copy_of: string;
+  reason: string | null;
+  handler_decision: DecisionKind;
+  handler_payout: number;
+  right: boolean;
+  mistake_cost: number;
+}
+
+export interface Evaluation extends RunDetails {
+  evaluation_set: EvaluationSet;
+  tiny: boolean;
+  size: number;
+  measures: Measures;
+}
+
+export interface ScoredEvaluation extends Evaluation {
+  claims: ScoredClaim[];
 }
 
 export interface Accepted {
@@ -201,6 +236,8 @@ function post<T>(path: string, body: object): Promise<T> {
 
 const claimPath = (claimId: string) =>
   `/api/claims/${encodeURIComponent(claimId)}`;
+const DISPATCHES = "/api/dispatches";
+const EVALUATIONS = "/api/evaluations";
 
 export const api = {
   listClaims: () => request<ClaimSummary[]>("/api/claims"),
@@ -215,9 +252,21 @@ export const api = {
     ),
   getInstructions: () => request<Instructions>("/api/instructions"),
   listHandlers: () => request<Handler[]>("/api/handlers"),
-  getLatestDispatch: () => request<Run | null>("/api/dispatches/latest"),
-  startDispatch: (agents: number) =>
-    post<Accepted>("/api/dispatches", { agents }),
+  getLatestDispatch: () => request<Run | null>(`${DISPATCHES}/latest`),
+  startDispatch: (agents: number) => post<Accepted>(DISPATCHES, { agents }),
+  listEvaluations: () => request<Evaluation[]>(EVALUATIONS),
+  getEvaluation: (runId: string) =>
+    request<ScoredEvaluation>(`${EVALUATIONS}/${encodeURIComponent(runId)}`),
+  startEvaluation: (
+    evaluationSet: EvaluationSet,
+    tiny: boolean,
+    agents: number,
+  ) =>
+    post<Accepted>(EVALUATIONS, {
+      evaluation_set: evaluationSet,
+      tiny,
+      agents,
+    }),
   signOff: (claimId: string, handlerId: string) =>
     post<Claim>(`${claimPath(claimId)}/sign-off`, { handler_id: handlerId }),
 };

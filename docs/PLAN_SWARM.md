@@ -356,13 +356,13 @@ Seed the held-out claims and the handlers' decisions. Add `evaluation_id` and `c
 
 Add the Scoreboard page with its start form and the list of evaluations, an evaluation's page, the header link, and a copy's claim page without a sign-off form.
 
-- [ ] vitest: the Scoreboard lists evaluations newest first with their measures formatted (80%, $1,600.00, $0.0125, 40 s, 2 min 41 s); the form starts with the evaluation set, all 25 and 3 agents, and posts the choices made; a 409 and a 503 show their detail
-- [ ] vitest: an evaluation's page shows each claim with the handler's decision and payout beside the agent's, a Miss chip on each miss, "No decision" for an undecided claim, and links to the copies
-- [ ] vitest: a copy's claim page says which evaluation it's in, with a link, and a held copy shows no sign-off form
-- [ ] e2e: on the Scoreboard, choosing the held-out set, the five tiny claims and 5 agents, then "Start an evaluation", reaches the stand-in with `{"evaluation_set": "held_out", "tiny": true, "agents": 5}`
-- [ ] e2e: an evaluation of the held-out set's `tiny` claims, played out through the API, in which the agent approves `CLM-1104` for 250.00, approves `CLM-1106` for 300.00, refers `CLM-1110`, approves `CLM-1112` for 1,200.00, which is held for sign-off, and leaves `CLM-1114` undecided, with a model call costing $0.0125 and 40 seconds of work on each copy. The Scoreboard shows decision accuracy 80%, accuracy 40%, cost of mistakes $620.00, straight-through 60%, $0.0125 per claim and 40 s per claim. Its page marks the copies of `CLM-1106`, `CLM-1112` and `CLM-1114` as misses, and the copy of `CLM-1112` opens with no sign-off form
-- [ ] Browser: with that evaluation played out with curl, screenshots of the Scoreboard and the evaluation's page in light and dark mode show rounded panels with no outlines, no one-edge borders and no gradients, and Right and Miss chips in Sea Green and Raspberry (`browser_evaluate`). `browser_console_messages` shows no errors. `npm run seed` afterwards
-- [ ] `npm run check` passes
+- [x] vitest: the Scoreboard lists evaluations newest first with their measures formatted (80%, $1,600.00, $0.0125, 40 s, 2 min 41 s); the form starts with the evaluation set, all 25 and 3 agents, and posts the choices made; a 409 and a 503 show their detail
+- [x] vitest: an evaluation's page shows each claim with the handler's decision and payout beside the agent's, a Miss chip on each miss, "No decision" for an undecided claim, and links to the copies
+- [x] vitest: a copy's claim page says which evaluation it's in, with a link, and a held copy shows no sign-off form
+- [x] e2e: on the Scoreboard, choosing the held-out set, the five tiny claims and 5 agents, then "Start an evaluation", reaches the stand-in with `{"evaluation_set": "held_out", "tiny": true, "agents": 5}`
+- [x] e2e: an evaluation of the held-out set's `tiny` claims, played out through the API, in which the agent approves `CLM-1104` for 250.00, approves `CLM-1106` for 300.00, refers `CLM-1110`, approves `CLM-1112` for 1,200.00, which is held for sign-off, and leaves `CLM-1114` undecided, with a model call costing $0.0125 and 40 seconds of work on each copy. The Scoreboard shows decision accuracy 80%, accuracy 40%, cost of mistakes $620.00, straight-through 60%, $0.0125 per claim and 40 s per claim. Its page marks the copies of `CLM-1106`, `CLM-1112` and `CLM-1114` as misses, and the copy of `CLM-1112` opens with no sign-off form
+- [x] Browser: with that evaluation played out with curl, screenshots of the Scoreboard and the evaluation's page in light and dark mode show rounded panels with no outlines, no one-edge borders and no gradients, and Right and Miss chips in Sea Green and Raspberry (`browser_evaluate`). `browser_console_messages` shows no errors. `npm run seed` afterwards
+- [x] `npm run check` passes
 
 ## Phase 6: The live runs, and the docs
 

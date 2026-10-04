@@ -1,12 +1,13 @@
 import { useCallback } from "react";
-import { useParams } from "react-router";
-import { ApiError, api, type Claim } from "../api";
+import { Link, useParams } from "react-router";
+import { api, type Claim } from "../api";
 import { StatusChip } from "../components/Chips";
 import { DecisionPanel } from "../components/DecisionPanel";
 import { Message } from "../components/Message";
 import { HistoryPanel, PolicyPanel } from "../components/PolicyPanels";
 import { StepList } from "../components/StepList";
 import { date, label, money } from "../format";
+import { evaluationPage } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
 export function ClaimPage() {
@@ -14,16 +15,18 @@ export function ClaimPage() {
   const load = useCallback(() => api.getClaim(claimId), [claimId]);
   const { data: claim, error, reload } = useLoad(load, REFRESH_MS);
 
-  if (!claim) {
-    if (error instanceof ApiError && error.status === 404)
-      return <p className="message">Claim not found</p>;
-    return <Message error={error} />;
-  }
+  if (!claim) return <Message error={error} notFound="Claim not found" />;
 
   return (
     <>
       <div className="claim-heading">
         <p className="mono muted">{claim.claim_id}</p>
+        {claim.evaluation_id && (
+          <p className="copy-note">
+            A copy of <span className="mono">{claim.copy_of}</span> in an{" "}
+            <Link to={evaluationPage(claim.evaluation_id)}>evaluation</Link>
+          </p>
+        )}
         <h1>{claim.summary}</h1>
         <StatusChip status={claim.status} />
       </div>

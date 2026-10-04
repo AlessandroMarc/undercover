@@ -1,10 +1,9 @@
-import { Link } from "react-router";
 import { api, statuses } from "../api";
 import { DecisionChip, StatusChip } from "../components/Chips";
+import { ClaimLink } from "../components/ClaimLink";
 import { Message } from "../components/Message";
 import { DispatchPanel } from "../components/DispatchPanel";
 import { date, label, money, statusLabels } from "../format";
-import { claimPage } from "../paths";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
 export function QueuePage() {
@@ -49,9 +48,7 @@ export function QueuePage() {
             {claims.map((claim) => (
               <tr key={claim.claim_id}>
                 <td className="nowrap">
-                  <Link className="mono" to={claimPage(claim.claim_id)}>
-                    {claim.claim_id}
-                  </Link>
+                  <ClaimLink claimId={claim.claim_id} />
                 </td>
                 <td>{claim.customer_name}</td>
                 <td>{label(claim.claim_type)}</td>

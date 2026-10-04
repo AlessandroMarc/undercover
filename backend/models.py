@@ -329,8 +329,6 @@ class RunDetails(BaseModel):
     agents: int
     model: str
     reasoning_effort: str
-    evaluation_set: EvaluationSet | None
-    tiny: bool | None
     status: RunStatus
     started_at: str
     finished_at: str | None
@@ -339,6 +337,8 @@ class RunDetails(BaseModel):
 
 
 class Run(RunDetails):
+    evaluation_set: EvaluationSet | None
+    tiny: bool | None
     summary: DispatchSummary | None
     claims: list[RunClaim]
 
@@ -372,6 +372,8 @@ class ScoredClaim(RunClaim):
 
 
 class Evaluation(RunDetails):
+    evaluation_set: EvaluationSet
+    tiny: bool
     size: int
     measures: Measures
 
