@@ -380,23 +380,31 @@ As built:
 
 Add `versions` and seed version 1, `get_current_version`, `get_version`, `get_configuration` and `get_version_details` in `configuration.py`, `diffs.py`, `free_models.py`, the version on every run, and the claim agents built from the run's version. Remove `get_instructions`. On the dashboard, the Configuration page and a version's page take the place of the Instructions page, with `DiffView`. Scores stay empty until rounds exist.
 
-- [ ] `uv run -m backend.seed` prints the counts as today, and "and version 1 of the configuration"
-- [ ] pytest: version 1 holds the text of `backend/instructions/claim.md`, `openai/gpt-6-luna` and `low`; with `MODEL_NAME=openrouter/free` at seeding it is `openrouter/free` at `default`
-- [ ] pytest: `get_current_version` and `get_version` for 1 return exactly `number`, `instructions`, `model` and `reasoning_effort`, with the instructions ending in the contents of the policy wording and the claims manual. `get_version` for 9 returns 404
-- [ ] pytest, `diffs.py`: one line changed in a long text gives one removed and one added line with two lines of context either side; two changes far apart give two hunks; the same text gives no lines
-- [ ] pytest: with a version 2 kept, added by a test helper, `get_current_version` is 2; a version 3 under test leaves it at 2; `get_configuration` lists 3, 2 and 1 with their statuses and lines added and removed; `get_version_details` for 2 holds its diff from 1
-- [ ] pytest: `create_dispatch` and `create_evaluation` record the current version with its model and reasoning effort, and `get_latest_dispatch`, `list_evaluations` and `get_evaluation` show it
-- [ ] Stub model test, through the agent's service: with version 2 current, on another model and with other instructions, a dispatch's claim agents get version 2's instructions as their system message and the run records version 2's model; `uv run -m agent CLM-1001` (with the pool and the claim stubbed) uses the current version, and so does a resume after a sign-off
-- [ ] pytest: a version with reasoning effort `default` builds a model with no reasoning effort, and one with `medium` builds one with `medium`; with `MODEL_NAME` set in the agent's environment, the harness still builds the version's model
-- [ ] `grep -rn MODEL_NAME agent --include=*.py` finds nothing outside `agent/tests/`, and in `backend` only `backend/free_models.py` and the tests
-- [ ] `grep -rn "get_instructions\|getInstructions\|InstructionsPage" backend agent dashboard/src e2e` finds nothing
-- [ ] The test that `agent/api.py` can't read the scoreboard also checks it has no function for `get_configuration` or `get_version_details`
-- [ ] The shared OpenAPI test passes for the backend and the agent's service
-- [ ] vitest: the Configuration page shows the current version's number, model and reasoning effort, and a table of versions with status chips; a version's page shows a stubbed diff with removed and added lines marked; `/instructions` lands on `/configuration`; the header links to Configuration and marks it as the current page
-- [ ] e2e: the header's Configuration link opens the page, which shows version 1 as Current and its instructions, including "10. How we work out your payment"
-- [ ] `npm run seed`, then Supabase MCP: `versions` has one row, and `runs` has `version` and `round_id`
-- [ ] Browser: the Configuration page and version 1's page in light and dark mode, with no errors in `browser_console_messages`, and the dispatch panel says a dispatch played out with curl used version 1. `npm run seed` afterwards
-- [ ] `npm run check` passes
+- [x] `uv run -m backend.seed` prints the counts as today, and "and version 1 of the configuration"
+- [x] pytest: version 1 holds the text of `backend/instructions/claim.md`, `openai/gpt-6-luna` and `low`; with `MODEL_NAME=openrouter/free` at seeding it is `openrouter/free` at `default`
+- [x] pytest: `get_current_version` and `get_version` for 1 return exactly `number`, `instructions`, `model` and `reasoning_effort`, with the instructions ending in the contents of the policy wording and the claims manual. `get_version` for 9 returns 404
+- [x] pytest, `diffs.py`: one line changed in a long text gives one removed and one added line with two lines of context either side; two changes far apart give two hunks; the same text gives no lines
+- [x] pytest: with a version 2 kept, added by a test helper, `get_current_version` is 2; a version 3 under test leaves it at 2; `get_configuration` lists 3, 2 and 1 with their statuses and lines added and removed; `get_version_details` for 2 holds its diff from 1
+- [x] pytest: `create_dispatch` and `create_evaluation` record the current version with its model and reasoning effort, and `get_latest_dispatch`, `list_evaluations` and `get_evaluation` show it
+- [x] Stub model test, through the agent's service: with version 2 current, on another model and with other instructions, a dispatch's claim agents get version 2's instructions as their system message and the run records version 2's model; `uv run -m agent CLM-1001` (with the pool and the claim stubbed) uses the current version, and so does a resume after a sign-off
+- [x] pytest: a version with reasoning effort `default` builds a model with no reasoning effort, and one with `medium` builds one with `medium`; with `MODEL_NAME` set in the agent's environment, the harness still builds the version's model
+- [x] `grep -rn MODEL_NAME agent --include=*.py` finds nothing outside `agent/tests/`, and in `backend` only `backend/free_models.py` and the tests
+- [x] `grep -rn "get_instructions\|getInstructions\|InstructionsPage" backend agent dashboard/src e2e` finds nothing
+- [x] The test that `agent/api.py` can't read the scoreboard also checks it has no function for `get_configuration` or `get_version_details`
+- [x] The shared OpenAPI test passes for the backend and the agent's service
+- [x] vitest: the Configuration page shows the current version's number, model and reasoning effort, and a table of versions with status chips; a version's page shows a stubbed diff with removed and added lines marked; `/instructions` lands on `/configuration`; the header links to Configuration and marks it as the current page
+- [x] e2e: the header's Configuration link opens the page, which shows version 1 as Current and its instructions, including "10. How we work out your payment"
+- [x] `npm run seed`, then Supabase MCP: `versions` has one row, and `runs` has `version` and `round_id`
+- [x] Browser: the Configuration page and version 1's page in light and dark mode, with no errors in `browser_console_messages`, and the dispatch panel says a dispatch played out with curl used version 1. `npm run seed` afterwards
+- [x] `npm run check` passes
+
+As built:
+
+- Each version records `based_on`, the version that was current when it was proposed, and its diff and "what changed" are from that version. After a version is rolled back, the next one is proposed against the current version, not the one rolled back.
+- Version 1 is seeded with the verdict "kept", so the current version is simply the newest kept one.
+- `scoreboard.py` comes in this phase, since the Configuration page reads a version's scores; with no rounds yet they stay empty.
+- `agent/openrouter.py` builds a model on OpenRouter at a reasoning effort, with `default` meaning none is sent. The harness uses it now and the improver will too, so the address and `default` are written once in the agent.
+- `StateMessage` takes the place of `Message` on every page now, rather than in phase 7. An error the backend refused, such as a sign-in that isn't a handler's, isn't offered a reload.
 
 ## Phase 3: Settings
 

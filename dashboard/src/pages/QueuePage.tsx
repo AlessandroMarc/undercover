@@ -1,14 +1,14 @@
 import { api, statuses } from "../api";
 import { DecisionChip, StatusChip } from "../components/Chips";
 import { ClaimLink } from "../components/ClaimLink";
-import { Message } from "../components/Message";
+import { StateMessage } from "../components/StateMessage";
 import { DispatchPanel } from "../components/DispatchPanel";
 import { date, label, money, statusLabels } from "../format";
 import { REFRESH_MS, useLoad } from "../useLoad";
 
 export function QueuePage() {
   const { data: claims, error } = useLoad(api.listClaims, REFRESH_MS);
-  if (!claims) return <Message error={error} />;
+  if (!claims) return <StateMessage error={error} />;
 
   return (
     <>

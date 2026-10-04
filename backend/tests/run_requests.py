@@ -2,14 +2,7 @@
 
 
 def create_dispatch(client, agents=3):
-    return client.post(
-        "/api/runs/dispatches",
-        json={
-            "agents": agents,
-            "model": "openai/gpt-6-luna",
-            "reasoning_effort": "low",
-        },
-    )
+    return client.post("/api/runs/dispatches", json={"agents": agents})
 
 
 def dispatch_of(client, *claim_ids):
@@ -34,13 +27,7 @@ def latest_dispatch(client):
 def create_evaluation(client, evaluation_set="held_out", tiny=True, agents=5):
     return client.post(
         "/api/runs/evaluations",
-        json={
-            "evaluation_set": evaluation_set,
-            "tiny": tiny,
-            "agents": agents,
-            "model": "openai/gpt-6-luna",
-            "reasoning_effort": "low",
-        },
+        json={"evaluation_set": evaluation_set, "tiny": tiny, "agents": agents},
     )
 
 

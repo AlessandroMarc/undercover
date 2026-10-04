@@ -3,13 +3,13 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from sqlalchemy import Connection, RowMapping, insert, select, update
 
 from backend import agent_service
+from backend.configuration import router as configuration
 from backend.database import (
     claim_view,
     claims,
@@ -28,7 +28,7 @@ from backend.database import (
     work_times,
 )
 from backend.dependencies import Database, SignedIn
-from backend.documents import contents, search, sections, titles
+from backend.documents import search, sections, titles
 from backend.lookups import CLAIM_NOT_FOUND, run_row
 from backend.models import (
     Claim,
@@ -38,7 +38,6 @@ from backend.models import (
     DocumentName,
     FailureRequest,
     Handler,
-    Instructions,
     ModelCall,
     ModelCallRequest,
     PaymentRequest,
@@ -59,10 +58,9 @@ from backend.models import (
     WorkTimeRequest,
 )
 from backend.payout import needs_sign_off, work_out_payout
-from backend.runs import router
+from backend.runs import router as runs
 from backend.views import to_claim, to_summary
 
-INSTRUCTIONS = Path(__file__).parent / "instructions"
 ATTEMPTS = 2
 
 
@@ -75,7 +73,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="UnderCover", lifespan=lifespan)
-app.include_router(router)
+app.include_router(runs)
+app.include_router(configuration)
 
 
 def dollars(amount: float) -> str:
@@ -184,13 +183,6 @@ def get_claim_history(customer_id: str, db: Database) -> list[PreviousClaim]:
     if record is None:
         raise HTTPException(404, f"Customer {customer_id} not found")
     return [PreviousClaim(**claim) for claim in record["previous_claims"]]
-
-
-@app.get("/api/instructions", operation_id="get_instructions")
-def get_instructions(db: Database) -> Instructions:
-    """Get the claim agent's instructions, ending with the documents' contents."""
-    claim = (INSTRUCTIONS / "claim.md").read_text(encoding="utf-8")
-    return Instructions(claim=f"{claim}\n{contents(db)}")
 
 
 @app.get("/api/documents/search", operation_id="search_documents")

@@ -4,7 +4,7 @@ import { api } from "../api";
 import { HandlerContext, type SignInState, useSignedIn } from "../handler";
 import { SIGN_IN } from "../paths";
 import { useLoad } from "../useLoad";
-import { Message } from "./Message";
+import { StateMessage } from "./StateMessage";
 import { SignOutButton } from "./SignOutButton";
 
 // Keeps a page to signed-in handlers. A visitor goes to the sign-in page,
@@ -28,7 +28,7 @@ function HandlerProvider({ children }: Readonly<{ children: ReactNode }>) {
   if (!handler)
     return (
       <main className="page">
-        <Message error={error} />
+        <StateMessage error={error} />
         {error && <SignOutButton className="button" />}
       </main>
     );

@@ -9,7 +9,15 @@ from sqlalchemy import update
 
 from agent import api, harness
 from agent.tests.records import claim_of, steps_of
-from agent.tests.stubs import StubModel, call, decide, graph_on, record, stub
+from agent.tests.stubs import (
+    INSTRUCTIONS,
+    StubModel,
+    call,
+    decide,
+    graph_on,
+    record,
+    stub,
+)
 from backend.database import engine, settings
 
 
@@ -74,12 +82,12 @@ def test_approves_and_the_graph_pays_within_the_limit(client, caplog):
     assert {s["thread_id"] for s in steps} == {claim["thread_id"]}
 
 
-def test_uses_the_claim_instructions_from_the_backend(client):
+def test_the_claim_agent_reads_its_instructions_then_its_claim(client):
     model = stub(*decide("refer", 0))
     work("CLM-1003", model)
     system, first = model.prompts[0]
     assert isinstance(system, SystemMessage)
-    assert system.content == client.get("/api/instructions").json()["claim"]
+    assert system.content == INSTRUCTIONS
     assert first.content == "Claim CLM-1003"
 
 

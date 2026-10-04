@@ -1,11 +1,13 @@
 import threading
 from contextlib import nullcontext
+from types import SimpleNamespace
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import harness, service
+from agent import api, harness, service
 from agent.tests.dispatching import new_dispatch
 from agent.tests.queue_setup import leave_waiting
 from agent.tests.records import claim_of, steps_of
@@ -13,6 +15,7 @@ from agent.tests.stubs import decide, graph_on, stub, swarm
 from api_rules import rule_breaks
 from backend.tests.claim_requests import sign_off
 from backend.tests.run_requests import latest_dispatch
+from backend.tests.versions import add_version
 
 
 def resume(agent, claim_id):
@@ -116,7 +119,7 @@ def test_start_a_dispatch(client, serve):
 
     dispatch = latest_dispatch(client)
     assert (dispatch["status"], dispatch["agents"]) == ("finished", 2)
-    assert (dispatch["model"], dispatch["reasoning_effort"]) == ("stub", "none")
+    assert (dispatch["version"], dispatch["model"]) == (1, "openai/gpt-6-luna")
     assert [c["status"] for c in dispatch["claims"]] == ["decided"] * 3
     assert model.most_at_once == 2
 
@@ -172,3 +175,58 @@ def test_starting_the_service_stops_the_runs_left_running(client, monkeypatch):
     with TestClient(service.app):
         dispatch = latest_dispatch(client)
         assert (dispatch["run_id"], dispatch["status"]) == (run_id, "stopped")
+
+
+def test_a_dispatch_works_on_the_current_version(client, serve):
+    add_version("Version 2's instructions", verdict="kept")
+    leave_waiting("CLM-1001")
+    model = swarm({"CLM-1001": decide("refer", 0)})
+    assert start_dispatch(serve(model), 3).status_code == 202
+
+    dispatch = latest_dispatch(client)
+    assert (dispatch["version"], dispatch["model"], dispatch["reasoning_effort"]) == (
+        2,
+        "google/gemini-3.5-flash-lite",
+        "minimal",
+    )
+    version_2 = client.get("/api/versions/2").json()["instructions"]
+    assert version_2.startswith("Version 2's instructions\n")
+    assert [prompt[0].content for prompt in model.prompts] == [version_2] * 2
+
+
+def test_a_run_keeps_its_version_when_another_is_kept_meanwhile(
+    client, serve, monkeypatch
+):
+    leave_waiting("CLM-1001")
+    create_dispatch = api.create_dispatch
+
+    def then_keep_version_2(agents):
+        run = create_dispatch(agents)
+        add_version("Version 2's instructions", verdict="kept")
+        return run
+
+    monkeypatch.setattr(api, "create_dispatch", then_keep_version_2)
+    model = swarm({"CLM-1001": decide("refer", 0)})
+    assert start_dispatch(serve(model), 3).status_code == 202
+    version_1 = client.get("/api/versions/1").json()["instructions"]
+    assert [prompt[0].content for prompt in model.prompts] == [version_1] * 2
+
+
+def test_a_resume_after_a_sign_off_uses_the_current_version(
+    client, serve, versions_served
+):
+    model, saver = stub(*decide("approve", 1350.0)), InMemorySaver()
+    harness.work_claim("CLM-1002", None, graph_on(model, saver))
+    sign_off(client, "CLM-1002")
+    add_version("Version 2's instructions", verdict="kept")
+    assert resume(serve(model, saver), "CLM-1002").status_code == 202
+    assert versions_served == [2]
+    assert claim_of(client, "CLM-1002")["status"] == "decided"
+
+
+def test_claim_agents_are_built_on_the_services_pool(monkeypatch):
+    pool = object()
+    monkeypatch.setattr(service, "claim_graphs", lambda version, pool: (version, pool))
+    app = SimpleNamespace(state=SimpleNamespace(pool=pool))
+    request = Request({"type": "http", "app": app})
+    assert service.claim_agents(request)({"number": 2}) == ({"number": 2}, pool)

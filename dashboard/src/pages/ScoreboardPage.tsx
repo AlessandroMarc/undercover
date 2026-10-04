@@ -9,7 +9,7 @@ import {
 import { ActionForm } from "../components/ActionForm";
 import { AgentsChoice, FIRST_CHOICE } from "../components/AgentsChoice";
 import { RunChip } from "../components/Chips";
-import { Message } from "../components/Message";
+import { StateMessage } from "../components/StateMessage";
 import { ModelName } from "../components/ModelName";
 import {
   agentsAtOnce,
@@ -93,7 +93,7 @@ function Evaluations() {
   return (
     <section className="panel" aria-labelledby="evaluations-title">
       <h2 id="evaluations-title">Evaluations</h2>
-      {!evaluations && <Message error={error} />}
+      {!evaluations && <StateMessage error={error} />}
       {evaluations?.length === 0 && (
         <p className="muted">No evaluations yet.</p>
       )}
@@ -136,7 +136,10 @@ function EvaluationRow({ evaluation }: Readonly<{ evaluation: Evaluation }>) {
         <p>{evaluationSetName(evaluation.evaluation_set, evaluation.size)}</p>
         <p className="muted small">
           {dateTime(evaluation.started_at)}, {agentsAtOnce(evaluation.agents)},{" "}
-          <ModelName run={evaluation} />
+          <ModelName
+            model={evaluation.model}
+            reasoningEffort={evaluation.reasoning_effort}
+          />
         </p>
       </td>
       <td>

@@ -22,17 +22,6 @@ test("a claim opens from the queue", async ({ page }) => {
   await expect(page.getByText("POL-2001")).toBeVisible();
 });
 
-test("the header opens the instructions", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("link", { name: "Instructions" }).click();
-  await expect(page).toHaveURL("/instructions");
-  const claim = page.getByRole("region", { name: "Working a claim" });
-  await expect(
-    claim.getByText(/10\. How we work out your payment/),
-  ).toBeVisible();
-  await expect(claim.getByText(/9\. Repeat claims/)).toBeVisible();
-});
-
 test("signing out lands on the sign-in page", async ({ browser }) => {
   // A browser of its own, so signing out leaves the other tests signed in.
   const context = await browser.newContext({

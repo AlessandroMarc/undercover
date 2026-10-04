@@ -1,5 +1,11 @@
-import type { DecisionKind, RunStatus, Status } from "../api";
-import { decisionLabels, money, runLabels, statusLabels } from "../format";
+import type { DecisionKind, RunStatus, Status, VersionStatus } from "../api";
+import {
+  decisionLabels,
+  money,
+  runLabels,
+  statusLabels,
+  versionLabels,
+} from "../format";
 
 export function StatusChip({ status }: Readonly<{ status: Status }>) {
   return (
@@ -19,6 +25,12 @@ export function DecisionChip({
 
 export function RunChip({ status }: Readonly<{ status: RunStatus }>) {
   return <span className={`chip run-${status}`}>{runLabels[status]}</span>;
+}
+
+export function VersionChip({ status }: Readonly<{ status: VersionStatus }>) {
+  return (
+    <span className={`chip version-${status}`}>{versionLabels[status]}</span>
+  );
 }
 
 // Whether the agent's decision and payout match the handler's.

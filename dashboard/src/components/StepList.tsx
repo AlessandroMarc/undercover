@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { api, type Step } from "../api";
 import { time } from "../format";
 import { REFRESH_MS, useLoad } from "../useLoad";
-import { Message } from "./Message";
+import { StateMessage } from "./StateMessage";
 
 const SUMMARY_LENGTH = 90;
 
@@ -13,7 +13,7 @@ export function StepList({ claimId }: Readonly<{ claimId: string }>) {
   return (
     <section className="panel" aria-labelledby="steps-title">
       <h2 id="steps-title">Agent at work</h2>
-      {!steps && <Message error={error} />}
+      {!steps && <StateMessage error={error} />}
       {steps?.length === 0 && (
         <p className="muted">
           No steps yet. They appear here as the agent works.

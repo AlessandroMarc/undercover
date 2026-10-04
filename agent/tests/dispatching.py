@@ -10,7 +10,7 @@ from agent.tests.stubs import graph_on
 
 def new_dispatch(agents=3):
     """Record a new dispatch, as the agent's service does."""
-    return api.create_dispatch(agents, "stub", "none")
+    return api.create_dispatch(agents)
 
 
 def dispatch(model, saver=None, agents=3, resuming=()):

@@ -81,10 +81,8 @@ def test_search_with_no_matches(client):
     assert client.get("/api/documents/search").status_code == 422
 
 
-def test_the_claim_instructions(client):
-    instructions = client.get("/api/instructions").json()
-    assert list(instructions) == ["claim"]
-    claim = instructions["claim"]
+def test_the_claim_agent_reads_the_contents_of_both_documents(client):
+    claim = client.get("/api/versions/current").json()["instructions"]
     assert claim.startswith("# UnderCover Agent: working a claim")
     contents = claim[claim.index("## Contents of the policy wording") :]
     assert "\n3. Trip Delay\n" in contents

@@ -23,10 +23,12 @@ export default defineConfig({
       command:
         "uv run -m backend.seed && uv run uvicorn backend.main:app --port 8001",
       url: "http://127.0.0.1:8001/api/health",
-      // An empty DATABASE_URL keeps the tests on SQLite, whatever the shell has.
+      // Empty DATABASE_URL and MODEL_NAME keep the tests on SQLite and the
+      // default model, whatever the shell has.
       env: {
         UNDERCOVER_DB: "e2e/undercover.db",
         DATABASE_URL: "",
+        MODEL_NAME: "",
         UNDERCOVER_AGENT: AGENT_STAND_IN,
         VITE_SUPABASE_URL: AUTH_STAND_IN,
       },

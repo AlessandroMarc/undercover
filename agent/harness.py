@@ -35,10 +35,10 @@ from langgraph.types import Command, interrupt
 from psycopg import Connection, sql
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import ConnectionPool
-from pydantic import SecretStr
 
 from agent import api
 from agent.console import describe
+from agent.openrouter import chat_model
 from agent.tools import CLAIM_TOOLS, ClaimContext, ClaimState
 
 log = logging.getLogger(__name__)
@@ -53,8 +53,6 @@ Start = Messages | Command | None
 # with its progress saved, to carry on later.
 TRANSIENT = (ModelRateLimitError, ModelTimeoutError)
 
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "openai/gpt-6-luna"
 SCHEMA = "undercover"
 CONNECTIONS = 4
 CONNECTION_WAIT = 120
@@ -72,17 +70,9 @@ class TooManyModelCalls(Exception):
     """The claim agent made as many model calls as it may without finishing."""
 
 
-def model() -> ChatOpenAI:
-    """Return the model named in MODEL_NAME, or GPT-6 Luna by default."""
-    name = os.getenv("MODEL_NAME")
-    return ChatOpenAI(
-        model=name or DEFAULT_MODEL,
-        base_url=OPENROUTER_BASE_URL,
-        api_key=SecretStr(os.environ["OPENROUTER_API_KEY"]),
-        reasoning_effort=None if name else "low",
-        timeout=120,
-        max_retries=5,
-    )
+def model(version: dict[str, Any]) -> ChatOpenAI:
+    """Return a version's model, at its reasoning effort."""
+    return chat_model(version["model"], version["reasoning_effort"], timeout=120)
 
 
 @contextmanager
@@ -208,13 +198,19 @@ def after_tools(state: ClaimState) -> str:
     return END
 
 
-def claim_graph(llm: BaseChatModel, saver: BaseCheckpointSaver[Any]) -> ClaimGraph:
-    """Build the claim agent's graph, which saves its progress after every step."""
-    instructions = SystemMessage(api.get_instructions()["claim"])
+def claim_graph(
+    llm: BaseChatModel, saver: BaseCheckpointSaver[Any], instructions: str
+) -> ClaimGraph:
+    """Build the claim agent's graph on a model, with its instructions, which saves
+    its progress after every step."""
     builder = StateGraph(ClaimState, context_schema=ClaimContext)
     builder.add_node(
         AGENT,
-        partial(call_model, llm=llm.bind_tools(CLAIM_TOOLS), instructions=instructions),
+        partial(
+            call_model,
+            llm=llm.bind_tools(CLAIM_TOOLS),
+            instructions=SystemMessage(instructions),
+        ),
     )
     builder.add_node(
         TOOLS,
@@ -230,12 +226,13 @@ def claim_graph(llm: BaseChatModel, saver: BaseCheckpointSaver[Any]) -> ClaimGra
     return builder.compile(checkpointer=saver)
 
 
-def claim_graphs(llm: BaseChatModel, pool: Pool) -> NewGraph:
-    """Return how to build a claim graph with a saver of its own on the pool, since
-    a saver lets one claim at a time read or write."""
+def claim_graphs(version: dict[str, Any], pool: Pool) -> NewGraph:
+    """Return how to build a version's claim graph with a saver of its own on the
+    pool, since a saver lets one claim at a time read or write."""
+    llm = model(version)
 
     def new_graph() -> ClaimGraph:
-        return claim_graph(llm, PostgresSaver(pool))
+        return claim_graph(llm, PostgresSaver(pool), version["instructions"])
 
     return new_graph
 

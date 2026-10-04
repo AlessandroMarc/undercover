@@ -40,6 +40,33 @@ class EvaluationSet(StrEnum):
     HELD_OUT = "held_out"
 
 
+class Verdict(StrEnum):
+    """Whether the business's rule kept a version of the claim agent."""
+
+    KEPT = "kept"
+    ROLLED_BACK = "rolled_back"
+
+
+class VersionStatus(StrEnum):
+    """Where a version of the claim agent stands."""
+
+    CURRENT = "current"
+    KEPT = "kept"
+    ROLLED_BACK = "rolled_back"
+    UNDER_TEST = "under_test"
+
+
+class DiffLineKind(StrEnum):
+    CONTEXT = "context"
+    ADDED = "added"
+    REMOVED = "removed"
+
+
+# A model at its own default, with no reasoning effort sent. OpenAI's "none" is a
+# real level of its own.
+NO_REASONING_EFFORT = "default"
+
+
 StepKind = Literal["tool_call", "tool_result", "message", "reading", "error"]
 MOST_AGENTS = 25
 Agents = Annotated[
@@ -167,10 +194,6 @@ class Step(BaseModel):
     kind: StepKind
     content: str
     created_at: str
-
-
-class Instructions(BaseModel):
-    claim: str
 
 
 class Settings(BaseModel):
@@ -327,11 +350,6 @@ class StartDispatchRequest(BaseModel):
     agents: Agents
 
 
-class CreateDispatchRequest(StartDispatchRequest):
-    model: str = Field(min_length=1)
-    reasoning_effort: str = Field(min_length=1, description="Or none")
-
-
 class RunClaimsRequest(BaseModel):
     claim_ids: list[str] = Field(description="The claims a dispatch works, in order")
 
@@ -361,6 +379,8 @@ class RunDetails(BaseModel):
     number: int
     kind: RunKind
     agents: int
+    version: int
+    round_id: str | None
     model: str
     reasoning_effort: str
     status: RunStatus
@@ -380,10 +400,6 @@ class Run(RunDetails):
 class StartEvaluationRequest(StartDispatchRequest):
     evaluation_set: EvaluationSet
     tiny: bool = Field(description="Only the set's five tiny claims")
-
-
-class CreateEvaluationRequest(StartEvaluationRequest, CreateDispatchRequest):
-    pass
 
 
 class Measures(BaseModel):
@@ -418,3 +434,61 @@ class ScoredEvaluation(Evaluation):
 
 class Accepted(BaseModel):
     status: Literal["accepted"] = "accepted"
+
+
+class ClaimAgentVersion(BaseModel):
+    """A version as the claim agent reads it, with no scores."""
+
+    number: int
+    instructions: str
+    model: str
+    reasoning_effort: str
+
+
+class DiffLine(BaseModel):
+    kind: DiffLineKind
+    text: str
+
+
+class Diff(BaseModel):
+    added: int
+    removed: int
+    hunks: list[list[DiffLine]]
+
+
+class VersionScores(BaseModel):
+    """A version's scores on each set, from the evaluations rounds ran on it."""
+
+    evaluation: Measures | None
+    held_out: Measures | None
+
+
+class VersionSummary(BaseModel):
+    number: int
+    status: VersionStatus
+    model: str
+    reasoning_effort: str
+    based_on: int | None
+    model_before: str | None
+    reasoning_effort_before: str | None
+    lines_added: int
+    lines_removed: int
+    reason: str
+    proposed_by: str
+    round_id: str | None
+    approved_by: str | None
+    approved_at: str | None
+    created_at: str
+    verdict: Verdict | None
+    verdict_reason: str | None
+    scores: VersionScores
+
+
+class VersionDetails(VersionSummary):
+    instructions: str
+    diff: Diff | None
+
+
+class Configuration(BaseModel):
+    current: int
+    versions: list[VersionSummary]

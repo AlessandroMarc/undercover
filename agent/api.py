@@ -114,8 +114,12 @@ def get_claim_history(customer_id: str) -> list[dict[str, Any]]:
     return _call("GET", f"/customers/{customer_id}/claims")
 
 
-def get_instructions() -> dict[str, str]:
-    return _call("GET", "/instructions")
+def get_version(number: int) -> dict[str, Any]:
+    return _call("GET", f"/versions/{number}")
+
+
+def get_current_version() -> dict[str, Any]:
+    return _call("GET", "/versions/current")
 
 
 def search_documents(query: str) -> list[dict[str, Any]]:
@@ -189,25 +193,14 @@ def record_work_time(
     return _call("POST", f"/claims/{claim_id}/work-times", json=body)
 
 
-def create_dispatch(agents: int, model: str, reasoning_effort: str) -> dict[str, Any]:
-    body = {"agents": agents, "model": model, "reasoning_effort": reasoning_effort}
-    return _call("POST", "/runs/dispatches", json=body)
+def create_dispatch(agents: int) -> dict[str, Any]:
+    return _call("POST", "/runs/dispatches", json={"agents": agents})
 
 
 def create_evaluation(
-    evaluation_set: EvaluationSet,
-    tiny: bool,
-    agents: int,
-    model: str,
-    reasoning_effort: str,
+    evaluation_set: EvaluationSet, tiny: bool, agents: int
 ) -> dict[str, Any]:
-    body = {
-        "evaluation_set": evaluation_set,
-        "tiny": tiny,
-        "agents": agents,
-        "model": model,
-        "reasoning_effort": reasoning_effort,
-    }
+    body = {"evaluation_set": evaluation_set, "tiny": tiny, "agents": agents}
     return _call("POST", "/runs/evaluations", json=body)
 
 

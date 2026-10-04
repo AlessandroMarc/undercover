@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router";
 import { api, type Claim } from "../api";
 import { StatusChip } from "../components/Chips";
 import { DecisionPanel } from "../components/DecisionPanel";
-import { Message } from "../components/Message";
+import { StateMessage } from "../components/StateMessage";
 import { PageHeader } from "../components/PageHeader";
 import { HistoryPanel, PolicyPanel } from "../components/PolicyPanels";
 import { StepList } from "../components/StepList";
@@ -16,7 +16,7 @@ export function ClaimPage() {
   const load = useCallback(() => api.getClaim(claimId), [claimId]);
   const { data: claim, error, reload } = useLoad(load, REFRESH_MS);
 
-  if (!claim) return <Message error={error} notFound="Claim not found" />;
+  if (!claim) return <StateMessage error={error} notFound="Claim not found" />;
 
   return (
     <>

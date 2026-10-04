@@ -32,11 +32,22 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.pool import NullPool
 from sqlalchemy.schema import CreateSchema
 
-from backend.models import EvaluationSet, Status
+from backend.free_models import model_or_free
+from backend.models import EvaluationSet, Status, Verdict
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 DOCUMENTS = {"policy_wording": "Policy wording", "claims_manual": "Claims manual"}
+INSTRUCTIONS = Path(__file__).resolve().parent / "instructions"
+# Version 1 is kept from the start, so the current version is the newest kept.
+FIRST_VERSION = {
+    "number": 1,
+    "reason": "The claim agent as the claims team built it",
+    "proposed_by": "The claims team",
+    "verdict": Verdict.KEPT,
+    "verdict_reason": "the first version",
+}
+FIRST_MODEL = ("openai/gpt-6-luna", "low")
 HELD_OUT_CLAIMS = "evals/held_out_claims.json"
 SCHEMA = "undercover"
 CONNECTIONS = 4
@@ -139,6 +150,24 @@ steps = Table(
     Column("content", Text, nullable=False),
     Column("created_at", Text, nullable=False),
 )
+versions = Table(
+    "versions",
+    metadata,
+    Column("number", Integer, primary_key=True, autoincrement=False),
+    Column("instructions", Text, nullable=False),
+    Column("model", Text, nullable=False),
+    Column("reasoning_effort", Text, nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("proposed_by", Text, nullable=False),
+    # The version this one changes, which was current when it was proposed.
+    Column("based_on", Integer, ForeignKey("versions.number")),
+    Column("round_id", Text),
+    Column("approved_by", Text),
+    Column("approved_at", Text),
+    Column("created_at", Text, nullable=False),
+    Column("verdict", Text),
+    Column("verdict_reason", Text),
+)
 runs = Table(
     "runs",
     metadata,
@@ -146,6 +175,8 @@ runs = Table(
     Column("run_id", Text, nullable=False, unique=True),
     Column("kind", Text, nullable=False),
     Column("agents", Integer, nullable=False),
+    Column("version", Integer, ForeignKey("versions.number"), nullable=False),
+    Column("round_id", Text),
     Column("model", Text, nullable=False),
     Column("reasoning_effort", Text, nullable=False),
     Column("evaluation_set", Text),
@@ -361,6 +392,7 @@ def seed(db: Engine) -> dict[str, int]:
             [{"policy_id": p["policy_id"], "record": p} for p in policy_rows],
         )
         connection.execute(insert(claims), [waiting_claim(c) for c in claim_rows])
+        seed_first_version(connection)
         labeled = seed_evaluations(connection)
     return {
         "claims": len(claim_rows),
@@ -368,6 +400,22 @@ def seed(db: Engine) -> dict[str, int]:
         "customers": len(customer_rows),
         "handlers": len(handler_rows),
     } | labeled
+
+
+def seed_first_version(connection: Connection) -> None:
+    """Make version 1 of the claim agent's configuration, from its instructions file,
+    on GPT-6 Luna at low reasoning effort, or the free model for students on free
+    models."""
+    model, reasoning_effort = model_or_free(*FIRST_MODEL)
+    connection.execute(
+        insert(versions).values(
+            **FIRST_VERSION,
+            instructions=(INSTRUCTIONS / "claim.md").read_text(encoding="utf-8"),
+            model=model,
+            reasoning_effort=reasoning_effort,
+            created_at=now(),
+        )
+    )
 
 
 def seed_evaluations(connection: Connection) -> dict[str, int]:

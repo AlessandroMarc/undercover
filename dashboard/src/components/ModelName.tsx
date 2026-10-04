@@ -1,12 +1,11 @@
-import type { RunDetails } from "../api";
-
+// A model at its reasoning effort, such as openai/gpt-6-luna at low.
 export function ModelName({
-  run,
-}: Readonly<{ run: Pick<RunDetails, "model" | "reasoning_effort"> }>) {
+  model,
+  reasoningEffort,
+}: Readonly<{ model: string; reasoningEffort: string }>) {
   return (
     <>
-      <span className="mono">{run.model}</span>, reasoning effort{" "}
-      {run.reasoning_effort}
+      <span className="mono">{model}</span> at {reasoningEffort}
     </>
   );
 }

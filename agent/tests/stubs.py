@@ -100,6 +100,10 @@ def decide(decision, payout):
     return [call("get_claim"), record(decision, payout)]
 
 
-def graph_on(model, saver=None):
+# The instructions of a claim graph the tests build for themselves.
+INSTRUCTIONS = "Decide the claim you are given."
+
+
+def graph_on(model, saver=None, instructions=INSTRUCTIONS):
     """The claim graph on a stub model, saving its progress in memory."""
-    return harness.claim_graph(model, saver or InMemorySaver())
+    return harness.claim_graph(model, saver or InMemorySaver(), instructions)

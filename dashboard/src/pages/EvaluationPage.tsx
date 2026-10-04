@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { api, type ScoredClaim, type ScoredEvaluation } from "../api";
 import { DecisionPayout, RightChip, RunChip } from "../components/Chips";
 import { ClaimLink } from "../components/ClaimLink";
-import { Message } from "../components/Message";
+import { StateMessage } from "../components/StateMessage";
 import { ModelName } from "../components/ModelName";
 import {
   agentsAtOnce,
@@ -22,7 +22,7 @@ export function EvaluationPage() {
   const { data: evaluation, error } = useLoad(load, REFRESH_MS);
 
   if (!evaluation)
-    return <Message error={error} notFound="Evaluation not found" />;
+    return <StateMessage error={error} notFound="Evaluation not found" />;
 
   return (
     <>
@@ -46,8 +46,12 @@ function MeasuresPanel({
       <h2 id="measures-title">Measures</h2>
       <p className="muted small">
         {evaluationSetName(evaluation.evaluation_set, evaluation.size)}, with{" "}
-        {agentsAtOnce(evaluation.agents)} on <ModelName run={evaluation} />.
-        Started {dateTime(evaluation.started_at)}.
+        {agentsAtOnce(evaluation.agents)} on{" "}
+        <ModelName
+          model={evaluation.model}
+          reasoningEffort={evaluation.reasoning_effort}
+        />
+        . Started {dateTime(evaluation.started_at)}.
       </p>
       <dl className="facts measures">
         {MEASURES.map(({ label, show }) => (

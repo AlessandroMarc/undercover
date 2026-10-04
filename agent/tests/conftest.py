@@ -1,5 +1,6 @@
 import threading
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any
 
 import pytest
@@ -50,14 +51,25 @@ def no_waits(monkeypatch):
 
 
 @pytest.fixture
-def serve():
-    """Run the agent's service, without its lifespan, with claim agents on a stub
-    model whose graphs share a saver."""
+def versions_served():
+    """The versions the agent's service built claim agents for, in order."""
+    return []
+
+
+@pytest.fixture
+def serve(versions_served):
+    """Run the agent's service, without its lifespan, with each version's claim
+    agents on a stub model, given the version's instructions, whose graphs share a
+    saver."""
 
     def with_model(model, saver=None):
         saver = saver or InMemorySaver()
-        agents = service.ClaimAgents("stub", "none", lambda: graph_on(model, saver))
-        service.app.dependency_overrides[service.build_claim_agents] = lambda: agents
+
+        def claim_agents(version):
+            versions_served.append(version["number"])
+            return partial(graph_on, model, saver, version["instructions"])
+
+        service.app.dependency_overrides[service.claim_agents] = lambda: claim_agents
         return TestClient(service.app)
 
     yield with_model

@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { api } from "../api";
 import { addOnName, date, label, money } from "../format";
 import { useLoad } from "../useLoad";
-import { Message } from "./Message";
+import { StateMessage } from "./StateMessage";
 
 export function PolicyPanel({ policyId }: Readonly<{ policyId: string }>) {
   const load = useCallback(() => api.getPolicy(policyId), [policyId]);
@@ -54,7 +54,7 @@ export function PolicyPanel({ policyId }: Readonly<{ policyId: string }>) {
           </div>
         </dl>
       ) : (
-        <Message error={error} />
+        <StateMessage error={error} />
       )}
     </section>
   );
@@ -67,7 +67,7 @@ export function HistoryPanel({ customerId }: Readonly<{ customerId: string }>) {
   return (
     <section className="panel" aria-labelledby="history-title">
       <h2 id="history-title">Earlier claims</h2>
-      {!history && <Message error={error} />}
+      {!history && <StateMessage error={error} />}
       {history?.length === 0 && <p className="muted">No earlier claims</p>}
       {history && history.length > 0 && (
         <ul className="history">

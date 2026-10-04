@@ -62,7 +62,7 @@ def test_an_evaluation_through_the_service(client, serve):
 
 def test_a_dispatch_leaves_an_evaluations_copies_alone(client):
     leave_waiting("CLM-1001")
-    api.create_evaluation("held_out", True, 5, "stub", "none")
+    api.create_evaluation("held_out", True, 5)
     client.post("/api/claims/CLM-1104-E1/start", json={"thread_id": "copy-thread"})
     dispatch(swarm({"CLM-1001": decide("refer", 0)}))
 
@@ -103,12 +103,14 @@ def test_the_agent_cant_read_the_scoreboard():
         "get_evaluation",
         "start_dispatch",
         "start_evaluation",
+        "get_configuration",
+        "get_version_details",
     ):
         assert not hasattr(api, name)
 
 
 def test_a_copy_still_failing_after_its_tries_is_left_in_progress(client):
-    run = api.create_evaluation("held_out", True, 5, "stub", "none")
+    run = api.create_evaluation("held_out", True, 5)
     limited = ModelRateLimitError("429 Too Many Requests")
     scripts = {copy["claim_id"]: decide("refer", 0) for copy in run["claims"]}
     model = swarm(scripts | {"CLM-1104-E1": [limited] * 3})

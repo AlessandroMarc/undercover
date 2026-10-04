@@ -14,6 +14,7 @@
   --muted: #4b6f7b;
   --link: #0b6e8f;
   --green-text: #037a5b;
+  --red-text: #b8204a;
   --mono: "JetBrains Mono", ui-monospace, monospace;
 
   color-scheme: light;
@@ -33,6 +34,7 @@
     --muted: #93aab1;
     --link: #6fcbe8;
     --green-text: #6ff0c9;
+    --red-text: #ff8fa8;
 
     color-scheme: dark;
   }
@@ -231,23 +233,27 @@ p {
 .status-decided,
 .decision-approve,
 .run-finished,
-.score-right {
+.score-right,
+.version-kept {
   background: var(--sea-green);
 }
 
 .status-in_progress,
 .decision-refer,
-.run-running {
+.run-running,
+.version-under_test {
   background: var(--marigold);
 }
 
 .status-waiting_for_sign_off,
 .decision-decline,
-.run-stopped {
+.run-stopped,
+.version-rolled_back {
   background: var(--coral);
 }
 
-.status-waiting {
+.status-waiting,
+.version-current {
   background: var(--cerulean);
   color: #ffffff;
 }
@@ -454,7 +460,7 @@ p {
 }
 
 .instructions {
-  margin: 0;
+  margin: 12px 0 0;
   white-space: pre-wrap;
   font-family: var(--mono);
   font-size: 0.82rem;
@@ -615,4 +621,58 @@ p {
 
 .step details[open] summary code {
   display: none;
+}
+
+.diff-counts {
+  margin-bottom: 12px;
+}
+
+.diff-added-count {
+  color: var(--green-text);
+}
+
+.diff-removed-count {
+  color: var(--red-text);
+}
+
+.diff-lines {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  background: var(--inset);
+  border-radius: 12px;
+  padding: 8px 0;
+}
+
+.diff-line {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  padding: 0 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diff-added {
+  background: color-mix(in srgb, var(--sea-green) 20%, transparent);
+}
+
+.diff-removed {
+  background: color-mix(in srgb, var(--raspberry) 18%, transparent);
+}
+
+.diff-line ins,
+.diff-line del {
+  text-decoration: none;
+}
+
+.diff-sign {
+  color: var(--muted);
+  user-select: none;
+}
+
+/* Splits the hunks with a band of the panel's own color. */
+.diff-gap {
+  height: 12px;
+  margin: 8px 0;
+  background: var(--panel);
 }

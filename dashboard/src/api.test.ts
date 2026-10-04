@@ -20,8 +20,8 @@ it("raises the backend's reason for refusing", async () => {
 });
 
 it("falls back to a general message when the reason isn't text", async () => {
-  stubApi({ "GET /api/instructions": new Refusal(422, [{ msg: "bad" }]) });
-  await expect(api.getInstructions()).rejects.toThrow("The request failed");
+  stubApi({ "GET /api/configuration": new Refusal(422, [{ msg: "bad" }]) });
+  await expect(api.getConfiguration()).rejects.toThrow("The request failed");
 });
 
 it("falls back to a general message when the body isn't JSON", async () => {
@@ -31,7 +31,7 @@ it("falls back to a general message when the body isn't JSON", async () => {
       Promise.resolve(new Response("Internal Server Error", { status: 500 })),
     ),
   );
-  await expect(api.getInstructions()).rejects.toEqual(
+  await expect(api.getConfiguration()).rejects.toEqual(
     new ApiError(500, "The request failed"),
   );
 });

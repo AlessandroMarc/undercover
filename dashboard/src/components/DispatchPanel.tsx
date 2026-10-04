@@ -11,7 +11,7 @@ import {
 import { REFRESH_MS, useLoad } from "../useLoad";
 import { DecisionChip, RunChip, StatusChip } from "./Chips";
 import { ClaimLink } from "./ClaimLink";
-import { Message } from "./Message";
+import { StateMessage } from "./StateMessage";
 import { ActionForm } from "./ActionForm";
 import { AgentsChoice, FIRST_CHOICE } from "./AgentsChoice";
 
@@ -31,7 +31,7 @@ export function DispatchPanel() {
       >
         <AgentsChoice agents={agents} onChange={setAgents} />
       </ActionForm>
-      {dispatch === undefined && <Message error={error} />}
+      {dispatch === undefined && <StateMessage error={error} />}
       {dispatch === null && <p className="muted">No dispatch yet.</p>}
       {dispatch && <DispatchDetails dispatch={dispatch} />}
     </section>
@@ -43,8 +43,8 @@ function DispatchDetails({ dispatch }: Readonly<{ dispatch: Run }>) {
     <>
       <p className="muted small">
         <span className="mono">#{dispatch.number}</span> started at{" "}
-        {dateTime(dispatch.started_at)} with {agentsAtOnce(dispatch.agents)}.
-        Model cost{" "}
+        {dateTime(dispatch.started_at)} with {agentsAtOnce(dispatch.agents)}, on
+        version {dispatch.version}. Model cost{" "}
         <span className="mono">{modelCost(dispatch.model_cost)}</span>
         {dispatch.seconds !== null && (
           <>

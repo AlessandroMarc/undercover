@@ -1,4 +1,10 @@
-import type { DecisionKind, EvaluationSet, RunStatus, Status } from "./api";
+import type {
+  DecisionKind,
+  EvaluationSet,
+  RunStatus,
+  Status,
+  VersionStatus,
+} from "./api";
 
 const dollars = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -87,6 +93,13 @@ export const runLabels: Record<RunStatus, string> = {
   running: "Running",
   finished: "Finished",
   stopped: "Stopped",
+};
+
+export const versionLabels: Record<VersionStatus, string> = {
+  current: "Current",
+  kept: "Kept",
+  rolled_back: "Rolled back",
+  under_test: "Under test",
 };
 
 export const evaluationSetLabels: Record<EvaluationSet, string> = {

@@ -5,7 +5,6 @@ import type { DecisionKind, EvaluationSet, Run } from "../dashboard/src/api";
 // each backend operation the tests use, sent through the dashboard's proxy.
 type Request = APIRequestContext;
 
-const MODEL = { model: "openai/gpt-6-luna", reasoning_effort: "low" };
 const claimPath = (claimId: string) =>
   `/api/claims/${encodeURIComponent(claimId)}`;
 const runPath = (runId: string) => `/api/runs/${runId}`;
@@ -87,7 +86,6 @@ export async function createDispatch(
 ): Promise<Run> {
   const response = await send(request, "POST", "/api/runs/dispatches", {
     agents,
-    ...MODEL,
   });
   return (await response.json()) as Run;
 }
@@ -102,7 +100,6 @@ export async function createEvaluation(
     evaluation_set: evaluationSet,
     tiny,
     agents,
-    ...MODEL,
   });
   return (await response.json()) as Run;
 }

@@ -1,5 +1,6 @@
 import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { TRY_AGAIN } from "./components/StateMessage";
 import {
   Refusal,
   claim,
@@ -52,7 +53,7 @@ it("shows an error when the queue can't load", async () => {
   stubApi({ "GET /api/claims": new Refusal(500, "The backend is down") });
   renderAt("/");
   expect((await screen.findByRole("alert")).textContent).toBe(
-    "The backend is down",
+    `The backend is down ${TRY_AGAIN}`,
   );
 });
 
@@ -107,25 +108,9 @@ it("says when a claim doesn't exist, and stops asking for it", async () => {
 it("shows other errors loading a claim", async () => {
   stubApi({ "GET /api/claims/CLM-1002": new Refusal(500, "Server error") });
   renderAt("/claims/CLM-1002");
-  expect((await screen.findByRole("alert")).textContent).toBe("Server error");
-});
-
-it("shows the claim agent's instructions read only", async () => {
-  stubApi({
-    "GET /api/instructions": {
-      claim: "# Working a claim\n\n## Contents of the claims manual",
-    },
-  });
-  renderAt("/instructions");
-  const claim = await screen.findByRole("region", { name: "Working a claim" });
-  expect(await within(claim).findByText(/# Working a claim/)).toBeDefined();
-  expect(screen.getAllByRole("region")).toHaveLength(1);
-  expect(
-    within(claim).getByText(/## Contents of the claims manual/),
-  ).toBeDefined();
-  const main = within(screen.getByRole("main"));
-  expect(main.queryByRole("textbox")).toBeNull();
-  expect(main.queryByRole("button")).toBeNull();
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    `Server error ${TRY_AGAIN}`,
+  );
 });
 
 it("says when a page doesn't exist", async () => {

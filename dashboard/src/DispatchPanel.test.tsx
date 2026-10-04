@@ -39,6 +39,8 @@ const running: Run = {
   number: 4,
   kind: "dispatch",
   agents: 3,
+  version: 1,
+  round_id: null,
   model: "openai/gpt-6-luna",
   reasoning_effort: "low",
   evaluation_set: null,
@@ -115,7 +117,9 @@ it("shows a running dispatch with its claims", async () => {
   showQueue(running);
   const panel = await dispatchPanel();
   expect(await panel.findByText("Running")).toBeDefined();
-  expect(panel.getByText(/with 3 claim agents at once/)).toBeDefined();
+  expect(
+    panel.getByText(/with 3 claim agents at once, on version 1\./),
+  ).toBeDefined();
   expect(panel.getByText("$0.0125", { selector: "p > span" })).toBeDefined();
   expect(panel.queryByText(/took/)).toBeNull();
   const rows = panel.getAllByRole("row").slice(1);

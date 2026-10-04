@@ -152,6 +152,8 @@ export interface RunDetails {
   number: number;
   kind: RunKind;
   agents: number;
+  version: number;
+  round_id: string | null;
   model: string;
   reasoning_effort: string;
   status: RunStatus;
@@ -203,8 +205,58 @@ export interface Accepted {
   status: "accepted";
 }
 
-export interface Instructions {
-  claim: string;
+export type VersionStatus = "current" | "kept" | "rolled_back" | "under_test";
+export type Verdict = "kept" | "rolled_back";
+export type DiffLineKind = "context" | "added" | "removed";
+
+export interface DiffLine {
+  kind: DiffLineKind;
+  text: string;
+}
+
+// The lines that differ between two texts, in hunks with their context.
+export interface Diff {
+  added: number;
+  removed: number;
+  hunks: DiffLine[][];
+}
+
+// A version's scores on each set, from the evaluations rounds ran on it.
+export interface VersionScores {
+  evaluation: Measures | null;
+  held_out: Measures | null;
+}
+
+export interface VersionSummary {
+  number: number;
+  status: VersionStatus;
+  model: string;
+  reasoning_effort: string;
+  // The version this one changes, and its model, or null for version 1.
+  based_on: number | null;
+  model_before: string | null;
+  reasoning_effort_before: string | null;
+  lines_added: number;
+  lines_removed: number;
+  reason: string;
+  proposed_by: string;
+  round_id: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+  verdict: Verdict | null;
+  verdict_reason: string | null;
+  scores: VersionScores;
+}
+
+export interface VersionDetails extends VersionSummary {
+  instructions: string;
+  diff: Diff | null;
+}
+
+export interface Configuration {
+  current: number;
+  versions: VersionSummary[];
 }
 
 export interface Settings {
@@ -255,6 +307,7 @@ function post<T>(path: string, body?: object): Promise<T> {
 const claimPath = (claimId: string) =>
   `/api/claims/${encodeURIComponent(claimId)}`;
 const DISPATCHES = "/api/dispatches";
+const CONFIGURATION = "/api/configuration";
 const EVALUATIONS = "/api/evaluations";
 
 export const api = {
@@ -268,7 +321,11 @@ export const api = {
     request<PreviousClaim[]>(
       `/api/customers/${encodeURIComponent(customerId)}/claims`,
     ),
-  getInstructions: () => request<Instructions>("/api/instructions"),
+  getConfiguration: () => request<Configuration>(CONFIGURATION),
+  getVersionDetails: (number: string) =>
+    request<VersionDetails>(
+      `${CONFIGURATION}/versions/${encodeURIComponent(number)}`,
+    ),
   getSignedInHandler: () => request<Handler>("/api/me"),
   getSettings: () => request<SettingsPage>("/api/settings"),
   getLatestDispatch: () => request<Run | null>(`${DISPATCHES}/latest`),
