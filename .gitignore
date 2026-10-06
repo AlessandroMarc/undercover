@@ -19,6 +19,7 @@ dist/
 .ruff_cache/
 .coverage
 htmlcov/
+.gradio/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -31,13 +32,17 @@ node_modules/
 npm-debug.log*
 yarn-error.log*
 coverage/
+
+# Playwright, with the end-to-end tests' saved sign-ins
 test-results/
 playwright-report/
+e2e/.auth/
 .playwright-mcp/
 
 # AWS and AgentCore
 cdk.out/
 .bedrock_agentcore/
+agentcore/.cli/
 *.zip
 lambda_package/
 
@@ -47,6 +52,12 @@ lambda_package/
 *.sqlite3
 qdrant_data/
 
+# Claims desks made by the Week 1 Day 5 labs
+labs/*_desk/
+
+# Claude Code's local settings
+.claude/settings.local.json
+
 # Editors and operating systems
 .vscode/*
 !.vscode/extensions.json
@@ -54,8 +65,3 @@ qdrant_data/
 *.swp
 .DS_Store
 Thumbs.db
-
-.playwright-mcp/
-
-# Claims desks made by the Week 1 Day 5 labs
-labs/*_desk/
