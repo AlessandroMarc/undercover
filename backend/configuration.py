@@ -11,6 +11,7 @@ from backend.database import now, settings, versions
 from backend.dependencies import AgentKey, Database, SignedInHandler, senior
 from backend.diffs import diff
 from backend.documents import contents
+from backend.free_models import model_or_free
 from backend.lookups import (
     allowed_models,
     current_settings,
@@ -21,6 +22,7 @@ from backend.models import (
     ClaimAgentVersion,
     Configuration,
     Handler,
+    ScreeningModel,
     Settings,
     SettingsPage,
     SettingsValues,
@@ -32,6 +34,10 @@ from backend.models import (
 from backend.scoreboard import expected_answers, scores_of_versions, version_scores
 
 router = APIRouter()
+
+# The model the check for instructions hidden in a claim runs on, with no
+# reasoning. No version, proposal or setting changes it.
+SCREENING_MODEL = ("openai/gpt-6-luna", "none")
 
 ChangesTheSettings = Annotated[Handler, Depends(senior("change the settings"))]
 
@@ -95,6 +101,13 @@ def get_current_version(db: Database) -> ClaimAgentVersion:
 def get_version(number: int, db: Database) -> ClaimAgentVersion:
     """Get one version of the claim agent: its instructions and its model."""
     return for_the_claim_agent(db, version_row(db, number))
+
+
+@router.get("/api/screening", operation_id="get_screening", dependencies=[AgentKey])
+def get_screening() -> ScreeningModel:
+    """Get the model the check for instructions hidden in a claim runs on."""
+    model, reasoning_effort = model_or_free(*SCREENING_MODEL)
+    return ScreeningModel(model=model, reasoning_effort=reasoning_effort)
 
 
 @router.get(

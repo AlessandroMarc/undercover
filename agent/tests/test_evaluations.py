@@ -58,7 +58,8 @@ def test_an_evaluation_through_the_service(client, serve):
     seconds = sum(w["seconds"] for i in copies for w in work_times_of(i))
     assert measures["model_cost_per_claim"] == pytest.approx(cost / 5)
     assert measures["seconds_per_claim"] == pytest.approx(seconds / 5)
-    assert cost == pytest.approx(0.0042 * 8)
+    # The claim agents' eight calls, and the check's six: one for each attempt.
+    assert cost == pytest.approx(0.0042 * (8 + 6))
 
 
 def test_a_dispatch_leaves_an_evaluations_copies_alone(client):

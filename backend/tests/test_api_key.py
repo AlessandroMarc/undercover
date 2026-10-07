@@ -111,7 +111,7 @@ def test_with_no_key_set_handlers_still_work_and_the_agents_routes_refuse(
 ):
     monkeypatch.delenv("UNDERCOVER_API_KEY")
     assert dashboard.get("/api/health").status_code == 200
-    assert len(read(dashboard, "/api/claims").json()) == 25
+    assert len(read(dashboard, "/api/claims").json()) == 26
     for route in AGENT_ROUTES:
         method, path = route.values
         refused = dashboard.request(method, path, headers={API_KEY_HEADER: ""})

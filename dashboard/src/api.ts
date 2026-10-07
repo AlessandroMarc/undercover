@@ -10,7 +10,7 @@ export const statuses = [
 export type Status = (typeof statuses)[number];
 export type DecisionKind = "approve" | "decline" | "refer";
 export type StepKind =
-  "tool_call" | "tool_result" | "message" | "reading" | "error";
+  "screening" | "tool_call" | "tool_result" | "message" | "reading" | "error";
 
 export interface ClaimSummary {
   claim_id: string;

@@ -306,3 +306,23 @@ it("shows why a sign-off was refused", async () => {
     "Claim CLM-1002 is not waiting for sign-off",
   );
 });
+
+it("shows the security check as the first step", async () => {
+  showClaim({ ...claim, status: "in_progress", thread_id: "t-1" }, [
+    {
+      step_id: 1,
+      thread_id: "t-1",
+      kind: "screening",
+      content: "No instructions found. The claim describes a delayed flight.",
+      created_at: decidedAt,
+    },
+    ...steps,
+  ]);
+  const check = await screen.findByText("Security check");
+  expect(check.parentElement?.textContent).toBe(
+    "Security check No instructions found. The claim describes a delayed flight.",
+  );
+  const [first] = (await panel("Agent at work")).getAllByRole("listitem");
+  expect(first.textContent).toContain("Security check");
+  expect(first.querySelector("svg.lucide-shield")).not.toBeNull();
+});

@@ -54,3 +54,9 @@ def test_the_claim_agent_doesnt_import_the_improvers_api():
 
 def test_the_improver_doesnt_import_the_claim_agents_harness_or_dispatcher():
     assert {"harness", "dispatcher"} & imports_of("improver") == set()
+
+
+def test_the_check_uses_nothing_else_in_the_agent_and_the_harness_uses_it():
+    agents_modules = {path.stem for path in AGENT.glob("*.py")}
+    assert imports_of("screening") & agents_modules == set()
+    assert "screening" in imports_of("harness")

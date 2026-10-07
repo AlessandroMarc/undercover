@@ -6,9 +6,11 @@ test("the queue lists every claim", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Claims queue" }),
   ).toBeVisible();
-  await expect(page.locator("tbody tr")).toHaveCount(25);
-  const last = page.getByRole("row").filter({ hasText: "CLM-1025" });
-  await expect(last.getByText("Waiting")).toBeVisible();
+  await expect(page.locator("tbody tr")).toHaveCount(26);
+  for (const claimId of ["CLM-1025", "CLM-1901"]) {
+    const row = page.getByRole("row").filter({ hasText: claimId });
+    await expect(row.getByText("Waiting")).toBeVisible();
+  }
 });
 
 test("a claim opens from the queue", async ({ page }) => {

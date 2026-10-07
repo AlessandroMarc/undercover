@@ -1,3 +1,4 @@
+import { Shield } from "lucide-react";
 import type { Step } from "../api";
 import { time } from "../format";
 import { StateMessage } from "./StateMessage";
@@ -34,6 +35,15 @@ export function StepList({
 }
 
 function StepBody({ step }: Readonly<{ step: Step }>) {
+  if (step.kind === "screening")
+    return (
+      <p className="step-check">
+        <Shield />
+        <span>
+          <span className="step-label">Security check</span> {step.content}
+        </span>
+      </p>
+    );
   if (step.kind === "tool_call")
     return (
       <p>

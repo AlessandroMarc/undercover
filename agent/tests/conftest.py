@@ -42,12 +42,15 @@ def traces(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_waits(monkeypatch):
-    """Take the waits out of the dispatcher's RetryPolicy, keeping its tries, so the
-    tests never sleep through the backoff. Returns the real policy."""
+    """Take the waits out of the dispatcher's RetryPolicy and the check's, keeping
+    their tries, so the tests never sleep through the backoff. Returns the
+    dispatcher's real policy."""
     real = dispatcher.RETRY
     monkeypatch.setattr(
         dispatcher, "RETRY", real._replace(initial_interval=0, jitter=False)
     )
+    check = harness.SCREEN_RETRY._replace(initial_interval=0, jitter=False)
+    monkeypatch.setattr(harness, "SCREEN_RETRY", check)
     return real
 
 

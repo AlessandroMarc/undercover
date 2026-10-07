@@ -1,4 +1,5 @@
-"""The harness: it builds the claim agent's graph and works a claim with it."""
+"""The harness: it builds the claim agent's graph, with the check for hidden
+instructions as its first step, and works a claim with it."""
 
 import logging
 import os
@@ -29,7 +30,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.runtime import Runtime
-from langgraph.types import Command, interrupt
+from langgraph.types import Command, RetryPolicy, interrupt
 from psycopg import Connection, sql
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import ConnectionPool
@@ -40,7 +41,8 @@ from agent.console import describe
 from agent.json_text import as_json
 from agent.openrouter import chat_model, usage_of
 from agent.root_run import as_root_run
-from agent.tools import CLAIM_TOOLS, ClaimContext, ClaimState
+from agent.screening import screen
+from agent.tools import CLAIM_TOOLS, ClaimContext, ClaimState, claim_as_read
 
 log = logging.getLogger(__name__)
 
@@ -63,19 +65,37 @@ CLAIM_MODEL_CALLS = 30
 NO_DECISION = "The agent finished without recording a decision"
 WORK_CLAIM = "Work claim"
 CARRY_ON = "Carry on"
+SCREEN = "screen"
+REFER = "refer"
 AGENT = "agent"
 TOOLS = "tools"
 PAUSE = "wait_for_sign_off"
 PAY = "pay"
 
 
+# The check's result as the claim's first step, and the section of the referral it
+# makes when it finds an instruction.
+FOUND = "Instructions found. {reason}"
+NONE_FOUND = "No instructions found. {reason}"
+SECURITY_CHECK = "Security check: no section of the wording or the manual applies"
+
+
 class TooManyModelCalls(Exception):
     """The claim agent made as many model calls as it may without finishing."""
 
 
-def model(version: dict[str, Any]) -> ChatOpenAI:
-    """Return a version's model, at its reasoning effort."""
-    return chat_model(version["model"], version["reasoning_effort"], timeout=120)
+class UnreadableScreening(Exception):
+    """The check for hidden instructions gave an answer that can't be read."""
+
+
+# Tries the check three times in all when its answer can't be read, and for nothing
+# else: a rate limit, a timeout or a refusal goes on like any error in the graph.
+SCREEN_RETRY = RetryPolicy(max_attempts=3, retry_on=UnreadableScreening)
+
+
+def model(named: dict[str, Any]) -> ChatOpenAI:
+    """Return the model a version or get_screening names, at its reasoning effort."""
+    return chat_model(named["model"], named["reasoning_effort"], timeout=120)
 
 
 @contextmanager
@@ -145,6 +165,32 @@ def record_call(context: ClaimContext, reply: BaseMessage) -> None:
     api.record_model_call(context.claim_id, context.run_id, *usage_of(reply))
 
 
+def screen_claim(
+    state: ClaimState, runtime: Runtime[ClaimContext], screener: BaseChatModel
+) -> dict[str, Any]:
+    """Have the check read the claim as the claim agent's get_claim tool gives it,
+    before the claim agent's model sees it, and record its call and its result as
+    the claim's first step. Raise UnreadableScreening, after recording the call,
+    when its answer can't be read."""
+    context = runtime.context
+    reply, screening = screen(screener, claim_as_read(context.claim_id))
+    record_call(context, reply)
+    if screening is None:
+        raise UnreadableScreening("The security check's answer couldn't be read")
+    line = FOUND if screening.instructions_found else NONE_FOUND
+    api.record_step(context.claim_id, "screening", line.format(reason=screening.reason))
+    return {"screening": screening.model_dump()}
+
+
+def refer(state: ClaimState, runtime: Runtime[ClaimContext]) -> dict[str, Any]:
+    """Refer a claim the check flagged to a handler, with the check's reason."""
+    reason = state["screening"]["reason"]
+    claim = api.record_decision(
+        runtime.context.claim_id, api.REFER, 0, SECURITY_CHECK, reason
+    )
+    return {"decision": claim["decision"], "status": claim["status"]}
+
+
 def call_model(
     state: ClaimState,
     runtime: Runtime[ClaimContext],
@@ -175,6 +221,11 @@ def pay(state: ClaimState, runtime: Runtime[ClaimContext]) -> dict[str, Any]:
     return {"status": claim["status"]}
 
 
+def after_screen(state: ClaimState) -> str:
+    """Refer a claim the check found an instruction in, or hand it to the model."""
+    return REFER if state["screening"]["instructions_found"] else AGENT
+
+
 def after_agent(state: ClaimState) -> str:
     """Run the tools the model asked for, or stop: it finished without a decision."""
     reply = state["messages"][-1]
@@ -195,11 +246,19 @@ def after_tools(state: ClaimState) -> str:
 
 
 def claim_graph(
-    llm: BaseChatModel, saver: BaseCheckpointSaver[Any], instructions: str
+    llm: BaseChatModel,
+    screener: BaseChatModel,
+    saver: BaseCheckpointSaver[Any],
+    instructions: str,
 ) -> ClaimGraph:
-    """Build the claim agent's graph on a model, with its instructions, which saves
-    its progress after every step."""
+    """Build the claim agent's graph, which saves its progress after every step: the
+    check for hidden instructions on its own model, then the claim agent on its
+    model, with its instructions."""
     builder = StateGraph(ClaimState, context_schema=ClaimContext)
+    builder.add_node(
+        SCREEN, partial(screen_claim, screener=screener), retry_policy=SCREEN_RETRY
+    )
+    builder.add_node(REFER, refer)
     builder.add_node(
         AGENT,
         partial(
@@ -214,7 +273,9 @@ def claim_graph(
     )
     builder.add_node(PAUSE, wait_for_sign_off)
     builder.add_node(PAY, pay)
-    builder.add_edge(START, AGENT)
+    builder.add_edge(START, SCREEN)
+    builder.add_conditional_edges(SCREEN, after_screen, [REFER, AGENT])
+    builder.add_edge(REFER, END)
     builder.add_conditional_edges(AGENT, after_agent, [TOOLS, END])
     builder.add_conditional_edges(TOOLS, after_tools, [AGENT, PAUSE, PAY, END])
     builder.add_edge(PAUSE, PAY)
@@ -224,11 +285,12 @@ def claim_graph(
 
 def claim_graphs(version: dict[str, Any], pool: Pool) -> NewGraph:
     """Return how to build a version's claim graph with a saver of its own on the
-    pool, since a saver lets one claim at a time read or write."""
-    llm = model(version)
+    pool, since a saver lets one claim at a time read or write. The check runs on
+    the model the backend names for it."""
+    llm, screener = model(version), model(api.get_screening())
 
     def new_graph() -> ClaimGraph:
-        return claim_graph(llm, PostgresSaver(pool), version["instructions"])
+        return claim_graph(llm, screener, PostgresSaver(pool), version["instructions"])
 
     return new_graph
 

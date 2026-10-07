@@ -436,6 +436,12 @@ def load(name: str) -> Any:
     return json.loads((DATA / name).read_text(encoding="utf-8"))
 
 
+def queue_records(name: str) -> list[dict[str, Any]]:
+    """Read the queue's records of one kind: those in data/ and the security team's
+    in data/security/, whose handler's decision is never seeded."""
+    return load(name) + load(f"security/{name}")
+
+
 def waiting_claim(record: dict[str, Any], **columns: Any) -> dict[str, Any]:
     """Return the row of a claim waiting in the queue, never started, with any other
     columns given."""
@@ -453,9 +459,9 @@ def seed(db: Engine) -> dict[str, int]:
     """Build the tables afresh from data/ and count what they hold."""
     company = load("company.json")
     handler_rows = load("handlers.json")
-    customer_rows = load("customers.json")
-    policy_rows = load("policies.json")
-    claim_rows = load("claims.json")
+    customer_rows = queue_records("customers.json")
+    policy_rows = queue_records("policies.json")
+    claim_rows = queue_records("claims.json")
     with db.begin() as connection:
         if on_postgres(db.url):
             connection.execute(CreateSchema(SCHEMA, if_not_exists=True))

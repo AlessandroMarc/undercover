@@ -22,6 +22,12 @@ test("the claim page shows the agent at work", async ({ page, request }) => {
   await recordStep(
     request,
     "CLM-1003",
+    "screening",
+    "No instructions found. The claim describes a medical bill in Lisbon.",
+  );
+  await recordStep(
+    request,
+    "CLM-1003",
     "tool_call",
     'get_claim(claim_id="CLM-1003")',
   );
@@ -36,6 +42,10 @@ test("the claim page shows the agent at work", async ({ page, request }) => {
     page.getByText("The agent is working on this claim."),
   ).toBeVisible();
   await expect(page.getByText('get_claim(claim_id="CLM-1003")')).toBeVisible();
+  const steps = page.locator(".steps > li");
+  await expect(steps.first()).toHaveText(
+    /Security check No instructions found\. The claim describes a medical bill/,
+  );
   await expect(
     page.getByText('get_claim: {"claim_id":"CLM-1003"}').first(),
   ).toBeVisible();

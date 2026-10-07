@@ -203,3 +203,25 @@ def test_a_run_with_nothing_graded_leaves_the_grade_to_the_others(
     assert get_evaluation(client, ungraded["run_id"])["measures"]["grade"] is None
     held_out = configuration(client)["versions"][0]["scores"]["held_out"]
     assert held_out["grade"] == pytest.approx(2.2)
+
+
+def test_the_check_runs_on_gpt_6_luna_with_no_reasoning(client, dashboard):
+    assert client.get("/api/screening").json() == {
+        "model": "openai/gpt-6-luna",
+        "reasoning_effort": "none",
+    }
+    assert dashboard.get("/api/screening").status_code == 401
+
+
+def test_the_check_runs_on_the_free_model_at_its_default(client, monkeypatch):
+    monkeypatch.setenv("MODEL_NAME", "openrouter/free")
+    assert client.get("/api/screening").json() == {
+        "model": "openrouter/free",
+        "reasoning_effort": "default",
+    }
+
+
+def test_no_version_changes_the_checks_model(client):
+    add_version("Version 2's instructions", model="openai/gpt-6.1-sol", verdict="kept")
+    assert client.get("/api/versions/current").json()["model"] == "openai/gpt-6.1-sol"
+    assert client.get("/api/screening").json()["model"] == "openai/gpt-6-luna"

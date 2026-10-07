@@ -142,7 +142,8 @@ def test_a_claim_that_fails_is_tried_once_more_in_the_same_dispatch(client):
     again = claim_of(client, "CLM-1001")
     assert (again["status"], again["attempts"]) == ("decided", 2)
     steps = steps_of(client, "CLM-1001")
-    assert steps[0]["kind"] == "error"
+    # Each attempt starts with the check.
+    assert [s["kind"] for s in steps[:3]] == ["screening", "error", "screening"]
     assert steps[-1]["thread_id"] == again["thread_id"] != steps[0]["thread_id"]
     left = claim_of(client, "CLM-1004")
     assert (left["status"], left["attempts"]) == ("left_for_handler", 2)

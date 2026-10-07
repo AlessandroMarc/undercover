@@ -104,7 +104,9 @@ class DiffLineKind(StrEnum):
 NO_REASONING_EFFORT = "default"
 
 
-StepKind = Literal["tool_call", "tool_result", "message", "reading", "error"]
+StepKind = Literal[
+    "screening", "tool_call", "tool_result", "message", "reading", "error"
+]
 MOST_AGENTS = 25
 Agents = Annotated[
     int, Field(ge=1, le=MOST_AGENTS, description="How many claim agents work at once")
@@ -525,6 +527,13 @@ class ScoredEvaluation(Evaluation):
 
 class Accepted(BaseModel):
     status: Literal["accepted"] = "accepted"
+
+
+class ScreeningModel(BaseModel):
+    """The model the check for hidden instructions runs on, outside the versions."""
+
+    model: str
+    reasoning_effort: str
 
 
 class ClaimAgentVersion(BaseModel):

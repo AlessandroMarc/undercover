@@ -43,7 +43,7 @@ def test_startup_seeds_a_missing_or_empty_database(database, empty):
     if empty:
         database.touch()
     with TestClient(app) as client:
-        assert len(read(client, "/api/claims").json()) == 25
+        assert len(read(client, "/api/claims").json()) == 26
 
 
 def test_seeding_drops_the_tables_of_earlier_versions():

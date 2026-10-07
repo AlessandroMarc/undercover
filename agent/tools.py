@@ -29,19 +29,28 @@ def keep_last(_: Any, new: Any) -> Any:
 
 
 class ClaimState(TypedDict):
-    """What the claim graph keeps for one claim, saved after every step. The decision
-    and the claim's status are as the backend recorded them, and empty until then."""
+    """What the claim graph keeps for one claim, saved after every step: the check
+    for hidden instructions' result, its reason and instructions_found, empty until
+    the check has run, and the decision and the claim's status as the backend
+    recorded them, empty until then."""
 
     messages: Annotated[list[AnyMessage], add_messages]
     model_calls: Annotated[int, operator.add]
+    screening: Annotated[dict[str, Any], keep_last]
     decision: Annotated[dict[str, Any], keep_last]
     status: Annotated[str, keep_last]
+
+
+def claim_as_read(claim_id: str) -> str:
+    """A claim in full, as the claim agent reads it, which is also what the check for
+    hidden instructions reads."""
+    return as_json(api.get_claim(claim_id))
 
 
 @tool
 def get_claim(runtime: ToolRuntime[ClaimContext]) -> str:
     """Get your claim in full: the story, the items claimed and the documents."""
-    return as_json(api.get_claim(runtime.context.claim_id))
+    return claim_as_read(runtime.context.claim_id)
 
 
 @tool

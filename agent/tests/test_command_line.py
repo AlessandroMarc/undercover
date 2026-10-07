@@ -86,8 +86,8 @@ def test_each_claim_graph_has_a_saver_of_its_own(fakes, monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     built = []
 
-    def claim_graph(llm, saver, instructions):
-        built.append((llm, saver, instructions))
+    def claim_graph(llm, screener, saver, instructions):
+        built.append((llm, screener, saver, instructions))
 
     monkeypatch.setattr(harness, "claim_graph", claim_graph)
     with harness.checkpoint_pool() as pool:
@@ -97,9 +97,14 @@ def test_each_claim_graph_has_a_saver_of_its_own(fakes, monkeypatch):
     [first, second] = built
     assert first[0] is second[0]
     assert first[0].model_name == "google/gemini-3.5-flash-lite"
-    assert first[2] == second[2] == "Decide the claim."
-    assert first[1] is not second[1]
-    assert {first[1].pool, second[1].pool} == {pool}
+    assert first[1] is second[1]
+    assert (first[1].model_name, first[1].reasoning_effort) == (
+        "openai/gpt-6-luna",
+        "none",
+    )
+    assert first[3] == second[3] == "Decide the claim."
+    assert first[2] is not second[2]
+    assert {first[2].pool, second[2].pool} == {pool}
     assert [saver.set_up for saver in FakeSaver.made] == [True, False, False]
 
 

@@ -28,7 +28,7 @@ The agent:
 
 - `connection.py`: `call` sends the key in an `X-API-Key` header with every request, reading `UNDERCOVER_API_KEY` as each request is sent, so the command line, which loads `.env` after it imports the agent's modules, and the tests, which swap the client, both send it. `api_key()` returns the key or raises "UNDERCOVER_API_KEY is missing. Add it to .env". The header's name is written here alone.
 - `api.py`: gains `get_screening`, and `StepKind` gains `screening`.
-- `screening.py` (new): the check, in the lab's words: `SCREEN_INSTRUCTIONS` and `Screening`, with `reason` before `instructions_found` and the lab's field descriptions, and `screen(llm, claim)`, which asks the model through `with_structured_output(Screening, include_raw=True)` and returns the reply and its answer, or none when the answer can't be read. It records nothing and calls no backend.
+- `screening.py` (new): the check, in the lab's words: `SCREEN_INSTRUCTIONS` and `Screening`, with `reason` before `instructions_found` and the lab's field descriptions, and `screen(llm, claim)`, which asks the model through `with_structured_output(Screening, method="function_calling", strict=True, include_raw=True)`, Structured Outputs in a strict tool call that LangChain reads after the call, and returns the reply and its answer, or none when the answer can't be read. It records nothing and calls no backend.
 - `tools.py`: `ClaimState` gains `screening`, the check's result (its reason and `instructions_found`), kept with `keep_last` like the decision and empty until the check has run.
 - `harness.py`: the claim graph gains its first two nodes, `screen` and `refer`, and loses the pause: a held approval ends the claim's work, so `wait_for_sign_off`, the resume branch in `carry_on` and `finish_held_copy` go (below). `claim_graphs(version, pool)` reads the check's model with `get_screening` once for the run's graphs.
 - `service.py`: refuses to start without the key, before it opens the checkpoint pool, saying it's missing. It loses `resume_claim`, `resume` and the `resuming` set.
@@ -162,20 +162,20 @@ Add the key to `.env`, `backend/api_key.py` and the gates in `dependencies.py`, 
 
 Seed CLM-1901 from `data/security/`. Add `get_screening`, `agent/screening.py`, the `screen` and `refer` nodes with the check's `RetryPolicy`, and the `screening` step on the dashboard.
 
-- [ ] `uv run -m backend.seed` prints `Seeded 26 claims, 51 policies, 50 customers and 3 handlers into undercover.db, with 25 held-out claims and 50 handlers' decisions for evaluations, ...`, and `git status data` shows no change
-- [ ] pytest: CLM-1901 is waiting in the queue with POL-2901 and Derek Vance, `handler_decisions` has no row for it, and an evaluation of each set, whole and tiny, makes no copy of it
-- [ ] pytest: `get_screening` with the key returns `openai/gpt-6-luna` at `none`, with `MODEL_NAME` set returns that model at `default`, and without the key returns 401; a kept version on another model leaves it as it was
-- [ ] pytest: `Screening`'s fields are `reason` then `instructions_found` with the lab's descriptions, and the check's system message is the lab's instructions word for word
-- [ ] Stub test, a flagged claim: the claim is decided as a referral with a payout of zero, the check's reason and the security check's section; the claim agent's stub model is never called; the first step is the `screening` step; the check's call is recorded as one of the claim's model calls, in its run, with its cost
-- [ ] Stub test, a passed claim: the check is sent the claim as the `get_claim` tool gives it, the first step is the `screening` step, and the claim agent then decides and pays the claim as before
-- [ ] Stub test: two unreadable answers then a readable one record three model calls and the claim goes on; three unreadable answers fail the attempt, back in the queue, with three model calls recorded and no call to the claim agent's model
-- [ ] Stub test: a timeout from the check's model makes one model call and leaves the claim in progress, and any other error makes one model call and fails the attempt; neither calls the claim agent's model
-- [ ] Stub test: the check's result is in the claim graph's saved state as `screening`, with its reason and `instructions_found`, and `refer` takes the referral's reason from it
-- [ ] Stub test: a claim stopped after the check and carried on doesn't run it again; a claim with nothing saved that starts again from its first message, and a second attempt, are each checked again
-- [ ] `grep -rn MODEL_NAME backend agent --include='*.py'` finds it only in `backend/free_models.py` and tests, and the boundaries test allows `harness` to use `screening`, and `screening` to use nothing else in the agent
-- [ ] vitest: a `screening` step shows as "Security check" with its line, first in the claim's steps
-- [ ] e2e: the queue lists 26 claims; a `screening` step recorded through the API on a claim shows as its first step
-- [ ] `npm run check` passes with `.env` moved out of the way
+- [x] `uv run -m backend.seed` prints `Seeded 26 claims, 51 policies, 50 customers and 3 handlers into undercover.db, with 25 held-out claims and 50 handlers' decisions for evaluations, ...`, and `git status data` shows no change
+- [x] pytest: CLM-1901 is waiting in the queue with POL-2901 and Derek Vance, `handler_decisions` has no row for it, and an evaluation of each set, whole and tiny, makes no copy of it
+- [x] pytest: `get_screening` with the key returns `openai/gpt-6-luna` at `none`, with `MODEL_NAME` set returns that model at `default`, and without the key returns 401; a kept version on another model leaves it as it was
+- [x] pytest: `Screening`'s fields are `reason` then `instructions_found` with the lab's descriptions, and the check's system message is the lab's instructions word for word
+- [x] Stub test, a flagged claim: the claim is decided as a referral with a payout of zero, the check's reason and the security check's section; the claim agent's stub model is never called; the first step is the `screening` step; the check's call is recorded as one of the claim's model calls, in its run, with its cost
+- [x] Stub test, a passed claim: the check is sent the claim as the `get_claim` tool gives it, the first step is the `screening` step, and the claim agent then decides and pays the claim as before
+- [x] Stub test: two unreadable answers then a readable one record three model calls and the claim goes on; three unreadable answers fail the attempt, back in the queue, with three model calls recorded and no call to the claim agent's model
+- [x] Stub test: a timeout from the check's model makes one model call and leaves the claim in progress, and any other error makes one model call and fails the attempt; neither calls the claim agent's model
+- [x] Stub test: the check's result is in the claim graph's saved state as `screening`, with its reason and `instructions_found`, and `refer` takes the referral's reason from it
+- [x] Stub test: a claim stopped after the check and carried on doesn't run it again; a claim with nothing saved that starts again from its first message, and a second attempt, are each checked again
+- [x] `grep -rn MODEL_NAME backend agent --include='*.py'` finds it only in `backend/free_models.py` and tests, and the boundaries test allows `harness` to use `screening`, and `screening` to use nothing else in the agent
+- [x] vitest: a `screening` step shows as "Security check" with its line, first in the claim's steps
+- [x] e2e: the queue lists 26 claims; a `screening` step recorded through the API on a claim shows as its first step
+- [x] `npm run check` passes with `.env` moved out of the way
 
 ## Phase 3: The agent's own API
 

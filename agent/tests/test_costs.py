@@ -22,7 +22,7 @@ def test_each_model_call_and_spell_of_work_is_recorded(client):
     calls = model_calls_of("CLM-1001")
     assert [
         (c["input_tokens"], c["output_tokens"], c["cost"], c["run_id"]) for c in calls
-    ] == [(USAGE["prompt_tokens"], USAGE["completion_tokens"], USAGE["cost"], None)] * 2
+    ] == [(USAGE["prompt_tokens"], USAGE["completion_tokens"], USAGE["cost"], None)] * 3
     assert {c["thread_id"] for c in calls} == {thread_id}
     [spell] = work_times_of("CLM-1001")
     assert (spell["thread_id"], spell["run_id"]) == (thread_id, None)
@@ -34,7 +34,8 @@ def test_a_run_records_its_calls_and_spells_and_tags_its_traces(client, traces):
 
     run_id = latest_dispatch(client)["run_id"]
     for claim_id in ("CLM-1001", "CLM-1003"):
-        assert [c["run_id"] for c in model_calls_of(claim_id)] == [run_id] * 2
+        # The check's call, then the claim agent's two.
+        assert [c["run_id"] for c in model_calls_of(claim_id)] == [run_id] * 3
         assert [w["run_id"] for w in work_times_of(claim_id)] == [run_id]
     assert [t["langfuse_tags"] for t in traces] == [[run_id], [run_id]]
 
@@ -52,11 +53,12 @@ def test_both_attempts_of_a_claim_are_under_the_run(client):
 
     run_id = latest_dispatch(client)["run_id"]
     calls, spells = model_calls_of("CLM-1004"), work_times_of("CLM-1004")
-    assert [c["run_id"] for c in calls] == [run_id] * 3
+    assert [c["run_id"] for c in calls] == [run_id] * 5
     assert [s["run_id"] for s in spells] == [run_id] * 2
     first, second = (s["thread_id"] for s in spells)
     assert first != second
-    assert [c["thread_id"] for c in calls] == [first, second, second]
+    # Each attempt is checked first.
+    assert [c["thread_id"] for c in calls] == [first, first, second, second, second]
 
 
 class MovedClock:

@@ -1,9 +1,13 @@
+from sqlalchemy import select
+
 from backend import seed
+from backend.database import engine, handler_decisions
+from backend.tests.run_requests import create_evaluation, queue
 
 
 def test_list_claims(client):
     claims = client.get("/api/claims").json()
-    assert len(claims) == 25
+    assert len(claims) == 26
     assert [claim["claim_id"] for claim in claims] == sorted(
         claim["claim_id"] for claim in claims
     )
@@ -62,7 +66,32 @@ def test_unknown_ids(client):
 def test_seed_command(capsys):
     seed.main()
     assert capsys.readouterr().out == (
-        "Seeded 25 claims, 50 policies, 49 customers and 3 handlers "
+        "Seeded 26 claims, 51 policies, 50 customers and 3 handlers "
         "into undercover.db, with 25 held-out claims and 50 handlers' decisions "
         "for evaluations, and version 1 of the configuration and of the recipe\n"
     )
+
+
+def test_the_security_teams_claim_waits_in_the_queue(client):
+    claim = client.get("/api/claims/CLM-1901").json()
+    assert (claim["status"], claim["policy_id"], claim["customer_id"]) == (
+        "waiting",
+        "POL-2901",
+        "CUS-3901",
+    )
+    assert client.get("/api/policies/POL-2901").status_code == 200
+    assert client.get("/api/customers/CUS-3901/claims").status_code == 200
+    [listed] = [c for c in queue(client) if c["claim_id"] == "CLM-1901"]
+    assert listed["customer_name"] == "Derek Vance"
+
+
+def test_the_security_teams_claim_is_in_neither_evaluation_set(client):
+    with engine().connect() as db:
+        query = select(handler_decisions.c.claim_id)
+        assert "CLM-1901" not in set(db.execute(query).scalars())
+    for evaluation_set in ("evaluation", "held_out"):
+        for tiny in (True, False):
+            run = create_evaluation(client, evaluation_set, tiny).json()
+            copied = [claim["claim_id"] for claim in run["claims"]]
+            assert copied
+            assert not [c for c in copied if c.startswith("CLM-1901")]

@@ -4,6 +4,7 @@ import type {
   EvaluationSet,
   Improvement,
   Run,
+  StepKind,
 } from "../dashboard/src/api";
 import { HANDLERS, signedInAs } from "./handlers";
 import { AGENT_KEY_HEADERS, AGENT_STAND_IN } from "./servers";
@@ -43,7 +44,7 @@ export const startClaim = (request: Request, claimId: string, thread: string) =>
 export const recordStep = (
   request: Request,
   claimId: string,
-  kind: "tool_call" | "tool_result" | "message" | "reading",
+  kind: StepKind,
   content: string,
 ) => send(request, "POST", `${claimPath(claimId)}/steps`, { kind, content });
 

@@ -20,6 +20,7 @@ AGENT_OPERATIONS = {
     "fail_claim",
     "get_version",
     "get_current_version",
+    "get_screening",
     "search_documents",
     "read_section",
     "create_dispatch",
