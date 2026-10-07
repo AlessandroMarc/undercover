@@ -21,10 +21,10 @@ from agent.tests.stubs import (
     FLAGGED,
     PASSED,
     USAGE,
+    agent_on,
     call,
     decide,
     flags,
-    graph_on,
     passes,
     record,
     screened,
@@ -124,8 +124,8 @@ def test_an_answer_the_real_model_gives_that_cant_be_read_comes_back_with_its_co
 def test_a_flagged_claim_is_referred_without_the_claim_agents_model(client):
     run_id = new_dispatch()["run_id"]
     model = stub(*decide("approve", 4800.0))
-    graph = graph_on(model, screener=flags())
-    report = harness.work_claim("CLM-1901", run_id, graph)
+    agent = agent_on(model, screener=flags())
+    report = harness.work_claim("CLM-1901", run_id, agent)
 
     assert report == "CLM-1901  refer  $0.00"
     assert model.prompts == []
@@ -147,7 +147,7 @@ def test_a_flagged_claim_is_referred_without_the_claim_agents_model(client):
 def test_a_passed_claim_goes_to_the_claim_agent(client):
     screener = passes()
     model = stub(*decide("approve", 420.0))
-    report = harness.work_claim("CLM-1001", None, graph_on(model, screener=screener))
+    report = harness.work_claim("CLM-1001", None, agent_on(model, screener=screener))
 
     assert report == "CLM-1001  approve  $420.00"
     assert claim_of(client, "CLM-1001")["payment"]["amount"] == 420.0
@@ -167,7 +167,7 @@ def test_a_passed_claim_goes_to_the_claim_agent(client):
 def test_an_unreadable_answer_is_asked_again(client):
     screener = stub(UNREADABLE, UNREADABLE, screened(False, PASSED))
     model = stub(*decide("refer", 0))
-    report = harness.work_claim("CLM-1003", None, graph_on(model, screener=screener))
+    report = harness.work_claim("CLM-1003", None, agent_on(model, screener=screener))
 
     assert report == "CLM-1003  refer  $0.00"
     assert len(screener.prompts) == 3
@@ -177,7 +177,7 @@ def test_an_unreadable_answer_is_asked_again(client):
 def test_three_unreadable_answers_fail_the_attempt(client):
     screener = stub(UNREADABLE, UNREADABLE, UNREADABLE)
     model = stub(*decide("refer", 0))
-    report = harness.work_claim("CLM-1003", None, graph_on(model, screener=screener))
+    report = harness.work_claim("CLM-1003", None, agent_on(model, screener=screener))
 
     assert report == (
         "CLM-1003  failed: UnreadableScreening: The security check's answer "
@@ -192,7 +192,7 @@ def test_a_timeout_from_the_check_leaves_the_claim_in_progress(client):
     screener = stub(ModelTimeoutError("Timed out"), screened(False, PASSED))
     model = stub(*decide("refer", 0))
     with pytest.raises(ModelTimeoutError):
-        harness.work_claim("CLM-1003", None, graph_on(model, screener=screener))
+        harness.work_claim("CLM-1003", None, agent_on(model, screener=screener))
 
     assert len(screener.prompts) == 1
     assert model.prompts == []
@@ -202,7 +202,7 @@ def test_a_timeout_from_the_check_leaves_the_claim_in_progress(client):
 def test_any_other_error_from_the_check_fails_the_attempt(client):
     screener = stub(RuntimeError("503: The model is unavailable"))
     model = stub(*decide("refer", 0))
-    report = harness.work_claim("CLM-1003", None, graph_on(model, screener=screener))
+    report = harness.work_claim("CLM-1003", None, agent_on(model, screener=screener))
 
     assert report.endswith("503: The model is unavailable, back in the queue")
     assert len(screener.prompts) == 1
@@ -210,9 +210,9 @@ def test_any_other_error_from_the_check_fails_the_attempt(client):
 
 
 def test_the_checks_result_is_kept_in_the_claims_state(client):
-    graph = graph_on(stub(), screener=flags())
-    harness.work_claim("CLM-1901", None, graph)
-    state = graph.get_state(harness.thread_of(claim_of(client, "CLM-1901")))
+    agent = agent_on(stub(), screener=flags())
+    harness.work_claim("CLM-1901", None, agent)
+    state = agent.graph.get_state(harness.thread_of(claim_of(client, "CLM-1901")))
     assert state.values["screening"] == {
         "reason": FLAGGED,
         "instructions_found": True,
@@ -225,10 +225,10 @@ def test_the_check_runs_once_for_each_thread(client):
     timeout = ModelTimeoutError("Timed out")
     model = stub(call("get_claim"), timeout, record("refer", 0))
     with pytest.raises(ModelTimeoutError):
-        harness.work_claim("CLM-1003", None, graph_on(model, saver, screener=screener))
+        harness.work_claim("CLM-1003", None, agent_on(model, saver, screener=screener))
 
     report = harness.carry_on(
-        "CLM-1003", None, graph_on(model, saver, screener=screener)
+        "CLM-1003", None, agent_on(model, saver, screener=screener)
     )
     assert report == "CLM-1003  refer  $0.00"
     assert len(screener.prompts) == 1
@@ -236,12 +236,12 @@ def test_the_check_runs_once_for_each_thread(client):
 
 def test_a_claim_starting_again_from_its_first_message_is_checked_again(client):
     screener = passes()
-    graph = graph_on(stub(ModelTimeoutError("Timed out")), screener=screener)
+    agent = agent_on(stub(ModelTimeoutError("Timed out")), screener=screener)
     with pytest.raises(ModelTimeoutError):
-        harness.work_claim("CLM-1003", None, graph)
+        harness.work_claim("CLM-1003", None, agent)
 
     # Nothing saved: another process's saver, with none of this one's progress.
-    fresh = graph_on(stub(*decide("refer", 0)), InMemorySaver(), screener=screener)
+    fresh = agent_on(stub(*decide("refer", 0)), InMemorySaver(), screener=screener)
     assert harness.carry_on("CLM-1003", None, fresh) == "CLM-1003  refer  $0.00"
     assert len(screener.prompts) == 2
 
@@ -249,9 +249,9 @@ def test_a_claim_starting_again_from_its_first_message_is_checked_again(client):
 def test_a_second_attempt_is_checked_again(client):
     screener = passes()
     outage = RuntimeError("503: The model is unavailable")
-    harness.work_claim("CLM-1003", None, graph_on(stub(outage), screener=screener))
-    graph = graph_on(stub(*decide("refer", 0)), screener=screener)
-    assert harness.work_claim("CLM-1003", None, graph) == "CLM-1003  refer  $0.00"
+    harness.work_claim("CLM-1003", None, agent_on(stub(outage), screener=screener))
+    agent = agent_on(stub(*decide("refer", 0)), screener=screener)
+    assert harness.work_claim("CLM-1003", None, agent) == "CLM-1003  refer  $0.00"
     assert len(screener.prompts) == 2
     kinds = [step["kind"] for step in steps_of(client, "CLM-1003")]
     assert [kinds[0], kinds[1], kinds[2]] == ["screening", "error", "screening"]

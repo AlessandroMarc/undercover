@@ -47,6 +47,7 @@ from backend.models import (
     DocumentName,
     FailureRequest,
     Handler,
+    HoldRequest,
     ModelCall,
     ModelCallRequest,
     PaymentRequest,
@@ -71,6 +72,8 @@ from backend.runs import router as runs
 from backend.views import to_claim, to_summary
 
 ATTEMPTS = 2
+NOT_APPROVED = "Claim {claim_id} has not been approved"
+ALREADY_PAID = "Claim {claim_id} has already been paid"
 
 
 @asynccontextmanager
@@ -417,11 +420,11 @@ def pay_claim(claim_id: str, request: PaymentRequest, db: Database) -> Claim:
         raise HTTPException(403, over_the_limit(limit))
     claim = find_claim(db, claim_id)
     if claim["decision"] != DecisionKind.APPROVE:
-        raise HTTPException(409, f"Claim {claim_id} has not been approved")
+        raise HTTPException(409, NOT_APPROVED.format(claim_id=claim_id))
     if claim["paid_at"] is not None:
         if amount == claim["amount"]:
             return to_claim(claim)
-        raise HTTPException(409, f"Claim {claim_id} has already been paid")
+        raise HTTPException(409, ALREADY_PAID.format(claim_id=claim_id))
     if claim["status"] == Status.WAITING_FOR_SIGN_OFF:
         raise HTTPException(403, over_the_limit(claim["approval_limit"]))
     if amount != claim["payout"]:
@@ -429,6 +432,27 @@ def pay_claim(claim_id: str, request: PaymentRequest, db: Database) -> Claim:
             422, f"The amount must be the approved payout of {dollars(claim['payout'])}"
         )
     record_payment(db, claim)
+    return to_claim(find_claim(db, claim_id))
+
+
+@app.post(
+    "/api/claims/{claim_id}/hold", operation_id="hold_payment", dependencies=[AgentKey]
+)
+def hold_payment(claim_id: str, request: HoldRequest, db: Database) -> Claim:
+    """Hold an approval the Gateway refused to pay for a handler's sign-off."""
+    claim = find_claim(db, claim_id)
+    if claim["decision"] != DecisionKind.APPROVE:
+        raise HTTPException(409, NOT_APPROVED.format(claim_id=claim_id))
+    if claim["paid_at"] is not None:
+        raise HTTPException(409, ALREADY_PAID.format(claim_id=claim_id))
+    if claim["status"] == Status.WAITING_FOR_SIGN_OFF:
+        return to_claim(claim)
+    db.execute(
+        update(decisions)
+        .where(decisions.c.claim_id == claim_id)
+        .values(gateway_refusal=request.reason)
+    )
+    set_status(db, claim_id, Status.WAITING_FOR_SIGN_OFF)
     return to_claim(find_claim(db, claim_id))
 
 

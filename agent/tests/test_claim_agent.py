@@ -13,9 +13,9 @@ from agent.tests.stubs import (
     INSTRUCTIONS,
     PASSED,
     StubModel,
+    agent_on,
     call,
     decide,
-    graph_on,
     record,
     stub,
 )
@@ -25,15 +25,15 @@ from backend.tests.settings_requests import change_settings
 
 
 def work(claim_id, model, saver=None):
-    return harness.work_claim(claim_id, None, graph_on(model, saver))
+    return harness.work_claim(claim_id, None, agent_on(model, saver))
 
 
-def state_of(graph, client, claim_id):
-    return graph.get_state(harness.thread_of(claim_of(client, claim_id)))
+def state_of(agent, client, claim_id):
+    return agent.graph.get_state(harness.thread_of(claim_of(client, claim_id)))
 
 
 def test_the_graph():
-    graph = graph_on(stub()).get_graph()
+    graph = agent_on(stub()).graph.get_graph()
     assert set(graph.nodes) == {
         "__start__",
         "screen",
@@ -102,19 +102,19 @@ def test_the_claim_agent_reads_its_instructions_then_its_claim(client):
 
 def test_a_payout_held_for_sign_off_ends_the_claims_work(client, monkeypatch):
     paid = []
-    monkeypatch.setattr(api, "pay_claim", lambda *payment: paid.append(payment))
+    monkeypatch.setattr(api, "pay_claim", lambda **payment: paid.append(payment))
     model = stub(*decide("approve", 1350.0))
-    graph = graph_on(model)
-    report = harness.work_claim("CLM-1002", None, graph)
+    agent = agent_on(model)
+    report = harness.work_claim("CLM-1002", None, agent)
     assert report == "CLM-1002  approve  $1,350.00, waiting for sign-off"
     assert len(model.prompts) == 2
-    assert state_of(graph, client, "CLM-1002").next == ()
+    assert state_of(agent, client, "CLM-1002").next == ()
     claim = claim_of(client, "CLM-1002")
     assert (claim["status"], claim["payment"]) == ("waiting_for_sign_off", None)
 
     sign_off(client, "CLM-1002")
     steps = steps_of(client, "CLM-1002")
-    assert harness.carry_on("CLM-1002", None, graph) == "CLM-1002  approve  $1,350.00"
+    assert harness.carry_on("CLM-1002", None, agent) == "CLM-1002  approve  $1,350.00"
     assert paid == []
     assert len(model.prompts) == 2
     assert steps_of(client, "CLM-1002") == steps
@@ -130,12 +130,12 @@ def test_the_graph_follows_the_backend_on_the_limit(client):
 
 @pytest.mark.parametrize("decision", ["decline", "refer"])
 def test_declines_and_refers(client, decision):
-    graph = graph_on(stub(*decide(decision, 0)))
-    report = harness.work_claim("CLM-1003", None, graph)
+    agent = agent_on(stub(*decide(decision, 0)))
+    report = harness.work_claim("CLM-1003", None, agent)
     assert report == f"CLM-1003  {decision}  $0.00"
     claim = claim_of(client, "CLM-1003")
     assert (claim["status"], claim["payment"]) == ("decided", None)
-    history = graph.get_state_history(harness.thread_of(claim))
+    history = agent.graph.get_state_history(harness.thread_of(claim))
     assert harness.PAY not in {node for snapshot in history for node in snapshot.next}
 
 
@@ -175,7 +175,7 @@ def test_reading_a_section_is_recorded(client):
     assert steps[1][1].startswith('read_section: {"document": "claims_manual"')
     assert steps[2] == ("reading", "Claims manual, section 9: Repeat claims")
     assert steps[4] == (
-        "tool_result",
+        "refusal",
         "read_section: Refused with status 404: "
         "Section 15 of the claims manual not found",
     )
@@ -240,16 +240,16 @@ def test_a_claim_is_traced_in_the_session_of_its_thread(client, traces):
 
 
 def test_working_a_claim_saves_each_step_on_its_thread(client, monkeypatch):
-    graph = graph_on(stub(*decide("refer", 0)))
+    agent = agent_on(stub(*decide("refer", 0)))
     runs = []
-    invoke = graph.invoke
+    invoke = agent.graph.invoke
 
     def spy(start, config, **kwargs):
         runs.append((config, kwargs))
         return invoke(start, config, **kwargs)
 
-    monkeypatch.setattr(graph, "invoke", spy)
-    harness.work_claim("CLM-1003", None, graph)
+    monkeypatch.setattr(agent.graph, "invoke", spy)
+    harness.work_claim("CLM-1003", None, agent)
     [(config, kwargs)] = runs
     assert kwargs["durability"] == "sync"
     thread_id = claim_of(client, "CLM-1003")["thread_id"]
@@ -340,9 +340,9 @@ def test_a_claim_that_isnt_waiting_is_not_started(client):
 
 def test_each_claim_starts_clean(client):
     model = stub(*decide("decline", 0), *decide("refer", 0))
-    graph = graph_on(model)
-    harness.work_claim("CLM-1001", None, graph)
-    harness.work_claim("CLM-1003", None, graph)
+    agent = agent_on(model)
+    harness.work_claim("CLM-1001", None, agent)
+    harness.work_claim("CLM-1003", None, agent)
     firsts = [prompt for prompt in model.prompts if len(prompt) == 2]
     assert [prompt[1].content for prompt in firsts] == [
         "Claim CLM-1001",

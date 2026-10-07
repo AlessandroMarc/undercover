@@ -16,7 +16,7 @@ from agent.tests.dispatching import dispatch
 from agent.tests.failures import fail_once
 from agent.tests.queue_setup import leave_waiting
 from agent.tests.records import claim_of, work_times_of
-from agent.tests.stubs import call, decide, graph_on, record, stub, swarm
+from agent.tests.stubs import agent_on, call, decide, record, stub, swarm
 from backend.tests.claim_requests import sign_off
 from backend.tests.dashboard_reads import steps_of
 from backend.tests.run_requests import latest_dispatch
@@ -76,8 +76,8 @@ def test_a_dispatch_works_the_claims_in_progress_and_waiting_oldest_first(client
     leave_waiting(
         "CLM-1001", "CLM-1003", "CLM-1004", "CLM-1008", "CLM-1010", "CLM-1011"
     )
-    harness.work_claim("CLM-1003", None, graph_on(stub(*decide("refer", 0))))
-    harness.work_claim("CLM-1008", None, graph_on(stub(*decide("approve", 2240.0))))
+    harness.work_claim("CLM-1003", None, agent_on(stub(*decide("refer", 0))))
+    harness.work_claim("CLM-1008", None, agent_on(stub(*decide("approve", 2240.0))))
     client.post("/api/claims/CLM-1010/start", json={"thread_id": "t-1010"})
 
     worked = ["CLM-1001", "CLM-1011", "CLM-1010", "CLM-1004"]
@@ -216,7 +216,7 @@ def test_a_dispatch_stopped_partway_is_finished_by_the_next(client):
     leave_waiting("CLM-1001", "CLM-1002", "CLM-1003")
     saver = InMemorySaver()
     harness.work_claim(
-        "CLM-1002", None, graph_on(stub(*decide("approve", 1350.0)), saver)
+        "CLM-1002", None, agent_on(stub(*decide("approve", 1350.0)), saver)
     )
     model = swarm(
         {
@@ -249,7 +249,7 @@ def test_an_approval_whose_payment_failed_is_paid_by_the_next_dispatch(
     saver = InMemorySaver()
     fail_once(monkeypatch, api, "pay_claim", RuntimeError("The connection was lost"))
     harness.work_claim(
-        "CLM-1001", None, graph_on(stub(*decide("approve", 420.0)), saver)
+        "CLM-1001", None, agent_on(stub(*decide("approve", 420.0)), saver)
     )
     assert claim_of(client, "CLM-1001")["status"] == "in_progress"
 

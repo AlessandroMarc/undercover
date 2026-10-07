@@ -1,4 +1,4 @@
-import type { Claim, Payment } from "../api";
+import type { Claim, Decision, Payment } from "../api";
 import { money, time } from "../format";
 import { useHandler } from "../handler";
 import { DecisionChip } from "./Chips";
@@ -60,7 +60,7 @@ export function DecisionPanel({
       {decision && claim.status === "waiting_for_sign_off" && (
         <HeldPayment
           claim={claim}
-          payout={decision.payout}
+          decision={decision}
           onSignedOff={onSignedOff}
         />
       )}
@@ -68,13 +68,36 @@ export function DecisionPanel({
   );
 }
 
-// A payment over the limit, which waits for a handler's sign-off, unless the
-// claim is an evaluation's copy, which nobody can sign off.
+// Why a payment waits for a handler's sign-off: it's over the approval limit,
+// or the Gateway refused it.
+function WhyHeld({ decision }: Readonly<{ decision: Decision }>) {
+  const amount = <span className="mono">{money(decision.payout)}</span>;
+  if (decision.gateway_refusal)
+    return (
+      <>
+        <p>
+          The Gateway refused the payment of {amount}, so it waits for a
+          handler's sign-off.
+        </p>
+        <p className="small muted">{decision.gateway_refusal}</p>
+      </>
+    );
+  return (
+    <p>
+      The payment of {amount} is over the approval limit and waits for a
+      handler's sign-off.
+    </p>
+  );
+}
+
+// A payment over the limit or refused by the Gateway, which waits for a
+// handler's sign-off, unless the claim is an evaluation's copy, which nobody
+// can sign off.
 function HeldPayment({
   claim,
-  payout,
+  decision,
   onSignedOff,
-}: Readonly<{ claim: Claim; payout: number; onSignedOff: () => void }>) {
+}: Readonly<{ claim: Claim; decision: Decision; onSignedOff: () => void }>) {
   const handler = useHandler();
   if (claim.evaluation_id)
     return (
@@ -85,10 +108,7 @@ function HeldPayment({
     );
   return (
     <div className="sign-off">
-      <p>
-        The payment of <span className="mono">{money(payout)}</span> is over the
-        approval limit and waits for a handler's sign-off.
-      </p>
+      <WhyHeld decision={decision} />
       {handler.can_approve_over_limit ? (
         <SignOffForm claimId={claim.claim_id} onSignedOff={onSignedOff} />
       ) : (

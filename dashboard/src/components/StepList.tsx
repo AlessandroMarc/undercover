@@ -1,4 +1,4 @@
-import { Shield } from "lucide-react";
+import { Ban, Shield } from "lucide-react";
 import type { Step } from "../api";
 import { time } from "../format";
 import { StateMessage } from "./StateMessage";
@@ -70,6 +70,16 @@ function StepBody({ step }: Readonly<{ step: Step }>) {
     return (
       <p>
         <span className="step-label">Read</span> {step.content}
+      </p>
+    );
+  if (step.kind === "refusal")
+    return (
+      <p>
+        <span className="chip step-refused">
+          <Ban />
+          Refused
+        </span>{" "}
+        <code className="mono">{step.content}</code>
       </p>
     );
   if (step.kind === "error")

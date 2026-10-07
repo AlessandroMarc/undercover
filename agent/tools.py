@@ -1,5 +1,5 @@
-"""The claim agent's tools, each calling the backend operation it is named after, and
-the context and state they read."""
+"""The claim agent's tools, each calling the operation it is named after on the
+claim agent's route, and the context and state they read."""
 
 import operator
 from dataclasses import dataclass
@@ -12,14 +12,19 @@ from langgraph.types import Command
 
 from agent import api
 from agent.json_text import as_json
+from agent.routes import Route, Target
 
 
 @dataclass
 class ClaimContext:
-    """The claim a claim agent is working on, and the run it works in, if any."""
+    """The claim a claim agent is working on, its policy and customer, the run it
+    works in, if any, and the route its tools take."""
 
     claim_id: str
     run_id: str | None
+    policy_id: str
+    customer_id: str
+    route: Route
 
 
 def keep_last(_: Any, new: Any) -> Any:
@@ -41,42 +46,51 @@ class ClaimState(TypedDict):
     status: Annotated[str, keep_last]
 
 
-def claim_as_read(claim_id: str) -> str:
+def claim_as_read(claim: dict[str, Any]) -> str:
     """A claim in full, as the claim agent reads it, which is also what the check for
     hidden instructions reads."""
-    return as_json(api.get_claim(claim_id))
+    return as_json(claim)
+
+
+def on_app(runtime: ToolRuntime[ClaimContext], operation: str, **inputs: Any) -> Any:
+    """Call one of the app's operations on the claim agent's route."""
+    return runtime.context.route.call(Target.APP, operation, inputs)
 
 
 @tool
 def get_claim(runtime: ToolRuntime[ClaimContext]) -> str:
     """Get your claim in full: the story, the items claimed and the documents."""
-    return claim_as_read(runtime.context.claim_id)
+    return claim_as_read(
+        on_app(runtime, "get_claim", claim_id=runtime.context.claim_id)
+    )
 
 
 @tool
-def get_policy(policy_id: str) -> str:
-    """Get a policy: the plan, add-ons, purchase date, trip and travelers."""
-    return as_json(api.get_policy(policy_id))
+def get_policy(runtime: ToolRuntime[ClaimContext]) -> str:
+    """Get your claim's policy: the plan, add-ons, purchase date, trip and travelers."""
+    policy_id = runtime.context.policy_id
+    return as_json(on_app(runtime, "get_policy", policy_id=policy_id))
 
 
 @tool
-def get_claim_history(customer_id: str) -> str:
-    """Get a customer's earlier claims, with the outcome and the amount paid."""
-    return as_json(api.get_claim_history(customer_id))
+def get_claim_history(runtime: ToolRuntime[ClaimContext]) -> str:
+    """Get your customer's earlier claims, with the outcome and the amount paid."""
+    customer_id = runtime.context.customer_id
+    return as_json(on_app(runtime, "get_claim_history", customer_id=customer_id))
 
 
 @tool
-def search_documents(query: str) -> str:
+def search_documents(query: str, runtime: ToolRuntime[ClaimContext]) -> str:
     """Find the sections of the wording and the manual containing one word or phrase."""
-    return as_json(api.search_documents(query))
+    return as_json(on_app(runtime, "search_documents", query=query))
 
 
 @tool(response_format="content_and_artifact")
 def read_section(
-    document: api.DocumentName, number: int
+    document: api.DocumentName, number: int, runtime: ToolRuntime[ClaimContext]
 ) -> tuple[str, tuple[api.StepKind, str]]:
     """Read one section of the policy wording or the claims manual in full."""
-    section = api.read_section(document, number)
+    section = on_app(runtime, "read_section", document=document, number=number)
     read = f"{section['document_title']}, section {number}: {section['title']}"
     return as_json(section), ("reading", read)
 
@@ -95,8 +109,15 @@ def calculate_payout(
     runtime: ToolRuntime[ClaimContext],
 ) -> str:
     """Work out the payout on your claim with UnderCover's payout rules."""
-    claim_id = runtime.context.claim_id
-    return as_json(api.calculate_payout(claim_id, benefit, lines, paid_by_others))
+    payout = on_app(
+        runtime,
+        "calculate_payout",
+        claim_id=runtime.context.claim_id,
+        benefit=benefit,
+        lines=[line.model_dump() for line in lines],
+        paid_by_others=paid_by_others,
+    )
+    return as_json(payout)
 
 
 @tool
@@ -108,8 +129,15 @@ def record_decision(
     runtime: ToolRuntime[ClaimContext],
 ) -> Command:
     """Record the decision on your claim, once, which ends your work on it."""
-    claim_id = runtime.context.claim_id
-    claim = api.record_decision(claim_id, decision, payout, section, reason)
+    claim = on_app(
+        runtime,
+        "record_decision",
+        claim_id=runtime.context.claim_id,
+        decision=decision,
+        payout=payout,
+        section=section,
+        reason=reason,
+    )
     message = ToolMessage(as_json(claim), tool_call_id=runtime.tool_call_id)
     update = {
         "messages": [message],
@@ -128,3 +156,5 @@ CLAIM_TOOLS = [
     calculate_payout,
     record_decision,
 ]
+# The target each tool calls, by which a route names a call to it.
+TARGETS = {tool.name: Target.APP for tool in CLAIM_TOOLS}

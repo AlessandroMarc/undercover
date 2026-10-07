@@ -21,7 +21,7 @@ from agent import api, improver, improver_api
 from agent.connection import Refused, api_key
 from agent.console import describe, show_reports
 from agent.dispatcher import WorkInRun, work_run
-from agent.harness import NewGraph, checkpoint_pool, claim_graphs, work_in_run
+from agent.harness import NewAgent, checkpoint_pool, claim_graphs, work_in_run
 
 ACCEPTED = {"status": "accepted"}
 # The most claim agents at once, as the backend and the dashboard also allow.
@@ -88,13 +88,13 @@ def refused(_: Request, error: Refused) -> JSONResponse:
     return JSONResponse({"detail": error.detail}, status_code=error.status_code)
 
 
-# How to build the claim graphs of a version of the claim agent, each with a
+# How to build the claim agents of a version of the claim agent, each with a
 # saver of its own.
-ClaimAgents = Callable[[dict[str, Any]], NewGraph]
+ClaimAgents = Callable[[dict[str, Any]], NewAgent]
 
 
 def claim_agents(request: Request) -> ClaimAgents:
-    """Build a version's claim graphs on the service's pool."""
+    """Build a version's claim agents on the service's pool."""
     return partial(claim_graphs, pool=request.app.state.pool)
 
 
@@ -145,9 +145,9 @@ class ReviewRequest(BaseModel):
 def claim_work(run: dict[str, Any], claim_agents: ClaimAgents) -> WorkInRun:
     """How to work one of a run's claims, on the claim agents of the run's own
     version, tagged with its round when it has one."""
-    new_graph = claim_agents(api.get_version(run["version"]))
+    new_agent = claim_agents(api.get_version(run["version"]))
     tags = (run["round_id"],) if run["round_id"] else ()
-    return partial(work_in_run, new_graph=new_graph, tags=tags)
+    return partial(work_in_run, new_agent=new_agent, tags=tags)
 
 
 def evaluate(run: dict[str, Any], claim_agents: ClaimAgents) -> None:

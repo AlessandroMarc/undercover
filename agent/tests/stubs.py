@@ -1,5 +1,5 @@
 """A stub model, so that tests never call a real model, replies to script it, and
-the claim graph on it."""
+a claim agent on it."""
 
 import itertools
 import threading
@@ -13,7 +13,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import PrivateAttr
 
-from agent import harness
+from agent import direct, harness
 
 # What OpenRouter reports for each reply.
 USAGE = {"prompt_tokens": 1200, "completion_tokens": 300, "cost": 0.0042}
@@ -24,10 +24,13 @@ class StubModel(GenericFakeChatModel):
     raises a scripted error, and keeps the prompts it was sent."""
 
     prompts: list[list[BaseMessage]] = []
-    # The settings each binding of the tools asked for, such as parallel tool calls.
+    # The tools each binding gave the model, and the settings it asked for, such as
+    # parallel tool calls.
+    bound_tools: list[list[Any]] = []
     bound_with: list[dict[str, Any]] = []
 
     def bind_tools(self, tools, **kwargs):
+        self.bound_tools.append(tools)
         self.bound_with.append(kwargs)
         return self
 
@@ -133,9 +136,11 @@ def flags():
     return stub(screened(True, FLAGGED))
 
 
-def graph_on(model, saver=None, instructions=INSTRUCTIONS, screener=None):
-    """The claim graph on a stub model, saving its progress in memory, after a check
-    that passes every claim unless the test gives it a check of its own."""
-    return harness.claim_graph(
+def agent_on(model, saver=None, instructions=INSTRUCTIONS, screener=None, route=None):
+    """A claim agent on a stub model, saving its progress in memory, after a check
+    that passes every claim unless the test gives it a check of its own, on the
+    direct route unless the test gives it a route."""
+    graph = harness.claim_graph(
         model, screener or passes(), saver or InMemorySaver(), instructions
     )
+    return harness.ClaimAgent(graph, route or direct.from_environment())

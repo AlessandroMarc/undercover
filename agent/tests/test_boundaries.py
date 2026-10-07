@@ -56,7 +56,30 @@ def test_the_improver_doesnt_import_the_claim_agents_harness_or_dispatcher():
     assert {"harness", "dispatcher"} & imports_of("improver") == set()
 
 
+def agents_modules() -> set[str]:
+    return {path.stem for path in AGENT.glob("*.py")}
+
+
 def test_the_check_uses_nothing_else_in_the_agent_and_the_harness_uses_it():
-    agents_modules = {path.stem for path in AGENT.glob("*.py")}
-    assert imports_of("screening") & agents_modules == set()
+    assert imports_of("screening") & agents_modules() == set()
     assert "screening" in imports_of("harness")
+
+
+ROUTE_MODULES = {"routes", "gateway", "direct", "mcp_tools"}
+
+
+def test_the_routes_and_who_uses_them():
+    assert {"routes", "gateway", "direct"} <= imports_of("harness")
+    assert imports_of("tools") & ROUTE_MODULES == {"routes"}
+    for module in agents_modules() - {"harness", "__main__"}:
+        assert {"gateway", "direct"} & imports_of(module) == set(), module
+    for module in ("dispatcher", "service", "improver", "improver_api"):
+        assert imports_of(module) & ROUTE_MODULES == set(), module
+    assert imports_of("gateway") & agents_modules() == {"routes", "mcp_tools"}
+    assert imports_of("direct") & agents_modules() == {"routes", "api"}
+    assert imports_of("routes") & agents_modules() == set()
+    assert imports_of("mcp_tools") & agents_modules() == set()
+    for module in ("improver", "improver_api"):
+        assert {"routes", "gateway", "direct", "mcp_tools"} & imports_of(
+            module
+        ) == set()

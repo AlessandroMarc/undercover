@@ -173,6 +173,8 @@ decisions = Table(
     Column("approval_limit", Float, nullable=False),
     Column("signed_off_by", Text),
     Column("signed_off_at", Text),
+    # Why the Gateway refused to pay an approval, which then waits for sign-off.
+    Column("gateway_refusal", Text),
 )
 payments = Table(
     "payments",
@@ -365,6 +367,7 @@ claim_view = (
         decisions.c.approval_limit,
         decisions.c.signed_off_by,
         decisions.c.signed_off_at,
+        decisions.c.gateway_refusal,
         payments.c.amount,
         payments.c.paid_at,
     )

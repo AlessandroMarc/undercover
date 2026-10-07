@@ -20,9 +20,9 @@ def main(args: list[str]) -> None:
     parser.add_argument("claim_id", help="the claim to work")
     options = parser.parse_args(args)
     with checkpoint_pool() as pool:
-        graph = claim_graphs(api.get_current_version(), pool)()
+        agent = claim_graphs(api.get_current_version(), pool)()
         try:
-            work_claim(options.claim_id, None, graph)
+            work_claim(options.claim_id, None, agent)
         except Refused as refusal:
             parser.exit(1, f"{options.claim_id}  not started: {refusal}\n")
 

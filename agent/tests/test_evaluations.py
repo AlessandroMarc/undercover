@@ -12,7 +12,7 @@ from agent import api, dispatcher, harness
 from agent.tests.dispatching import dispatch
 from agent.tests.queue_setup import leave_waiting
 from agent.tests.records import claim_of, model_calls_of, work_times_of
-from agent.tests.stubs import decide, graph_on, stub, swarm
+from agent.tests.stubs import agent_on, decide, stub, swarm
 from backend.tests.dashboard_reads import evaluations
 from backend.tests.run_requests import get_evaluation, latest_dispatch, queue
 
@@ -44,7 +44,7 @@ def test_an_evaluation_through_the_service(client, serve):
     held = claim_of(client, "CLM-1020-E1")
     assert held["status"] == "waiting_for_sign_off"
     # A copy held for sign-off counts as finished, with nothing left to run.
-    held_state = graph_on(stub(), saver).get_state(harness.thread_of(held))
+    held_state = agent_on(stub(), saver).graph.get_state(harness.thread_of(held))
     assert held_state.created_at is not None
     assert held_state.next == ()
     assert claim_of(client, "CLM-1021-E1")["status"] == "left_for_handler"
@@ -124,7 +124,7 @@ def test_a_copy_still_failing_after_its_tries_is_left_in_progress(client):
     scripts = {copy["claim_id"]: decide("refer", 0) for copy in run["claims"]}
     model = swarm(scripts | {"CLM-1104-E1": [limited] * 3})
     work = partial(
-        harness.work_in_run, new_graph=partial(graph_on, model, InMemorySaver())
+        harness.work_in_run, new_agent=partial(agent_on, model, InMemorySaver())
     )
     reports = dispatcher.work_run(run, work)
 

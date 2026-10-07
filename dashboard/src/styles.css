@@ -518,6 +518,7 @@ p {
 
 .status-left_for_handler,
 .step-failed,
+.step-refused,
 .score-miss,
 .grade-F {
   background: var(--raspberry);
@@ -969,6 +970,18 @@ p {
 
 .step-check svg.lucide {
   margin-top: 0.2em;
+}
+
+/* A refusal stands out from the steps around it, with its chip's icon at the
+   chip's text size. */
+.step-refused {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.step:has(.step-refused) {
+  background: color-mix(in srgb, var(--raspberry) 18%, transparent);
 }
 
 .sections-read {

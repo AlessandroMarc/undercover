@@ -105,7 +105,7 @@ NO_REASONING_EFFORT = "default"
 
 
 StepKind = Literal[
-    "screening", "tool_call", "tool_result", "message", "reading", "error"
+    "screening", "tool_call", "tool_result", "message", "reading", "refusal", "error"
 ]
 MOST_AGENTS = 25
 Agents = Annotated[
@@ -146,6 +146,7 @@ class Decision(BaseModel):
     decided_at: str
     signed_off_by: str | None
     signed_off_at: str | None
+    gateway_refusal: str | None
 
 
 class Payment(BaseModel):
@@ -328,6 +329,10 @@ class DecisionRequest(BaseModel):
 
 class PaymentRequest(BaseModel):
     amount: float = Field(gt=0, description="The approved payout in US dollars")
+
+
+class HoldRequest(BaseModel):
+    reason: str = Field(min_length=1, description="Why the Gateway refused to pay")
 
 
 class Plan(BaseModel):

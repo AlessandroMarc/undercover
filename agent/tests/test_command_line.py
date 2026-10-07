@@ -91,9 +91,9 @@ def test_each_claim_graph_has_a_saver_of_its_own(fakes, monkeypatch):
 
     monkeypatch.setattr(harness, "claim_graph", claim_graph)
     with harness.checkpoint_pool() as pool:
-        new_graph = harness.claim_graphs(VERSION, pool)
-        new_graph()
-        new_graph()
+        new_agent = harness.claim_graphs(VERSION, pool)
+        new_agent()
+        new_agent()
     [first, second] = built
     assert first[0] is second[0]
     assert first[0].model_name == "google/gemini-3.5-flash-lite"
@@ -125,7 +125,7 @@ def test_command_line_works_one_claim(monkeypatch, capsys):
     assert built == [(2, pool)]
     assert worked == [("CLM-1001", None, "graph")]
 
-    def refuse(claim_id, run_id, graph):
+    def refuse(claim_id, run_id, agent):
         raise Refused(409, f"Claim {claim_id} is not waiting")
 
     monkeypatch.setattr(cli, "work_claim", refuse)

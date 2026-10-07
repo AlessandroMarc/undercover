@@ -13,7 +13,9 @@ DecisionKind = Literal["approve", "decline", "refer"]
 APPROVE: DecisionKind = "approve"
 REFER: DecisionKind = "refer"
 DocumentName = Literal["policy_wording", "claims_manual"]
-StepKind = Literal["screening", "tool_call", "tool_result", "message", "reading"]
+StepKind = Literal[
+    "screening", "tool_call", "tool_result", "message", "reading", "refusal"
+]
 EvaluationSet = Literal["evaluation", "held_out"]
 RunKind = Literal["dispatch", "evaluation"]
 DISPATCH: RunKind = "dispatch"
@@ -113,13 +115,9 @@ def read_section(document: DocumentName, number: int) -> dict[str, Any]:
 
 
 def calculate_payout(
-    claim_id: str, benefit: Benefit, lines: list[Line], paid_by_others: float
+    claim_id: str, benefit: Benefit, lines: list[dict[str, Any]], paid_by_others: float
 ) -> dict[str, Any]:
-    body = {
-        "benefit": benefit,
-        "lines": [line.model_dump() for line in lines],
-        "paid_by_others": paid_by_others,
-    }
+    body = {"benefit": benefit, "lines": lines, "paid_by_others": paid_by_others}
     return call("POST", f"/claims/{claim_id}/payout", json=body)
 
 
@@ -146,6 +144,10 @@ def record_decision(
 
 def pay_claim(claim_id: str, amount: float) -> dict[str, Any]:
     return call("POST", f"/claims/{claim_id}/payment", json={"amount": amount})
+
+
+def hold_payment(claim_id: str, reason: str) -> dict[str, Any]:
+    return call("POST", f"/claims/{claim_id}/hold", json={"reason": reason})
 
 
 def fail_claim(claim_id: str, reason: str) -> dict[str, Any]:

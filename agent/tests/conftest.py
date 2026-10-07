@@ -9,7 +9,9 @@ from langchain_core.callbacks import BaseCallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import connection, dispatcher, harness, improver, service
-from agent.tests.stubs import graph_on
+from agent.tests.gateway_stand_in import GatewayStandIn
+from agent.tests.local_server import serving
+from agent.tests.stubs import agent_on
 from backend.main import app
 
 
@@ -64,7 +66,7 @@ def serve():
         saver = saver or InMemorySaver()
 
         def claim_agents(version):
-            return partial(graph_on, model, saver, version["instructions"])
+            return partial(agent_on, model, saver, version["instructions"])
 
         service.app.dependency_overrides[service.claim_agents] = lambda: claim_agents
         return TestClient(service.app)
@@ -115,7 +117,7 @@ def serve_rounds():
 
     def with_models(improver_model, claim_model):
         def claim_agents(version):
-            return partial(graph_on, claim_model, saver, version["instructions"])
+            return partial(agent_on, claim_model, saver, version["instructions"])
 
         workers = service.RoundWorkers(
             claim_agents, lambda round: improver_model, saver
@@ -126,3 +128,19 @@ def serve_rounds():
 
     yield with_models
     service.app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="session")
+def gateway_server():
+    """The stand-in Gateway, served on a local port for the whole session."""
+    stand_in = GatewayStandIn()
+    with serving(stand_in.asgi()) as address:
+        stand_in.url = f"{address}/mcp"
+        yield stand_in
+
+
+@pytest.fixture
+def gateway(gateway_server):
+    """The stand-in Gateway, with nothing called or refused yet in this test."""
+    gateway_server.reset()
+    return gateway_server

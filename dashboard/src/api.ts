@@ -10,7 +10,13 @@ export const statuses = [
 export type Status = (typeof statuses)[number];
 export type DecisionKind = "approve" | "decline" | "refer";
 export type StepKind =
-  "screening" | "tool_call" | "tool_result" | "message" | "reading" | "error";
+  | "screening"
+  | "tool_call"
+  | "tool_result"
+  | "message"
+  | "reading"
+  | "refusal"
+  | "error";
 
 export interface ClaimSummary {
   claim_id: string;
@@ -44,6 +50,8 @@ export interface Decision {
   decided_at: string;
   signed_off_by: string | null;
   signed_off_at: string | null;
+  // Why the Gateway refused to pay the approval, which then waits for sign-off.
+  gateway_refusal: string | null;
 }
 
 export interface Payment {

@@ -43,3 +43,11 @@ def record_time(client, claim_id, run_id, seconds=12.5):
         f"/api/claims/{claim_id}/work-times",
         json={"run_id": run_id, "seconds": seconds},
     )
+
+
+# Why the Gateway refuses a payment in the tests.
+GATEWAY_REFUSAL = "Tool Execution Denied: the Policy forbids it"
+
+
+def hold(client, claim_id, reason=GATEWAY_REFUSAL):
+    return client.post(f"/api/claims/{claim_id}/hold", json={"reason": reason})

@@ -17,6 +17,7 @@ AGENT_OPERATIONS = {
     "record_decision",
     "calculate_payout",
     "pay_claim",
+    "hold_payment",
     "fail_claim",
     "get_version",
     "get_current_version",

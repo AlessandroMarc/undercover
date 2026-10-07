@@ -77,6 +77,7 @@ const approval: Decision = {
   decided_at: decidedAt,
   signed_off_by: null,
   signed_off_at: null,
+  gateway_refusal: null,
 };
 
 const approved: Claim = {
@@ -254,7 +255,13 @@ it("shows new steps and the decision as the agent works", async () => {
 it("lets a handler sign off a held payment as themselves, which pays it", async () => {
   const { routes, fetchMock } = showClaim(held);
   const panel = await decisionPanel();
-  expect(panel.getByText(/waits for a handler's sign-off/)).toBeDefined();
+  expect(
+    panel.getByText(
+      wholeText(
+        "The payment of $1,350.00 is over the approval limit and waits for a handler's sign-off.",
+      ),
+    ),
+  ).toBeDefined();
   expect(panel.queryByRole("combobox")).toBeNull();
 
   const signOff = { signed_off_by: "Dana Whitfield", signed_off_at: decidedAt };
@@ -275,6 +282,25 @@ it("lets a handler sign off a held payment as themselves, which pays it", async 
   expect(sent(fetchMock, "POST /api/claims/CLM-1002/sign-off")).toEqual([
     undefined,
   ]);
+});
+
+it("says when the Gateway refused a payment, with its reason", async () => {
+  const refused = "Tool Execution Denied: the Policy forbids it";
+  showClaim({
+    ...held,
+    decision: { ...approval, payout: 1500, gateway_refusal: refused },
+  });
+  const panel = await decisionPanel();
+  expect(
+    panel.getByText(
+      wholeText(
+        "The Gateway refused the payment of $1,500.00, so it waits for a handler's sign-off.",
+      ),
+    ),
+  ).toBeDefined();
+  expect(panel.getByText(refused)).toBeDefined();
+  expect(panel.queryByText(/over the approval limit/)).toBeNull();
+  expect(panel.getByRole("button", { name: "Sign off" })).toBeDefined();
 });
 
 it("tells a handler who can't sign off over the limit why", async () => {
@@ -302,6 +328,28 @@ it("shows why a sign-off was refused", async () => {
   expect((await panel.findByRole("alert")).textContent).toBe(
     "Claim CLM-1002 is not waiting for sign-off",
   );
+});
+
+it("shows a refusal standing out from the other steps", async () => {
+  const refusal = "record_decision: Refused with status 422: No calculation";
+  showClaim({ ...claim, status: "in_progress", thread_id: "t-1" }, [
+    ...steps,
+    {
+      step_id: 4,
+      thread_id: "t-1",
+      kind: "refusal",
+      content: refusal,
+      created_at: decidedAt,
+    },
+  ]);
+  const chip = await screen.findByText("Refused");
+  expect(chip.className).toBe("chip step-refused");
+  expect(chip.querySelector("svg.lucide-ban")).not.toBeNull();
+  expect(chip.parentElement?.textContent).toBe(`Refused ${refusal}`);
+  const items = (await panel("Agent at work")).getAllByRole("listitem");
+  expect(items.filter((item) => item.querySelector(".step-refused"))).toEqual([
+    items[3],
+  ]);
 });
 
 it("shows the security check as the first step", async () => {

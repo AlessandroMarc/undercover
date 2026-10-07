@@ -7,6 +7,7 @@ import time
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from functools import partial
 from typing import Any, cast
 
@@ -35,19 +36,25 @@ from psycopg import Connection, sql
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import ConnectionPool
 
-from agent import api
+from agent import api, direct, gateway
 from agent.connection import Refused
 from agent.console import describe
 from agent.json_text import as_json
 from agent.openrouter import chat_model, usage_of
 from agent.root_run import as_root_run
+from agent.routes import GatewayRefused, Route, Target
 from agent.screening import screen
-from agent.tools import CLAIM_TOOLS, ClaimContext, ClaimState, claim_as_read
+from agent.tools import (
+    CLAIM_TOOLS,
+    TARGETS,
+    ClaimContext,
+    ClaimState,
+    claim_as_read,
+)
 
 log = logging.getLogger(__name__)
 
 ClaimGraph = CompiledStateGraph[ClaimState, ClaimContext, Any, Any]
-NewGraph = Callable[[], ClaimGraph]
 Pool = ConnectionPool[Connection[DictRow]]
 Messages = dict[str, list[BaseMessage]]
 Start = Messages | None
@@ -70,6 +77,8 @@ REFER = "refer"
 AGENT = "agent"
 TOOLS = "tools"
 PAY = "pay"
+PAY_CLAIM = "pay_claim"
+REFUSAL = "refusal"
 
 
 # The check's result as the claim's first step, and the section of the referral it
@@ -123,39 +132,54 @@ def checkpoint_pool() -> Iterator[Pool]:
 
 
 def refusal(error: Exception) -> str:
-    """Show the model why a tool was refused, and let any other error stop the agent."""
+    """Show the model why a tool was refused, by the app, the Gateway or the tool's
+    own checks, and let any other error stop the agent."""
     if isinstance(error, Refused):
         return f"Refused with status {error}"
+    if isinstance(error, GatewayRefused):
+        return error.answer
     if isinstance(error, ToolException):
         return f"Refused: {error}"
     raise error
 
 
-def record_reply(claim_id: str, reply: BaseMessage) -> None:
-    """Record the model's reply on the claim: its text, then each tool it calls."""
+def named(context: ClaimContext, tool: str) -> str:
+    """Name a call to one of the claim agent's tools as its route names it, or as
+    the model did for a tool the claim agent doesn't have."""
+    target = TARGETS.get(tool)
+    return context.route.name(target, tool) if target else tool
+
+
+def record_reply(context: ClaimContext, reply: BaseMessage) -> None:
+    """Record the model's reply on the claim: its text, then each tool it calls,
+    named as the route names it."""
     if reply.text:
-        api.record_step(claim_id, "message", reply.text)
+        api.record_step(context.claim_id, "message", reply.text)
     if isinstance(reply, AIMessage):
         for call in reply.tool_calls:
             args = ", ".join(f"{k}={as_json(v)}" for k, v in call["args"].items())
-            api.record_step(claim_id, "tool_call", f"{call['name']}({args})")
+            name = named(context, call["name"])
+            api.record_step(context.claim_id, "tool_call", f"{name}({args})")
 
 
 def record_result(
     request: ToolCallRequest,
     execute: Callable[[ToolCallRequest], ToolMessage | Command],
 ) -> ToolMessage | Command:
-    """Run a tool and record its result on the claim, then any step it gives as its
-    artifact, such as a section it read."""
+    """Run a tool and record its result on the claim, or its refusal, named as the
+    route names the tool, then any step it gives as its artifact, such as a
+    section it read."""
     result = execute(request)
     if isinstance(result, ToolMessage):
         message = result
     else:
         message = cast(dict[str, Any], result.update)["messages"][0]
-    claim_id = cast(ClaimContext, request.runtime.context).claim_id
-    api.record_step(claim_id, "tool_result", f"{message.name}: {message.text}")
+    context = cast(ClaimContext, request.runtime.context)
+    kind = REFUSAL if message.status == "error" else "tool_result"
+    name = named(context, request.tool_call["name"])
+    api.record_step(context.claim_id, kind, f"{name}: {message.text}")
     if message.artifact:
-        api.record_step(claim_id, *message.artifact)
+        api.record_step(context.claim_id, *message.artifact)
     return result
 
 
@@ -172,7 +196,7 @@ def screen_claim(
     the claim's first step. Raise UnreadableScreening, after recording the call,
     when its answer can't be read."""
     context = runtime.context
-    reply, screening = screen(screener, claim_as_read(context.claim_id))
+    reply, screening = screen(screener, claim_as_read(api.get_claim(context.claim_id)))
     record_call(context, reply)
     if screening is None:
         raise UnreadableScreening("The security check's answer couldn't be read")
@@ -204,14 +228,28 @@ def call_model(
         raise TooManyModelCalls(message)
     reply = llm.invoke([instructions, *state["messages"]])
     record_call(runtime.context, reply)
-    record_reply(runtime.context.claim_id, reply)
+    record_reply(runtime.context, reply)
     return {"messages": [reply], "model_calls": 1}
 
 
 def pay(state: ClaimState, runtime: Runtime[ClaimContext]) -> dict[str, Any]:
-    """Pay the approved payout, which the backend refuses unless it may be paid."""
-    claim = api.pay_claim(runtime.context.claim_id, state["decision"]["payout"])
+    """Pay the approved payout on the claim agent's route, which the app refuses
+    unless it may be paid, and hold a payment the Gateway refuses."""
+    context = runtime.context
+    payment = {"claim_id": context.claim_id, "amount": state["decision"]["payout"]}
+    try:
+        claim = context.route.call(Target.APP, PAY_CLAIM, payment)
+    except GatewayRefused as refused:
+        claim = hold(context, refused)
     return {"status": claim["status"]}
+
+
+def hold(context: ClaimContext, refused: GatewayRefused) -> dict[str, Any]:
+    """Record the Gateway's refusal of a payment on the claim, and hold the payment
+    for a handler's sign-off with the Gateway's reason."""
+    name = context.route.name(Target.APP, PAY_CLAIM)
+    api.record_step(context.claim_id, REFUSAL, f"{name}: {refused.answer}")
+    return api.hold_payment(context.claim_id, str(refused))
 
 
 def after_screen(state: ClaimState) -> str:
@@ -273,16 +311,39 @@ def claim_graph(
     return builder.compile(checkpointer=saver)
 
 
-def claim_graphs(version: dict[str, Any], pool: Pool) -> NewGraph:
-    """Return how to build a version's claim graph with a saver of its own on the
-    pool, since a saver lets one claim at a time read or write. The check runs on
-    the model the backend names for it."""
+@dataclass
+class ClaimAgent:
+    """A claim graph with a saver of its own, and the route its tools and payment
+    take, which its claims' contexts need."""
+
+    graph: ClaimGraph
+    route: Route
+
+
+NewAgent = Callable[[], ClaimAgent]
+
+
+def tool_route() -> Route:
+    """The Gateway when the environment names one, read now, or else the direct
+    route."""
+    return gateway.from_environment() or direct.from_environment()
+
+
+def claim_graphs(version: dict[str, Any], pool: Pool) -> NewAgent:
+    """Return how to build a version's claim agent: a claim graph with a saver of its
+    own on the pool, since a saver lets one claim at a time read or write, on the
+    route read when the run's agents are built. The check runs on the model the
+    backend names for it."""
     llm, screener = model(version), model(api.get_screening())
+    route = tool_route()
 
-    def new_graph() -> ClaimGraph:
-        return claim_graph(llm, screener, PostgresSaver(pool), version["instructions"])
+    def new_agent() -> ClaimAgent:
+        saver = PostgresSaver(pool)
+        return ClaimAgent(
+            claim_graph(llm, screener, saver, version["instructions"]), route
+        )
 
-    return new_graph
+    return new_agent
 
 
 def thread_of(claim: dict[str, Any]) -> RunnableConfig:
@@ -308,6 +369,16 @@ def claim_config(
         # One tool call at a time, so two decisions in one reply can't race.
         "max_concurrency": 1,
     }
+
+
+def context_of(
+    claim: dict[str, Any], run_id: str | None, agent: ClaimAgent
+) -> ClaimContext:
+    """What the claim agent knows of the claim it works on, in the run given if
+    any."""
+    return ClaimContext(
+        claim["claim_id"], run_id, claim["policy_id"], claim["customer_id"], agent.route
+    )
 
 
 def begin(claim_id: str) -> Messages:
@@ -370,44 +441,44 @@ def settle(claim_id: str, error: str | None) -> str:
 
 
 def work_claim(
-    claim_id: str, run_id: str | None, graph: ClaimGraph, tags: Tags = ()
+    claim_id: str, run_id: str | None, agent: ClaimAgent, tags: Tags = ()
 ) -> str:
     """Work one claim from a clean start, as a new attempt, in the run given if any,
     and report how it ended."""
     claim = api.start_claim(claim_id, str(uuid.uuid4()))
     config = claim_config(claim, WORK_CLAIM, run_id, tags)
+    context = context_of(claim, run_id, agent)
     with spell(claim_id, run_id):
-        error = run_claim_graph(
-            graph, begin(claim_id), config, ClaimContext(claim_id, run_id)
-        )
+        error = run_claim_graph(agent.graph, begin(claim_id), config, context)
         return settle(claim_id, error)
 
 
 def carry_on(
-    claim_id: str, run_id: str | None, graph: ClaimGraph, tags: Tags = ()
+    claim_id: str, run_id: str | None, agent: ClaimAgent, tags: Tags = ()
 ) -> str:
     """Carry a claim in progress on from its saved progress, as the same attempt, and
     report how it ended. One with nothing saved, stopped before its first step,
     starts on its own thread; any other carries on, finishing a step whose writes
     were saved. A claim whose work has ended has nothing left to run."""
     claim = api.get_claim(claim_id)
-    saved = graph.get_state(thread_of(claim))
+    saved = agent.graph.get_state(thread_of(claim))
     start: Start = None
     if saved.created_at is None and claim["decision"] is None:
         start = begin(claim_id)
     config = claim_config(claim, CARRY_ON, run_id, tags)
+    context = context_of(claim, run_id, agent)
     with spell(claim_id, run_id):
-        error = run_claim_graph(graph, start, config, ClaimContext(claim_id, run_id))
+        error = run_claim_graph(agent.graph, start, config, context)
         return settle(claim_id, error)
 
 
 def work_in_run(
-    claim_id: str, run_id: str, new_graph: NewGraph, tags: Tags = ()
+    claim_id: str, run_id: str, new_agent: NewAgent, tags: Tags = ()
 ) -> str:
-    """Work one claim in a run on a claim graph of its own, carrying it on if it is
-    in progress or starting it if it is waiting, and report how it ended, with any
-    tags for its trace beside the run's."""
-    graph = new_graph()
+    """Work one claim in a run with a claim agent of its own, carrying it on if it
+    is in progress or starting it if it is waiting, and report how it ended, with
+    any tags for its trace beside the run's."""
+    agent = new_agent()
     if api.get_claim(claim_id)["status"] == api.Status.IN_PROGRESS:
-        return carry_on(claim_id, run_id, graph, tags)
-    return work_claim(claim_id, run_id, graph, tags)
+        return carry_on(claim_id, run_id, agent, tags)
+    return work_claim(claim_id, run_id, agent, tags)

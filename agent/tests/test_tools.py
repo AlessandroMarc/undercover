@@ -22,8 +22,9 @@ def test_claim_tools_are_named_after_backend_operations(client):
     assert set(names) <= operations(client)
 
 
-def test_a_claim_agent_can_only_act_on_its_own_claim():
-    assert all("claim_id" not in t.args for t in CLAIM_TOOLS)
+def test_a_claim_agent_can_only_act_on_its_own_claim_and_customer():
+    ids = {"claim_id", "policy_id", "customer_id"}
+    assert all(ids & set(t.args) == set() for t in CLAIM_TOOLS)
 
 
 def test_the_agent_writes_json_with_characters_as_themselves():

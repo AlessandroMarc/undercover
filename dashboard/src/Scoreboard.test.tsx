@@ -194,6 +194,7 @@ it("shows a copy's evaluation, and no sign-off for a held copy", async () => {
       decided_at: "2026-10-03T17:03:00+00:00",
       signed_off_by: null,
       signed_off_at: null,
+      gateway_refusal: null,
     },
   };
   stubApi({
