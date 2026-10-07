@@ -11,9 +11,10 @@ from langgraph.checkpoint.memory import InMemorySaver
 from agent import api, dispatcher, harness
 from agent.tests.dispatching import dispatch
 from agent.tests.queue_setup import leave_waiting
-from agent.tests.records import claim_of, evaluations, model_calls_of, work_times_of
+from agent.tests.records import claim_of, model_calls_of, work_times_of
 from agent.tests.stubs import decide, graph_on, stub, swarm
-from backend.tests.run_requests import latest_dispatch, queue
+from backend.tests.dashboard_reads import evaluations
+from backend.tests.run_requests import get_evaluation, latest_dispatch, queue
 
 TINY = ["CLM-1007", "CLM-1015", "CLM-1017", "CLM-1020", "CLM-1021"]
 
@@ -47,7 +48,7 @@ def test_an_evaluation_through_the_service(client, serve):
     assert saver.get_tuple(harness.thread_of(paid)) is not None
     assert claim_of(client, "CLM-1021-E1")["status"] == "left_for_handler"
 
-    evaluation = client.get(f"/api/evaluations/{listed['run_id']}").json()
+    evaluation = get_evaluation(client, listed["run_id"])
     measures = evaluation["measures"]
     assert (measures["decision_accuracy"], measures["accuracy"]) == (0.4, 0.2)
     assert measures["cost_of_mistakes"] == 2850.0

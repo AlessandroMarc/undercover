@@ -6,7 +6,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import Connection, RowMapping, delete, func, insert, select, update
 
 from backend import agent_service, judge, spending
@@ -20,7 +20,7 @@ from backend.database import (
     runs,
     waiting_claim,
 )
-from backend.dependencies import Database, signed_in_handler
+from backend.dependencies import AgentKey, Database, SignedInHandler
 from backend.free_models import free_model
 from backend.lookups import (
     CLAIM_NOT_FOUND,
@@ -349,7 +349,9 @@ def grade_copies(db: Connection, row: RowMapping) -> None:
     )
 
 
-@router.post("/api/runs/dispatches", operation_id="create_dispatch")
+@router.post(
+    "/api/runs/dispatches", operation_id="create_dispatch", dependencies=[AgentKey]
+)
 def create_dispatch(request: StartDispatchRequest, db: Database) -> Run:
     """Record a new dispatch on the current version, with its claims to come."""
     current = version_row(db, current_version_number(db))
@@ -357,7 +359,9 @@ def create_dispatch(request: StartDispatchRequest, db: Database) -> Run:
     return find_run(db, row["run_id"])
 
 
-@router.post("/api/runs/evaluations", operation_id="create_evaluation")
+@router.post(
+    "/api/runs/evaluations", operation_id="create_evaluation", dependencies=[AgentKey]
+)
 def create_evaluation(request: StartEvaluationRequest, db: Database) -> Run:
     """Record a new evaluation on the current version, with a copy of each claim."""
     current = version_row(db, current_version_number(db))
@@ -365,7 +369,9 @@ def create_evaluation(request: StartEvaluationRequest, db: Database) -> Run:
 
 
 @router.post(
-    "/api/runs/rounds/{round_id}/evaluations", operation_id="create_round_evaluation"
+    "/api/runs/rounds/{round_id}/evaluations",
+    operation_id="create_round_evaluation",
+    dependencies=[AgentKey],
 )
 def create_round_evaluation(round_id: str, db: Database) -> Run:
     """Record a round's next whole-set evaluation, on the set it needs next."""
@@ -382,7 +388,11 @@ def create_round_evaluation(round_id: str, db: Database) -> Run:
     return evaluation_of(db, fields, version)
 
 
-@router.put("/api/runs/{run_id}/claims", operation_id="record_run_claims")
+@router.put(
+    "/api/runs/{run_id}/claims",
+    operation_id="record_run_claims",
+    dependencies=[AgentKey],
+)
 def record_run_claims(run_id: str, request: RunClaimsRequest, db: Database) -> Run:
     """Record the claims a running dispatch works, in order."""
     if running_run(db, run_id)["kind"] != RunKind.DISPATCH:
@@ -395,7 +405,9 @@ def record_run_claims(run_id: str, request: RunClaimsRequest, db: Database) -> R
     return find_run(db, run_id)
 
 
-@router.post("/api/runs/{run_id}/finish", operation_id="finish_run")
+@router.post(
+    "/api/runs/{run_id}/finish", operation_id="finish_run", dependencies=[AgentKey]
+)
 def finish_run(run_id: str, db: Database) -> Run:
     """Finish a run: a dispatch gets its summary, an evaluation its grades or a stop."""
     row = running_run(db, run_id)
@@ -418,7 +430,7 @@ def finish_run(run_id: str, db: Database) -> Run:
     return find_run(db, run_id)
 
 
-@router.post("/api/runs/stop", operation_id="stop_runs")
+@router.post("/api/runs/stop", operation_id="stop_runs", dependencies=[AgentKey])
 def stop_runs(db: Database) -> list[str]:
     """Mark every running run stopped, as the agent's service does when it starts."""
     query = (
@@ -430,7 +442,11 @@ def stop_runs(db: Database) -> list[str]:
     return list(db.execute(query).scalars())
 
 
-@router.get("/api/dispatches/latest", operation_id="get_latest_dispatch")
+@router.get(
+    "/api/dispatches/latest",
+    operation_id="get_latest_dispatch",
+    dependencies=[SignedInHandler],
+)
 def get_latest_dispatch(db: Database) -> Run | None:
     """Get the newest dispatch with its claims, cost, time and summary, or nothing."""
     query = (
@@ -447,7 +463,7 @@ def get_latest_dispatch(db: Database) -> Run | None:
     "/api/dispatches",
     operation_id="start_dispatch",
     status_code=202,
-    dependencies=[Depends(signed_in_handler)],
+    dependencies=[SignedInHandler],
 )
 def start_dispatch(request: StartDispatchRequest) -> Accepted:
     """Ask the agent's service to start a dispatch with up to N claim agents at once."""
@@ -455,7 +471,9 @@ def start_dispatch(request: StartDispatchRequest) -> Accepted:
     return Accepted()
 
 
-@router.get("/api/evaluations", operation_id="list_evaluations")
+@router.get(
+    "/api/evaluations", operation_id="list_evaluations", dependencies=[SignedInHandler]
+)
 def list_evaluations(db: Database) -> list[Evaluation]:
     """List every evaluation, newest first, with its measures."""
     query = (
@@ -470,7 +488,11 @@ def list_evaluations(db: Database) -> list[Evaluation]:
     ]
 
 
-@router.get("/api/evaluations/{run_id}", operation_id="get_evaluation")
+@router.get(
+    "/api/evaluations/{run_id}",
+    operation_id="get_evaluation",
+    dependencies=[SignedInHandler],
+)
 def get_evaluation(run_id: str, db: Database) -> ScoredEvaluation:
     """Get one evaluation with its measures and its claims beside the handlers'."""
     return score(db, evaluation_row(db, run_id), expected_answers(db))
@@ -480,7 +502,7 @@ def get_evaluation(run_id: str, db: Database) -> ScoredEvaluation:
     "/api/evaluations",
     operation_id="start_evaluation",
     status_code=202,
-    dependencies=[Depends(signed_in_handler)],
+    dependencies=[SignedInHandler],
 )
 def start_evaluation(request: StartEvaluationRequest) -> Accepted:
     """Ask the agent's service to start an evaluation with up to N claim agents."""

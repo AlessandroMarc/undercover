@@ -10,6 +10,7 @@ from backend.tests.claim_requests import (
     sign_off,
     start,
 )
+from backend.tests.dashboard_reads import read
 from backend.tests.run_requests import (
     create_dispatch,
     dispatch_of,
@@ -20,7 +21,7 @@ from backend.tests.run_requests import (
 
 
 def test_no_dispatch_yet(client):
-    response = client.get("/api/dispatches/latest")
+    response = read(client, "/api/dispatches/latest")
     assert response.status_code == 200
     assert response.json() is None
 

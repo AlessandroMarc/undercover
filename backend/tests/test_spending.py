@@ -6,6 +6,7 @@ from backend.tests.claim_requests import record_call, start
 from backend.tests.round_requests import (
     approved_change,
     create_round,
+    improvement,
     improver_call,
     round_evaluation,
     round_path,
@@ -88,7 +89,7 @@ def test_a_first_evaluation_cut_short_stops_the_round(client):
     assert finish(client, run["run_id"]).json()["status"] == "stopped"
     round_ = client.get(round_path(round_id)).json()
     assert round_["status"] == "stopped"
-    [listed] = client.get("/api/improvement").json()["rounds"]
+    [listed] = improvement(client)["rounds"]
     assert listed["stopped_because"] == (
         "The spending limit cut short its first evaluations"
     )

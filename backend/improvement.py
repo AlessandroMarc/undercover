@@ -24,7 +24,13 @@ from backend.database import (
     runs,
     versions,
 )
-from backend.dependencies import Database, refuse_unless_senior, senior
+from backend.dependencies import (
+    AgentKey,
+    Database,
+    SignedInHandler,
+    refuse_unless_senior,
+    senior,
+)
 from backend.diffs import diff
 from backend.free_models import model_or_free
 from backend.lookups import (
@@ -551,7 +557,7 @@ def improvement_page(db: Connection) -> Improvement:
 # The agent's service's operations on a round.
 
 
-@router.post("/api/rounds", operation_id="create_round")
+@router.post("/api/rounds", operation_id="create_round", dependencies=[AgentKey])
 def create_round(request: CreateRoundRequest, db: Database) -> RoundForService:
     """Record a new round to the settings, recipe and version in force."""
     refuse_while_a_round_is_open(db)
@@ -577,7 +583,7 @@ def create_round(request: CreateRoundRequest, db: Database) -> RoundForService:
     return for_the_service(db, round_row(db, round_id))
 
 
-@router.post("/api/rounds/stop", operation_id="stop_rounds")
+@router.post("/api/rounds/stop", operation_id="stop_rounds", dependencies=[AgentKey])
 def stop_rounds(request: StopRoundsRequest, db: Database) -> list[str]:
     """Stop every open round that isn't waiting for a handler, with the reason."""
     query = select(rounds).where(rounds.c.status == RoundStatus.OPEN)
@@ -589,13 +595,17 @@ def stop_rounds(request: StopRoundsRequest, db: Database) -> list[str]:
     return stopped
 
 
-@router.get("/api/rounds/{round_id}", operation_id="get_round")
+@router.get("/api/rounds/{round_id}", operation_id="get_round", dependencies=[AgentKey])
 def get_round(round_id: str, db: Database) -> RoundForService:
     """Get a round as the agent's service works it, with the improver's model."""
     return for_the_service(db, round_row(db, round_id))
 
 
-@router.get("/api/rounds/{round_id}/results", operation_id="get_improver_view")
+@router.get(
+    "/api/rounds/{round_id}/results",
+    operation_id="get_improver_view",
+    dependencies=[AgentKey],
+)
 def get_improver_view(round_id: str, db: Database) -> ImproverView:
     """Get what the improver reads in a round: no held-out claim, only scores."""
     return improver_view(db, round_row(db, round_id))
@@ -620,7 +630,9 @@ def propose(
 
 
 @router.post(
-    "/api/rounds/{round_id}/proposals/change", operation_id="record_change_proposal"
+    "/api/rounds/{round_id}/proposals/change",
+    operation_id="record_change_proposal",
+    dependencies=[AgentKey],
 )
 def record_change_proposal(
     round_id: str, request: ChangeProposalRequest, db: Database
@@ -639,7 +651,9 @@ def record_change_proposal(
 
 
 @router.post(
-    "/api/rounds/{round_id}/proposals/recipe", operation_id="record_recipe_proposal"
+    "/api/rounds/{round_id}/proposals/recipe",
+    operation_id="record_recipe_proposal",
+    dependencies=[AgentKey],
 )
 def record_recipe_proposal(
     round_id: str, request: RecipeProposalRequest, db: Database
@@ -654,6 +668,7 @@ def record_recipe_proposal(
 @router.post(
     "/api/rounds/{round_id}/proposals/{proposal_id}/review",
     operation_id="record_review",
+    dependencies=[AgentKey],
 )
 def record_review(
     round_id: str, proposal_id: str, request: ReviewRequest, db: Database
@@ -701,7 +716,11 @@ def approved(db: Connection, row: RowMapping, kind: ProposalKind) -> RowMapping:
     return proposal
 
 
-@router.post("/api/rounds/{round_id}/version", operation_id="create_version")
+@router.post(
+    "/api/rounds/{round_id}/version",
+    operation_id="create_version",
+    dependencies=[AgentKey],
+)
 def create_version(round_id: str, db: Database) -> NewNumber:
     """Make the approved change a version under test; a repeat returns it."""
     row = open_round(db, round_id)
@@ -727,7 +746,11 @@ def create_version(round_id: str, db: Database) -> NewNumber:
     return NewNumber(number=number)
 
 
-@router.post("/api/rounds/{round_id}/recipe", operation_id="create_recipe")
+@router.post(
+    "/api/rounds/{round_id}/recipe",
+    operation_id="create_recipe",
+    dependencies=[AgentKey],
+)
 def create_recipe(round_id: str, db: Database) -> NewNumber:
     """Make the approved recipe the one the next round follows; a repeat returns it."""
     row = open_round(db, round_id)
@@ -769,7 +792,11 @@ def decide(
     return verdict.keep_or_roll_back(new, old, settings)
 
 
-@router.post("/api/rounds/{round_id}/verdict", operation_id="record_verdict")
+@router.post(
+    "/api/rounds/{round_id}/verdict",
+    operation_id="record_verdict",
+    dependencies=[AgentKey],
+)
 def record_verdict(round_id: str, db: Database) -> VerdictResult:
     """Keep or roll back the round's version under test by the business's rule."""
     row = open_round(db, round_id)
@@ -810,7 +837,11 @@ def record_verdict(round_id: str, db: Database) -> VerdictResult:
     )
 
 
-@router.post("/api/rounds/{round_id}/model-calls", operation_id="record_improver_call")
+@router.post(
+    "/api/rounds/{round_id}/model-calls",
+    operation_id="record_improver_call",
+    dependencies=[AgentKey],
+)
 def record_improver_call(
     round_id: str, request: ImproverCallRequest, db: Database
 ) -> Spending:
@@ -824,7 +855,11 @@ def record_improver_call(
     return spending_of(db, row)
 
 
-@router.post("/api/rounds/{round_id}/finish", operation_id="finish_round")
+@router.post(
+    "/api/rounds/{round_id}/finish",
+    operation_id="finish_round",
+    dependencies=[AgentKey],
+)
 def finish_round(round_id: str, db: Database) -> RoundForService:
     """Finish an open round with nothing waiting for a handler."""
     row = open_round(db, round_id)
@@ -843,13 +878,19 @@ def finish_round(round_id: str, db: Database) -> RoundForService:
 # The dashboard's operations.
 
 
-@router.get("/api/improvement", operation_id="get_improvement")
+@router.get(
+    "/api/improvement", operation_id="get_improvement", dependencies=[SignedInHandler]
+)
 def get_improvement(db: Database) -> Improvement:
     """Get the open or newest round in full, every round, and the recipe's versions."""
     return improvement_page(db)
 
 
-@router.get("/api/improvement/recipes/{number}", operation_id="get_recipe")
+@router.get(
+    "/api/improvement/recipes/{number}",
+    operation_id="get_recipe",
+    dependencies=[SignedInHandler],
+)
 def get_recipe(number: int, db: Database) -> RecipeDetails:
     """Get one version of the improver's recipe, with its diff from the one before."""
     all_recipes = recipes_newest_first(db)

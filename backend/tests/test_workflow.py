@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from backend.database import decisions, engine
 from backend.tests.claim_requests import decide, pay, sign_off, start
+from backend.tests.dashboard_reads import read, steps_of
 from backend.tests.sign_in import MARCUS
 
 
@@ -33,15 +34,15 @@ def test_steps(client):
             "/api/claims/CLM-1001/steps", json={"kind": kind, "content": content}
         )
         assert response.status_code == 200
-    steps = client.get("/api/claims/CLM-1001/steps").json()
+    steps = steps_of(client, "CLM-1001")
     assert [(s["kind"], s["content"]) for s in steps] == [
         ("tool_call", "get_claim"),
         ("tool_result", "{}"),
     ]
     assert steps[0]["step_id"] < steps[1]["step_id"]
     assert all(s["thread_id"] == "t-1" and s["created_at"] for s in steps)
-    assert client.get("/api/claims/CLM-1002/steps").json() == []
-    assert client.get("/api/claims/CLM-9999/steps").status_code == 404
+    assert steps_of(client, "CLM-1002") == []
+    assert read(client, "/api/claims/CLM-9999/steps").status_code == 404
 
 
 def test_step_kind_must_be_known(client):

@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import event, select
 
 from backend.database import engine, handler_decisions, held_out_claims
+from backend.tests.dashboard_reads import read, recipe
 from backend.tests.judging import answer
 from backend.tests.round_requests import (
     ALL,
@@ -273,10 +274,10 @@ def test_the_page_follows_a_round_through_its_stages(client):
     client.post(f"{round_path(round_id)}/verdict")
     assert stage(client) == ("verdict", None)
 
-    recipe = propose_recipe(client, round_id).json()
+    proposal = propose_recipe(client, round_id).json()
     assert stage(client) == ("recipe_waiting", None)
     assert improvement(client)["round"]["waiting"]["kind"] == "recipe"
-    review(client, round_id, recipe["proposal_id"])
+    review(client, round_id, proposal["proposal_id"])
     assert client.post(f"{round_path(round_id)}/recipe").json() == {"number": 2}
     client.post(f"{round_path(round_id)}/finish")
 
@@ -296,10 +297,10 @@ def test_the_page_follows_a_round_through_its_stages(client):
         (2, True),
         (1, False),
     ]
-    two = client.get("/api/improvement/recipes/2").json()
+    two = recipe(client, 2)
     assert (two["proposed_by"], two["approved_by"]) == ("Round 1", "Dana Whitfield")
     assert two["diff"]["removed"] > 0
-    assert client.get("/api/improvement/recipes/9").status_code == 404
+    assert read(client, "/api/improvement/recipes/9").status_code == 404
 
 
 def held_out_texts():

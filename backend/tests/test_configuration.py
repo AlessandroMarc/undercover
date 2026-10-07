@@ -13,6 +13,12 @@ from backend.database import (
     versions,
 )
 from backend.tests.claim_requests import decide, start
+from backend.tests.dashboard_reads import (
+    configuration,
+    evaluations,
+    read,
+    version_details,
+)
 from backend.tests.round_requests import create_round, into_round
 from backend.tests.run_requests import (
     create_dispatch,
@@ -72,14 +78,14 @@ def test_the_current_version_is_the_newest_kept(client):
     add_version(CLAIM_MD + "\nAnother rule.\n", based_on=2)
     assert client.get("/api/versions/current").json()["number"] == 2
 
-    configuration = client.get("/api/configuration").json()
-    assert configuration["current"] == 2
+    page = configuration(client)
+    assert page["current"] == 2
     listed = [
         (v["number"], v["status"], v["lines_added"], v["lines_removed"])
-        for v in configuration["versions"]
+        for v in page["versions"]
     ]
     assert listed == [(3, "under_test", 1, 1), (2, "current", 2, 0), (1, "kept", 0, 0)]
-    two = configuration["versions"][1]
+    two = page["versions"][1]
     assert (two["model_before"], two["model"]) == (
         "openai/gpt-6-luna",
         "google/gemini-3.5-flash-lite",
@@ -90,23 +96,21 @@ def test_the_current_version_is_the_newest_kept(client):
 def test_a_rolled_back_version_leaves_the_current_one(client):
     add_version(CLAIM_MD + "\nA rule.\n", verdict="rolled_back")
     assert client.get("/api/versions/current").json()["number"] == 1
-    statuses = [
-        v["status"] for v in client.get("/api/configuration").json()["versions"]
-    ]
+    statuses = [v["status"] for v in configuration(client)["versions"]]
     assert statuses == ["rolled_back", "current"]
 
 
 def test_a_versions_details_hold_its_diff(client):
     add_version(CLAIM_MD.replace("UnderCover Agent", "UnderCover claim agent", 1))
-    details = client.get("/api/configuration/versions/2").json()
+    details = version_details(client, 2)
     assert details["based_on"] == 1
     assert details["instructions"].startswith("# UnderCover claim agent")
     assert (details["diff"]["added"], details["diff"]["removed"]) == (1, 1)
     [hunk] = details["diff"]["hunks"]
     assert [line["kind"] for line in hunk[:2]] == ["removed", "added"]
-    first = client.get("/api/configuration/versions/1").json()
+    first = version_details(client, 1)
     assert (first["diff"], first["status"]) == (None, "current")
-    assert client.get("/api/configuration/versions/9").status_code == 404
+    assert read(client, "/api/configuration/versions/9").status_code == 404
 
 
 def test_runs_record_the_current_version(client):
@@ -120,7 +124,7 @@ def test_runs_record_the_current_version(client):
             "minimal",
         )
     assert latest_dispatch(client)["version"] == 2
-    assert client.get("/api/evaluations").json()[0]["version"] == 2
+    assert evaluations(client)[0]["version"] == 2
     assert get_evaluation(client, evaluation["run_id"])["version"] == 2
 
 
@@ -133,7 +137,7 @@ def test_a_version_after_one_rolled_back_changes_the_current_one(client):
         reasoning_effort="medium",
         based_on=2,
     )
-    four = client.get("/api/configuration/versions/4").json()
+    four = version_details(client, 4)
     assert (four["based_on"], four["lines_added"], four["lines_removed"]) == (2, 1, 0)
     assert (four["model_before"], four["reasoning_effort_before"]) == (
         "google/gemini-3.5-flash-lite",
@@ -175,7 +179,7 @@ def test_a_versions_scores_average_the_whole_set_evaluations_its_rounds_ran(clie
         for e in (first, second)
     ]
     assert accuracies[1] == pytest.approx(accuracies[0] + 1 / 25)
-    scores = client.get("/api/configuration").json()["versions"][0]["scores"]
+    scores = configuration(client)["versions"][0]["scores"]
     assert scores["evaluation"] is None
     assert scores["held_out"]["accuracy"] == pytest.approx(sum(accuracies) / 2)
 
@@ -197,7 +201,5 @@ def test_a_run_with_nothing_graded_leaves_the_grade_to_the_others(
     finish(client, ungraded["run_id"])
 
     assert get_evaluation(client, ungraded["run_id"])["measures"]["grade"] is None
-    held_out = client.get("/api/configuration").json()["versions"][0]["scores"][
-        "held_out"
-    ]
+    held_out = configuration(client)["versions"][0]["scores"]["held_out"]
     assert held_out["grade"] == pytest.approx(2.2)

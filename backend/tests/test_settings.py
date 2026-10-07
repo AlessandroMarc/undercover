@@ -4,13 +4,14 @@ import pytest
 
 from backend.database import engine, load, models_allowed, payout_rules, seed, settings
 from backend.tests.claim_requests import decide, pay, sign_off, start
+from backend.tests.dashboard_reads import settings_page
 from backend.tests.rows import count
 from backend.tests.settings_requests import STARTING, change_settings
 from backend.tests.sign_in import MARCUS
 
 
 def test_seeding_makes_the_first_settings_and_the_models_allowed(client):
-    page = client.get("/api/settings").json()
+    page = settings_page(client)
     current = page["current"]
     assert {key: current[key] for key in STARTING} == STARTING
     assert (current["number"], current["changed_by"]) == (1, None)
@@ -22,7 +23,7 @@ def test_seeding_makes_the_first_settings_and_the_models_allowed(client):
 def test_a_student_on_a_free_model_has_only_that_model(client, monkeypatch):
     monkeypatch.setenv("MODEL_NAME", "openrouter/free")
     seed(engine())
-    assert client.get("/api/settings").json()["models_allowed"] == [
+    assert settings_page(client)["models_allowed"] == [
         {
             "model": "openrouter/free",
             "reasoning_efforts": ["default"],
@@ -35,7 +36,7 @@ def test_a_student_on_a_free_model_has_only_that_model(client, monkeypatch):
 def test_a_senior_handler_changes_the_settings(client):
     response = change_settings(client, spending_limit=0.75)
     assert response.status_code == 200
-    page = client.get("/api/settings").json()
+    page = settings_page(client)
     current = page["current"]
     assert (current["number"], current["spending_limit"]) == (2, 0.75)
     assert current["changed_by"] == "Dana Whitfield"

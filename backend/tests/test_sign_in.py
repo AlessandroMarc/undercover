@@ -8,28 +8,8 @@ from sqlalchemy import select
 from backend import auth
 from backend.database import engine, handlers, load, metadata
 from backend.tests.claim_requests import decide, start
-from backend.tests.settings_requests import STARTING
+from backend.tests.gates import HANDLER_OPERATIONS
 from backend.tests.sign_in import DANA, OTHER_KEY, SUPABASE_URL, signed_in
-
-ROUND = "/api/improvement/rounds/round-1"
-PROPOSAL = f"{ROUND}/proposals/proposal-1"
-
-# Every operation a handler takes, with a body it would accept.
-HANDLER_ACTIONS = {
-    "get_signed_in_handler": ("GET", "/api/me", None),
-    "sign_off_claim": ("POST", "/api/claims/CLM-1002/sign-off", None),
-    "start_dispatch": ("POST", "/api/dispatches", {"agents": 3}),
-    "start_evaluation": (
-        "POST",
-        "/api/evaluations",
-        {"evaluation_set": "held_out", "tiny": True, "agents": 5},
-    ),
-    "change_settings": ("PUT", "/api/settings", STARTING),
-    "start_round": ("POST", "/api/improvement/rounds", None),
-    "stop_round": ("POST", f"{ROUND}/stop", None),
-    "approve_proposal": ("POST", f"{PROPOSAL}/approval", None),
-    "reject_proposal": ("POST", f"{PROPOSAL}/rejection", {"reason": "Too broad"}),
-}
 
 NOT_SIGNED_IN = {
     "no token": {},
@@ -86,21 +66,16 @@ def test_a_sign_in_that_isnt_a_handlers_is_refused(client):
     )
 
 
-def test_these_are_every_operation_that_needs_a_handler(client):
-    schema = client.get("/openapi.json").json()
-    secured = {
-        operation["operationId"]
-        for operations in schema["paths"].values()
-        for operation in operations.values()
-        if operation.get("security")
-    }
-    assert secured == set(HANDLER_ACTIONS)
-
-
 @pytest.mark.parametrize(
-    ("method", "path", "body"), HANDLER_ACTIONS.values(), ids=HANDLER_ACTIONS.keys()
+    ("method", "path", "body"),
+    HANDLER_OPERATIONS.values(),
+    ids=HANDLER_OPERATIONS.keys(),
 )
-def test_every_handler_action_needs_a_sign_in(client, agent_calls, method, path, body):
+def test_every_handler_operation_needs_a_sign_in_and_the_key_wont_do(
+    client, agent_calls, method, path, body
+):
+    """The client sends the agent's key with every request, which never stands in
+    for a handler."""
     start(client, "CLM-1002")
     decide(client, "CLM-1002", "approve", 1350.0)
     before = everything_recorded()

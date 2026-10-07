@@ -27,7 +27,14 @@ from backend.database import (
     steps,
     work_times,
 )
-from backend.dependencies import Database, SignedIn, senior
+from backend.dependencies import (
+    AgentKey,
+    Database,
+    HandlerOrAgent,
+    SignedIn,
+    SignedInHandler,
+    senior,
+)
 from backend.documents import search, sections, titles
 from backend.improvement import router as improvement
 from backend.lookups import CLAIM_NOT_FOUND, current_settings, run_row
@@ -166,7 +173,7 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/api/claims", operation_id="list_claims")
+@app.get("/api/claims", operation_id="list_claims", dependencies=[HandlerOrAgent])
 def list_claims(db: Database) -> list[ClaimSummary]:
     """List every claim in the queue, in id order, leaving out evaluations' copies."""
     query = claim_view.where(claims.c.evaluation_id.is_(None))
@@ -174,19 +181,29 @@ def list_claims(db: Database) -> list[ClaimSummary]:
     return [to_summary(row) for row in rows]
 
 
-@app.get("/api/claims/{claim_id}", operation_id="get_claim")
+@app.get(
+    "/api/claims/{claim_id}", operation_id="get_claim", dependencies=[HandlerOrAgent]
+)
 def get_claim(claim_id: str, db: Database) -> Claim:
     """Get one claim in full: the story, the items claimed and the documents."""
     return to_claim(find_claim(db, claim_id))
 
 
-@app.get("/api/policies/{policy_id}", operation_id="get_policy")
+@app.get(
+    "/api/policies/{policy_id}",
+    operation_id="get_policy",
+    dependencies=[HandlerOrAgent],
+)
 def get_policy(policy_id: str, db: Database) -> Policy:
     """Get a policy: the plan, add-ons, purchase date, trip and travelers."""
     return find_policy(db, policy_id)
 
 
-@app.get("/api/customers/{customer_id}/claims", operation_id="get_claim_history")
+@app.get(
+    "/api/customers/{customer_id}/claims",
+    operation_id="get_claim_history",
+    dependencies=[HandlerOrAgent],
+)
 def get_claim_history(customer_id: str, db: Database) -> list[PreviousClaim]:
     """Get a customer's earlier claims, with the outcome and the amount paid."""
     query = select(customers.c.record).where(customers.c.customer_id == customer_id)
@@ -196,7 +213,9 @@ def get_claim_history(customer_id: str, db: Database) -> list[PreviousClaim]:
     return [PreviousClaim(**claim) for claim in record["previous_claims"]]
 
 
-@app.get("/api/documents/search", operation_id="search_documents")
+@app.get(
+    "/api/documents/search", operation_id="search_documents", dependencies=[AgentKey]
+)
 def search_documents(
     query: Annotated[str, Query(min_length=1)], db: Database
 ) -> list[SectionMatch]:
@@ -204,7 +223,11 @@ def search_documents(
     return search(db, query)
 
 
-@app.get("/api/documents/{document}/sections/{number}", operation_id="read_section")
+@app.get(
+    "/api/documents/{document}/sections/{number}",
+    operation_id="read_section",
+    dependencies=[AgentKey],
+)
 def read_section(document: DocumentName, number: int, db: Database) -> Section:
     """Read one section of the policy wording or the claims manual in full."""
     for section in sections(db, document):
@@ -220,7 +243,9 @@ def get_signed_in_handler(handler: SignedIn) -> Handler:
     return handler
 
 
-@app.post("/api/claims/{claim_id}/start", operation_id="start_claim")
+@app.post(
+    "/api/claims/{claim_id}/start", operation_id="start_claim", dependencies=[AgentKey]
+)
 def start_claim(claim_id: str, request: StartRequest, db: Database) -> Claim:
     """Start work on a waiting claim, which moves it to in progress."""
     claim = find_claim(db, claim_id)
@@ -240,14 +265,20 @@ def start_claim(claim_id: str, request: StartRequest, db: Database) -> Claim:
     return to_claim(find_claim(db, claim_id))
 
 
-@app.post("/api/claims/{claim_id}/steps", operation_id="record_step")
+@app.post(
+    "/api/claims/{claim_id}/steps", operation_id="record_step", dependencies=[AgentKey]
+)
 def record_step(claim_id: str, request: StepRequest, db: Database) -> Step:
     """Record one step of the agent's work on a claim."""
     thread_id = started_thread(db, claim_id)
     return add_step(db, claim_id, thread_id, request.kind, request.content)
 
 
-@app.post("/api/claims/{claim_id}/model-calls", operation_id="record_model_call")
+@app.post(
+    "/api/claims/{claim_id}/model-calls",
+    operation_id="record_model_call",
+    dependencies=[AgentKey],
+)
 def record_model_call(
     claim_id: str, request: ModelCallRequest, db: Database
 ) -> ModelCall:
@@ -267,7 +298,11 @@ def record_model_call(
     return ModelCall(**db.execute(query).mappings().one())
 
 
-@app.post("/api/claims/{claim_id}/work-times", operation_id="record_work_time")
+@app.post(
+    "/api/claims/{claim_id}/work-times",
+    operation_id="record_work_time",
+    dependencies=[AgentKey],
+)
 def record_work_time(claim_id: str, request: WorkTimeRequest, db: Database) -> WorkTime:
     """Record one spell of the agent's work on a started claim, ending now."""
     thread_id = started_thread(db, claim_id)
@@ -287,7 +322,11 @@ def record_work_time(claim_id: str, request: WorkTimeRequest, db: Database) -> W
     return WorkTime(**db.execute(query).mappings().one())
 
 
-@app.get("/api/claims/{claim_id}/steps", operation_id="list_steps")
+@app.get(
+    "/api/claims/{claim_id}/steps",
+    operation_id="list_steps",
+    dependencies=[SignedInHandler],
+)
 def list_steps(claim_id: str, db: Database) -> list[Step]:
     """List the steps of the agent's work on a claim, in order."""
     find_claim(db, claim_id)
@@ -295,7 +334,11 @@ def list_steps(claim_id: str, db: Database) -> list[Step]:
     return [Step(**row) for row in db.execute(query).mappings()]
 
 
-@app.post("/api/claims/{claim_id}/decision", operation_id="record_decision")
+@app.post(
+    "/api/claims/{claim_id}/decision",
+    operation_id="record_decision",
+    dependencies=[AgentKey],
+)
 def record_decision(claim_id: str, request: DecisionRequest, db: Database) -> Claim:
     """Record a claim's decision once; an approval waits to be paid or signed off."""
     claim = find_claim(db, claim_id)
@@ -325,14 +368,20 @@ def record_decision(claim_id: str, request: DecisionRequest, db: Database) -> Cl
     return to_claim(find_claim(db, claim_id))
 
 
-@app.post("/api/claims/{claim_id}/payout", operation_id="calculate_payout")
+@app.post(
+    "/api/claims/{claim_id}/payout",
+    operation_id="calculate_payout",
+    dependencies=[AgentKey],
+)
 def calculate_payout(claim_id: str, request: PayoutRequest, db: Database) -> Payout:
     """Work out an approval's payout with UnderCover's payout rules; records nothing."""
     policy = find_policy(db, to_claim(find_claim(db, claim_id)).policy_id)
     return work_out_payout(policy, plans(db), request, approval_limit(db))
 
 
-@app.post("/api/claims/{claim_id}/payment", operation_id="pay_claim")
+@app.post(
+    "/api/claims/{claim_id}/payment", operation_id="pay_claim", dependencies=[AgentKey]
+)
 def pay_claim(claim_id: str, request: PaymentRequest, db: Database) -> Claim:
     """Pay an approved claim its payout once, unless it needs a handler's sign-off."""
     claim = find_claim(db, claim_id)
@@ -387,7 +436,9 @@ def sign_off_claim(
     return to_claim(find_claim(db, claim_id))
 
 
-@app.post("/api/claims/{claim_id}/failure", operation_id="fail_claim")
+@app.post(
+    "/api/claims/{claim_id}/failure", operation_id="fail_claim", dependencies=[AgentKey]
+)
 def fail_claim(claim_id: str, request: FailureRequest, db: Database) -> Claim:
     """Put a failed claim back in the queue, or leave it for a handler after two."""
     claim = find_claim(db, claim_id)

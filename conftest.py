@@ -10,9 +10,13 @@ from openrouter import OpenRouter
 
 from backend import agent_service, auth, judge
 from backend.database import engine, seed
+from backend.dependencies import API_KEY_HEADER
 from backend.main import app
 from backend.tests.judging import JUDGE_URL, answer
 from backend.tests.sign_in import PUBLIC_KEYS, SUPABASE_URL
+
+# The agent's API key in the tests, which the backend and the agent share.
+TEST_KEY = "test-agent-key-0123456789abcdefghijklmnop"
 
 
 @pytest.fixture(autouse=True)
@@ -24,6 +28,13 @@ def database(tmp_path, monkeypatch):
     monkeypatch.setenv("UNDERCOVER_DB", str(path))
     seed(engine())
     return path
+
+
+@pytest.fixture(autouse=True)
+def agent_key(monkeypatch):
+    """Give the backend and the agent the same API key in every test."""
+    monkeypatch.setenv("UNDERCOVER_API_KEY", TEST_KEY)
+    return TEST_KEY
 
 
 @pytest.fixture(autouse=True)
@@ -97,4 +108,11 @@ def agent_calls(agent_answers):
 
 @pytest.fixture
 def client():
+    """The backend, called as the agent's side calls it, with the agent's key."""
+    return TestClient(app, headers={API_KEY_HEADER: TEST_KEY})
+
+
+@pytest.fixture
+def dashboard():
+    """The backend, called as a handler's browser calls it, with no key."""
     return TestClient(app)

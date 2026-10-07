@@ -9,14 +9,6 @@ def claim_of(client, claim_id):
     return client.get(f"/api/claims/{claim_id}").json()
 
 
-def steps_of(client, claim_id):
-    return client.get(f"/api/claims/{claim_id}/steps").json()
-
-
-def evaluations(client):
-    return client.get("/api/evaluations").json()
-
-
 def rows_of(table, claim_id):
     """The rows of a claim in one of the backend's tables, in the order recorded."""
     query = select(table).where(table.c.claim_id == claim_id)

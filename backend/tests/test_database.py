@@ -5,6 +5,7 @@ from sqlalchemy.pool import QueuePool
 
 from backend.database import RETIRED, engine, location, seed
 from backend.main import app
+from backend.tests.dashboard_reads import read
 
 SUPABASE = "postgresql://postgres.ref:secret@pooler.example.com:5432/db"
 
@@ -42,7 +43,7 @@ def test_startup_seeds_a_missing_or_empty_database(database, empty):
     if empty:
         database.touch()
     with TestClient(app) as client:
-        assert len(client.get("/api/claims").json()) == 25
+        assert len(read(client, "/api/claims").json()) == 25
 
 
 def test_seeding_drops_the_tables_of_earlier_versions():

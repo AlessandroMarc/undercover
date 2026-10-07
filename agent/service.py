@@ -19,7 +19,7 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from pydantic import BaseModel, Field
 
 from agent import api, improver, improver_api
-from agent.connection import Refused
+from agent.connection import Refused, api_key
 from agent.console import describe, show_reports
 from agent.dispatcher import WorkInRun, work_run
 from agent.harness import (
@@ -46,8 +46,10 @@ log = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Keep the checkpoint pool open while the service runs, after marking the runs
     an earlier service left running as stopped, and its rounds, unless a round
-    waits for a handler: the improver's progress is saved."""
+    waits for a handler: the improver's progress is saved. Without the agent's
+    API key it doesn't start."""
     show_reports()
+    api_key()
     with checkpoint_pool() as pool:
         app.state.pool = pool
         api.stop_runs()

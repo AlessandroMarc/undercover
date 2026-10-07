@@ -10,10 +10,11 @@ from langgraph.checkpoint.memory import InMemorySaver
 from agent import api, harness, service
 from agent.tests.dispatching import new_dispatch
 from agent.tests.queue_setup import leave_waiting
-from agent.tests.records import claim_of, steps_of
+from agent.tests.records import claim_of
 from agent.tests.stubs import decide, graph_on, stub, swarm
 from api_rules import rule_breaks
 from backend.tests.claim_requests import sign_off
+from backend.tests.dashboard_reads import steps_of
 from backend.tests.run_requests import latest_dispatch
 from backend.tests.versions import add_version
 

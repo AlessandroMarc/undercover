@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import Connection, RowMapping, insert, select
 
 from backend.database import now, settings, versions
-from backend.dependencies import Database, senior
+from backend.dependencies import AgentKey, Database, SignedInHandler, senior
 from backend.diffs import diff
 from backend.documents import contents
 from backend.lookups import (
@@ -81,19 +81,27 @@ def summary_of(
     )
 
 
-@router.get("/api/versions/current", operation_id="get_current_version")
+@router.get(
+    "/api/versions/current", operation_id="get_current_version", dependencies=[AgentKey]
+)
 def get_current_version(db: Database) -> ClaimAgentVersion:
     """Get the current version of the claim agent: its instructions and its model."""
     return for_the_claim_agent(db, version_row(db, current_version_number(db)))
 
 
-@router.get("/api/versions/{number}", operation_id="get_version")
+@router.get(
+    "/api/versions/{number}", operation_id="get_version", dependencies=[AgentKey]
+)
 def get_version(number: int, db: Database) -> ClaimAgentVersion:
     """Get one version of the claim agent: its instructions and its model."""
     return for_the_claim_agent(db, version_row(db, number))
 
 
-@router.get("/api/configuration", operation_id="get_configuration")
+@router.get(
+    "/api/configuration",
+    operation_id="get_configuration",
+    dependencies=[SignedInHandler],
+)
 def get_configuration(db: Database) -> Configuration:
     """Get the claim agent's versions, newest first, with what each changed."""
     current = current_version_number(db)
@@ -109,7 +117,11 @@ def get_configuration(db: Database) -> Configuration:
     )
 
 
-@router.get("/api/configuration/versions/{number}", operation_id="get_version_details")
+@router.get(
+    "/api/configuration/versions/{number}",
+    operation_id="get_version_details",
+    dependencies=[SignedInHandler],
+)
 def get_version_details(number: int, db: Database) -> VersionDetails:
     """Get one version in full, with its diff from the version it was based on."""
     row = version_row(db, number)
@@ -123,7 +135,9 @@ def get_version_details(number: int, db: Database) -> VersionDetails:
     )
 
 
-@router.get("/api/settings", operation_id="get_settings")
+@router.get(
+    "/api/settings", operation_id="get_settings", dependencies=[SignedInHandler]
+)
 def get_settings(db: Database) -> SettingsPage:
     """Get the settings in force, every change with who made it, and the models."""
     query = select(settings).order_by(settings.c.number.desc())

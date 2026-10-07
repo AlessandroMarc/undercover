@@ -1,5 +1,6 @@
 import { defineConfig } from "@playwright/test";
 import {
+  AGENT_KEY,
   AGENT_STAND_IN,
   BACKEND,
   AUTH_STAND_IN,
@@ -41,6 +42,7 @@ export default defineConfig({
         VITE_SUPABASE_URL: AUTH_STAND_IN,
         JUDGE_URL: JUDGE_STAND_IN,
         OPENROUTER_API_KEY: "e2e-key",
+        UNDERCOVER_API_KEY: AGENT_KEY,
       },
     },
     {

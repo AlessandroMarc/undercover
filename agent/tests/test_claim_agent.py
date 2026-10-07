@@ -8,7 +8,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import api, harness
 from agent.connection import Refused
-from agent.tests.records import claim_of, steps_of
+from agent.tests.records import claim_of
 from agent.tests.stubs import (
     INSTRUCTIONS,
     StubModel,
@@ -18,6 +18,7 @@ from agent.tests.stubs import (
     record,
     stub,
 )
+from backend.tests.dashboard_reads import steps_of
 from backend.tests.settings_requests import change_settings
 
 

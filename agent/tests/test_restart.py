@@ -10,9 +10,10 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import api, harness
 from agent.tests.failures import fail_once
-from agent.tests.records import claim_of, steps_of
+from agent.tests.records import claim_of
 from agent.tests.stubs import StubModel, call, decide, graph_on, record, stub
 from backend.tests.claim_requests import sign_off
+from backend.tests.dashboard_reads import steps_of
 
 
 def stop_while_working(claim_id, saver, *replies):

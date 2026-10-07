@@ -10,6 +10,7 @@ from backend.tests.claim_requests import (
     sign_off,
     start,
 )
+from backend.tests.dashboard_reads import evaluations, read
 from backend.tests.run_requests import (
     create_dispatch,
     create_evaluation,
@@ -117,7 +118,7 @@ def test_an_evaluations_claims_are_its_copies(client):
 
 def test_an_evaluation_not_yet_worked_counts_every_copy_as_a_referral(client):
     run_id = create_evaluation(client).json()["run_id"]
-    [listed] = client.get("/api/evaluations").json()
+    [listed] = evaluations(client)
     assert (listed["run_id"], listed["size"]) == (run_id, 5)
     assert listed["measures"] == {
         "decision_accuracy": 0.2,
@@ -185,13 +186,13 @@ def test_a_wrongful_approval_costs_its_payout_whether_or_not_it_was_paid(client)
 
 
 def test_an_unknown_evaluation(client):
-    assert client.get("/api/evaluations/run-9").status_code == 404
+    assert read(client, "/api/evaluations/run-9").status_code == 404
     dispatch = create_dispatch(client).json()
-    assert client.get(f"/api/evaluations/{dispatch['run_id']}").status_code == 404
+    assert read(client, f"/api/evaluations/{dispatch['run_id']}").status_code == 404
 
 
 def test_the_newest_evaluation_is_listed_first(client):
     first = create_evaluation(client).json()
     second = create_evaluation(client, "evaluation").json()
-    listed = [e["run_id"] for e in client.get("/api/evaluations").json()]
+    listed = [e["run_id"] for e in evaluations(client)]
     assert listed == [second["run_id"], first["run_id"]]

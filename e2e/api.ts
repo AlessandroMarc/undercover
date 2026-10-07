@@ -5,16 +5,26 @@ import type {
   Improvement,
   Run,
 } from "../dashboard/src/api";
-import { HANDLERS } from "./handlers";
-import { AGENT_STAND_IN } from "./servers";
+import { HANDLERS, signedInAs } from "./handlers";
+import { AGENT_KEY_HEADERS, AGENT_STAND_IN } from "./servers";
 
 // Stands in for the agent's service and its claim agents, with one function for
-// each backend operation the tests use, sent through the dashboard's proxy.
+// each backend operation the tests use, sent through the dashboard's proxy with
+// the agent's key.
 type Request = APIRequestContext;
 
 const claimPath = (claimId: string) =>
   `/api/claims/${encodeURIComponent(claimId)}`;
 const runPath = (runId: string) => `/api/runs/${runId}`;
+
+// Sends a request as the agent's side does, with its key, and returns the
+// backend's answer, which may be a refusal.
+const asTheAgent = (
+  request: Request,
+  method: "POST" | "PUT",
+  path: string,
+  data: object = {},
+) => request.fetch(path, { method, data, headers: AGENT_KEY_HEADERS });
 
 async function send(
   request: Request,
@@ -22,7 +32,7 @@ async function send(
   path: string,
   data: object = {},
 ) {
-  const response = await request.fetch(path, { method, data });
+  const response = await asTheAgent(request, method, path, data);
   await expect(response).toBeOK();
   return response;
 }
@@ -50,7 +60,7 @@ export const recordDecision = (
 
 // Asks to pay a claim and returns the backend's answer, which may be a refusal.
 export const askToPay = (request: Request, claimId: string, amount: number) =>
-  request.post(`${claimPath(claimId)}/payment`, { data: { amount } });
+  asTheAgent(request, "POST", `${claimPath(claimId)}/payment`, { amount });
 
 export async function payClaim(
   request: Request,
@@ -184,9 +194,12 @@ export const finishRound = (request: Request, roundId: string) =>
   send(request, "POST", `${roundPath(roundId)}/finish`);
 
 // Finishes the open round, if any, rejecting a proposal it's waiting on first,
-// so the next test can start one.
+// so the next test can start one. It reads the round as Dana, as the dashboard
+// does.
 export async function finishOpenRound(request: Request) {
-  const response = await request.get("/api/improvement");
+  const response = await request.get("/api/improvement", {
+    headers: await signedInAs(request, HANDLERS.dana),
+  });
   await expect(response).toBeOK();
   const { round } = (await response.json()) as Improvement;
   if (round?.status !== "open") return;

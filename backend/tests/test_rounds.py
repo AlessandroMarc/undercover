@@ -5,12 +5,14 @@ import pytest
 from sqlalchemy import select
 
 from backend.database import INSTRUCTIONS, engine, recipes
+from backend.tests.dashboard_reads import configuration, version_details
 from backend.tests.round_requests import (
     ALL,
     CHANGE,
     approved_change,
     create_round,
     decide_copies,
+    improvement,
     improver_call,
     play_out,
     propose_change,
@@ -68,10 +70,10 @@ def test_one_round_is_open_at_a_time(client):
 
 def test_a_proposal_changes_nothing_until_a_handler_approves_it(client):
     round_id = create_round(client).json()["round_id"]
-    before = client.get("/api/configuration").json()
+    before = configuration(client)
     proposal = propose_change(client, round_id).json()
     assert proposal["review"] is None
-    assert client.get("/api/configuration").json() == before
+    assert configuration(client) == before
     refused = client.post(f"{round_path(round_id)}/version")
     assert (refused.status_code, refused.json()["detail"]) == (
         409,
@@ -85,7 +87,7 @@ def test_a_proposal_changes_nothing_until_a_handler_approves_it(client):
     )
     made = client.post(f"{round_path(round_id)}/version").json()
     assert made == {"number": 2}
-    two = client.get("/api/configuration/versions/2").json()
+    two = version_details(client, 2)
     assert (two["status"], two["reason"]) == ("under_test", CHANGE["reason"])
     assert (two["proposed_by"], two["approved_by"]) == ("Round 1", "Dana Whitfield")
     assert client.get("/api/versions/current").json()["number"] == 1
@@ -101,7 +103,7 @@ def test_a_model_outside_the_models_allowed_is_never_proposed(client):
         422,
         "openai/gpt-7 at high isn't allowed. Choose from the models allowed.",
     )
-    assert client.get("/api/improvement").json()["round"]["waiting"] is None
+    assert improvement(client)["round"]["waiting"] is None
 
 
 def test_a_second_change_waits_for_the_approved_one_to_become_a_version(client):
@@ -154,7 +156,7 @@ def test_a_round_keeps_its_settings_when_they_change(client):
     change_settings(client, spending_limit=0.75, agents=5)
     run = round_evaluation(client, round_id).json()
     assert run["agents"] == 25
-    [listed] = client.get("/api/improvement").json()["rounds"]
+    [listed] = improvement(client)["rounds"]
     assert (listed["settings"], listed["spending_limit"]) == (1, 0.5)
 
 
@@ -169,7 +171,7 @@ def test_a_round_stopped_before_its_verdict_leaves_the_current_version(client):
         "Dana Whitfield",
     )
     assert client.get("/api/versions/current").json()["number"] == 1
-    two = client.get("/api/configuration/versions/2").json()
+    two = version_details(client, 2)
     assert (two["status"], two["verdict_reason"]) == (
         "rolled_back",
         "the round was stopped before its verdict",
@@ -224,7 +226,7 @@ def test_a_round_that_proposes_nothing_finishes_with_no_version(client):
     round_id = create_round(client).json()["round_id"]
     finished = client.post(f"{round_path(round_id)}/finish").json()
     assert finished["status"] == "finished"
-    [listed] = client.get("/api/improvement").json()["rounds"]
+    [listed] = improvement(client)["rounds"]
     assert (listed["status"], listed["version"]) == ("finished", None)
 
 
@@ -232,7 +234,7 @@ def test_a_version_the_improver_never_evaluated_is_rolled_back(client):
     round_id = create_round(client).json()["round_id"]
     approved_change(client, round_id)
     client.post(f"{round_path(round_id)}/finish")
-    two = client.get("/api/configuration/versions/2").json()
+    two = version_details(client, 2)
     assert (two["status"], two["verdict_reason"]) == (
         "rolled_back",
         "the improver didn't evaluate it",
@@ -248,7 +250,7 @@ def test_stopping_rounds_leaves_one_waiting_for_a_handler(client):
     review(client, round_id, proposal["proposal_id"], "rejected")
     stopped = client.post("/api/rounds/stop", json={"reason": "Restarted"}).json()
     assert stopped == [round_id]
-    [listed] = client.get("/api/improvement").json()["rounds"]
+    [listed] = improvement(client)["rounds"]
     assert (listed["status"], listed["stopped_because"]) == ("stopped", "Restarted")
 
 
@@ -275,7 +277,7 @@ def test_a_versions_held_out_scores_average_only_its_rounds_finished_evaluations
         for run in (at_60, at_72, scoreboard)
     ]
     assert accuracies == [0.6, 0.72, 0.2]
-    [version_1] = client.get("/api/configuration").json()["versions"]
+    [version_1] = configuration(client)["versions"]
     assert version_1["scores"]["held_out"]["accuracy"] == pytest.approx(0.66)
 
 
@@ -320,4 +322,4 @@ def test_a_stopped_round_shows_no_proposal_waiting(client):
     round_id = create_round(client).json()["round_id"]
     propose_change(client, round_id)
     stop_round(client, round_id)
-    assert client.get("/api/improvement").json()["round"]["waiting"] is None
+    assert improvement(client)["round"]["waiting"] is None

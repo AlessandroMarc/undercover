@@ -24,7 +24,9 @@ from agent.tests.rounds import (
 )
 from agent.tests.stubs import StubModel, call
 from backend.database import engine, grades, improver_calls, model_calls, runs
+from backend.tests.dashboard_reads import configuration, version_details
 from backend.tests.round_requests import create_round, improvement, stop_round
+from backend.tests.run_requests import get_evaluation
 from backend.tests.settings_requests import STARTING, change_settings
 
 # Room for a round's evaluations: a spending limit above what the stub claim agents
@@ -109,7 +111,7 @@ def test_a_whole_round_with_a_rejection(client, serve_rounds):
     answer = model.prompts[2][-1]
     assert answer.name == "propose_change"
     assert "Keep each rule general" in answer.content
-    assert client.get("/api/configuration").json()["current"] == 1
+    assert configuration(client)["current"] == 1
 
     second = the_round(client)["waiting"]
     assert second["proposal_id"] != round_["waiting"]["proposal_id"]
@@ -307,16 +309,14 @@ def test_stopping_a_round_during_its_evaluations(client, serve_rounds):
     [tested] = [e for e in stopped["evaluations"] if e["version"] == 2]
     assert tested["status"] == "stopped"
     # The claim in hand when the round stopped finished; no other started.
-    copies = client.get(f"/api/evaluations/{tested['run_id']}").json()["claims"]
+    copies = get_evaluation(client, tested["run_id"])["claims"]
     statuses = [copy["status"] for copy in copies]
     assert (statuses.count("decided"), statuses.count("waiting")) == (1, 24)
     assert len(model.prompts) == 3
     assert total(improver_calls, improver_calls.c.cost, True) == pytest.approx(
         3 * 0.0042
     )
-    assert client.get("/api/configuration/versions/2").json()["status"] == (
-        "rolled_back"
-    )
+    assert version_details(client, 2)["status"] == ("rolled_back")
     assert agent.post("/api/dispatches", json={"agents": 3}).status_code == 202
 
 

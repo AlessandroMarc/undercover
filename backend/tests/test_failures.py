@@ -1,4 +1,5 @@
 from backend.tests.claim_requests import decide, fail, start
+from backend.tests.dashboard_reads import steps_of
 
 
 def test_starting_a_claim_counts_the_attempt(client):
@@ -10,7 +11,7 @@ def test_a_failed_attempt_goes_back_in_the_queue(client):
     start(client, "CLM-1004")
     claim = fail(client, "CLM-1004").json()
     assert (claim["status"], claim["attempts"]) == ("waiting", 1)
-    last = client.get("/api/claims/CLM-1004/steps").json()[-1]
+    last = steps_of(client, "CLM-1004")[-1]
     assert (last["kind"], last["content"]) == ("error", "The model timed out")
     assert last["thread_id"] == "t-1"
 
@@ -26,9 +27,7 @@ def test_a_second_failure_leaves_the_claim_for_a_handler(client):
     queue = {c["claim_id"]: c for c in client.get("/api/claims").json()}
     assert queue["CLM-1004"]["status"] == "left_for_handler"
     errors = [
-        s["content"]
-        for s in client.get("/api/claims/CLM-1004/steps").json()
-        if s["kind"] == "error"
+        s["content"] for s in steps_of(client, "CLM-1004") if s["kind"] == "error"
     ]
     assert errors == ["The model timed out", "The agent went round in circles"]
 
@@ -51,7 +50,7 @@ def test_failure_needs_a_claim_in_progress_without_a_decision(client):
     assert client.get("/api/claims/CLM-1002").json()["status"] == (
         "waiting_for_sign_off"
     )
-    assert client.get("/api/claims/CLM-1001/steps").json() == []
+    assert steps_of(client, "CLM-1001") == []
     assert fail(client, "CLM-9999").status_code == 404
 
 

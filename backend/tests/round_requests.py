@@ -4,6 +4,8 @@ agent's service and the dashboard do."""
 from sqlalchemy import select, update
 
 from backend.database import engine, handler_decisions, runs
+from backend.tests.dashboard_reads import read
+from backend.tests.run_requests import get_evaluation
 from backend.tests.sign_in import DANA, signed_in
 
 CHANGE = {
@@ -63,7 +65,7 @@ def round_evaluation(client, round_id):
 
 
 def improvement(client):
-    return client.get("/api/improvement").json()
+    return read(client, "/api/improvement").json()
 
 
 def stop_round(client, round_id, email=DANA):
@@ -132,4 +134,4 @@ def play_out(client, round_id, right=0, finish=True):
     decide_copies(client, run, right)
     if finish:
         client.post(f"/api/runs/{run['run_id']}/finish")
-    return client.get(f"/api/evaluations/{run['run_id']}").json()
+    return get_evaluation(client, run["run_id"])
