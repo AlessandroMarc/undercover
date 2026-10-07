@@ -399,10 +399,23 @@ def on_postgres(url: URL) -> bool:
     return url.get_backend_name() == "postgresql"
 
 
+def on_lambda() -> bool:
+    """Say whether the backend runs on AWS Lambda, which sets this for every
+    function."""
+    return "AWS_LAMBDA_FUNCTION_NAME" in os.environ
+
+
 @cache
-def engine_for(url: URL) -> Engine:
-    """Open a database: Postgres with at most CONNECTIONS connections, waiting up to
-    CONNECTION_WAIT seconds for one, or SQLite with a connection for each request."""
+def engine_for(url: URL, for_lambda: bool) -> Engine:
+    """Open a database: on Lambda, Postgres with a connection for each request and
+    no prepared statements, for Supabase's transaction pooler, since each copy of
+    the function would keep its own pool; elsewhere Postgres with at most
+    CONNECTIONS connections, waiting up to CONNECTION_WAIT seconds for one, or
+    SQLite with a connection for each request."""
+    if on_postgres(url) and for_lambda:
+        return create_engine(
+            url, poolclass=NullPool, connect_args={"prepare_threshold": None}
+        )
     if on_postgres(url):
         return create_engine(
             url,
@@ -416,7 +429,7 @@ def engine_for(url: URL) -> Engine:
 
 def engine() -> Engine:
     """Return the backend's database."""
-    return engine_for(database_url())
+    return engine_for(database_url(), on_lambda())
 
 
 def location(db: Engine) -> str:

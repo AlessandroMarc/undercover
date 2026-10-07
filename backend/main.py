@@ -6,9 +6,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from mangum import Mangum
 from sqlalchemy import Connection, RowMapping, insert, select, update
 
-from backend import agent_api
+from backend import agent_api, dashboard
 from backend.configuration import router as configuration
 from backend.database import (
     claim_view,
@@ -466,3 +467,10 @@ def fail_claim(claim_id: str, request: FailureRequest, db: Database) -> Claim:
     )
     set_status(db, claim_id, status)
     return to_claim(find_claim(db, claim_id))
+
+
+# After every route, so the dashboard's build only answers what no route does.
+app.router.routes.append(dashboard.mount)
+
+# AWS Lambda's entry point. Nothing seeds the database there.
+handler = Mangum(app, lifespan="off")

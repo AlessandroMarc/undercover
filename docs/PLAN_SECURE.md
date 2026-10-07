@@ -197,17 +197,17 @@ Add `backend/agent_api.py` and `get_agent_api`. Put the limit first in `pay_clai
 
 Add `npm run build` and the chunk split, `backend/dashboard.py` and its mount, the Lambda handler, the connection per request on Lambda, `check:server` in `npm run check`, and the Deployment section in `docs/TECH_STACK.md`. Build the deployment package in the scratchpad and report its size.
 
-- [ ] `npm run build` writes `dashboard/dist` and prints no warning
-- [ ] The build holds the Supabase address from `.env`, and with `.env` moved away and the two `VITE_` variables in the environment it holds theirs; `grep -rlF` with the API key finds nothing in `dashboard/dist`, checked without printing the key
-- [ ] pytest, with a stand-in build: `/` and `/claims/CLM-1001` return its `index.html`, `/assets/app.js` returns the file, `/api/health` returns `{"status": "ok"}` and `/api/nothing` returns a 404 in JSON; with no build, `/` returns a 404 in JSON
-- [ ] pytest: the Lambda handler, called with a Function URL event, answers `/api/health` with 200, `GET /api/claims` with the key with 26 claims, and `/` and a dashboard page with the stand-in build's `index.html`, all without the startup hook
-- [ ] pytest: with `AWS_LAMBDA_FUNCTION_NAME` set and a Postgres `DATABASE_URL`, with psycopg's connect replaced by a recorder, two requests open two connections, each with `prepare_threshold=None`; without it, the engine keeps its pool of 4
-- [ ] `npm run check:server` passes, and the list of packages in `.venv` is the same before and after it
-- [ ] `grep -rn "from agent\|import agent" backend` finds nothing
-- [ ] The deployment package, built in the scratchpad with the lab's `uv export --only-group server` and `uv pip install --target ... --python-platform x86_64-manylinux2014 --python-version 3.12 --only-binary :all:`, plus `backend/` and `data/` without tests or `__pycache__` and `dashboard/dist/`, is under 50 MB zipped; the report gives its size
-- [ ] `docs/TECH_STACK.md` has the Deployment section described in the design
-- [ ] `npm run dev` starts the backend, the agent's service and the dashboard as before
-- [ ] `npm run check` passes, with the server check, with `.env` moved out of the way
+- [x] `npm run build` writes `dashboard/dist` and prints no warning
+- [x] The build holds the Supabase address from `.env`, and with `.env` moved away and the two `VITE_` variables in the environment it holds theirs; `grep -rlF` with the API key finds nothing in `dashboard/dist`, checked without printing the key
+- [x] pytest, with a stand-in build: `/` and `/claims/CLM-1001` return its `index.html`, `/assets/app.js` returns the file, `/api/health` returns `{"status": "ok"}` and `/api/nothing` returns a 404 in JSON; with no build, `/` returns a 404 in JSON
+- [x] pytest: the Lambda handler, called with a Function URL event, answers `/api/health` with 200, `GET /api/claims` with the key with 26 claims, and `/` and a dashboard page with the stand-in build's `index.html`, all without the startup hook
+- [x] pytest: with `AWS_LAMBDA_FUNCTION_NAME` set and a Postgres `DATABASE_URL`, with psycopg's connect replaced by a recorder, two requests open two connections, each with `prepare_threshold=None`; without it, the engine keeps its pool of 4
+- [x] `npm run check:server` passes, and the list of packages in `.venv` is the same before and after it
+- [x] `grep -rnE "^\s*(from agent(\.| )|import agent($|\.|,| ))" backend` finds nothing (the plan's first pattern, `"from agent\|import agent"`, also matched the backend's own `agent_service` and `agent_api`)
+- [x] The deployment package, built in the scratchpad with the lab's `uv export --only-group server` and `uv pip install --target ... --python-platform x86_64-manylinux2014 --python-version 3.12 --only-binary :all:`, plus `backend/` and `data/` without tests or `__pycache__` and `dashboard/dist/`, is under 50 MB zipped; the report gives its size: 20.2 MB zipped, 72.4 MB unzipped
+- [x] `docs/TECH_STACK.md` has the Deployment section described in the design
+- [x] `npm run dev` starts the backend, the agent's service and the dashboard as before
+- [x] `npm run check` passes, with the server check, with `.env` moved out of the way
 
 ## Phase 5: The live checks and the docs
 
