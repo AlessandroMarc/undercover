@@ -22,8 +22,6 @@ AGENT_OPERATIONS = {
     "get_version",
     "get_current_version",
     "get_screening",
-    "search_documents",
-    "read_section",
     "create_dispatch",
     "create_evaluation",
     "create_round_evaluation",

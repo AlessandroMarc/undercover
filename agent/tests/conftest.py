@@ -9,10 +9,26 @@ from langchain_core.callbacks import BaseCallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import connection, dispatcher, harness, improver, service
+from agent.direct import CONTEXT_URL
 from agent.tests.gateway_stand_in import GatewayStandIn
 from agent.tests.local_server import serving
 from agent.tests.stubs import agent_on
 from backend.main import app
+from context.server import build_server
+
+
+@pytest.fixture(scope="session")
+def context_layer():
+    """The real context layer, served on a local port for the whole session."""
+    with serving(build_server().streamable_http_app()) as address:
+        yield f"{address}/mcp"
+
+
+@pytest.fixture(autouse=True)
+def context_at(no_aws, context_layer, monkeypatch):
+    """Point the direct route at the context layer the tests serve."""
+    monkeypatch.setenv(CONTEXT_URL, context_layer)
+    return context_layer
 
 
 @pytest.fixture(autouse=True)

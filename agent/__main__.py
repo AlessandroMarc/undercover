@@ -20,10 +20,10 @@ def main(args: list[str]) -> None:
     parser.add_argument("claim_id", help="the claim to work")
     options = parser.parse_args(args)
     with checkpoint_pool() as pool:
-        agent = claim_graphs(api.get_current_version(), pool)()
         try:
+            agent = claim_graphs(api.get_current_version(), pool)()
             work_claim(options.claim_id, None, agent)
-        except Refused as refusal:
+        except (Refused, ConnectionError) as refusal:
             parser.exit(1, f"{options.claim_id}  not started: {refusal}\n")
 
 

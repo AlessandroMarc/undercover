@@ -137,6 +137,21 @@ def test_command_line_works_one_claim(monkeypatch, capsys):
     )
 
 
+def test_command_line_says_when_the_context_layer_isnt_answering(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "checkpoint_pool", lambda: nullcontext(object()))
+
+    def down(version, pool):
+        raise ConnectionError("The context layer isn't answering at http://x/mcp")
+
+    monkeypatch.setattr(cli, "claim_graphs", down)
+    with pytest.raises(SystemExit) as stopped:
+        cli.main(["CLM-1001"])
+    assert stopped.value.code == 1
+    assert capsys.readouterr().err == (
+        "CLM-1001  not started: The context layer isn't answering at http://x/mcp\n"
+    )
+
+
 def test_command_line_needs_a_claim(capsys):
     with pytest.raises(SystemExit):
         cli.main([])

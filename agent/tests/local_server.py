@@ -1,5 +1,5 @@
 """Serving an app on a free local port in a thread of its own, as the tests serve
-the stand-in Gateway."""
+the context layer and the stand-in Gateway."""
 
 import socket
 import threading

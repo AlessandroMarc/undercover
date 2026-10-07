@@ -2,6 +2,7 @@
 signed, or directly to the app."""
 
 import asyncio
+import json
 from typing import cast
 
 import pytest
@@ -9,6 +10,7 @@ from langchain_core.messages import HumanMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import api, direct, harness
+from agent.direct import CONTEXT_URL
 from agent.gateway import GATEWAY_URL, Gateway
 from agent.mcp_tools import McpTools
 from agent.routes import Target
@@ -22,6 +24,7 @@ from backend.tests.dashboard_reads import steps_of
 from backend.tests.settings_requests import change_settings
 
 APP = "undercover-app___"
+CONTEXT = "undercover-context___"
 DELAY = [
     {"description": "Hotel", "amount": 245, "quantity": 1, "kind": "hotel",
      "nights": 1, "hours": 0},
@@ -45,13 +48,13 @@ def route_name(request):
 def route(request, route_name):
     """Each route in turn: directly to the app, or through the stand-in Gateway."""
     if route_name == "direct":
-        return direct.Direct()
+        return direct.from_environment()
     return Gateway(request.getfixturevalue("gateway").url)
 
 
 def test_the_models_tools_are_the_same_on_both_routes(gateway):
     on_each = []
-    for route in (direct.Direct(), Gateway(gateway.url)):
+    for route in (direct.from_environment(), Gateway(gateway.url)):
         model = stub()
         agent_on(model, route=route)
         [tools] = model.bound_tools
@@ -110,7 +113,7 @@ def test_get_claim_gives_the_same_text_on_both_routes(client, gateway):
     claim = {"claim_id": "CLM-1003"}
     on_each = [
         claim_as_read(route.call(Target.APP, "get_claim", claim))
-        for route in (direct.Direct(), Gateway(gateway.url))
+        for route in (direct.from_environment(), Gateway(gateway.url))
     ]
     assert on_each[0] == on_each[1] == claim_as_read(api.get_claim("CLM-1003"))
 
@@ -194,7 +197,8 @@ def test_the_route_is_read_when_the_claim_agents_are_built(gateway, monkeypatch)
 
 def test_an_mcp_call_leaves_the_main_threads_event_loop(gateway):
     loop = asyncio.get_event_loop()
-    McpTools(gateway.url).call(f"{APP}get_claim", {"claim_id": "CLM-1001"})
+    stand_in = McpTools("The stand-in Gateway", gateway.url)
+    stand_in.call(f"{APP}get_claim", {"claim_id": "CLM-1001"})
     assert asyncio.get_event_loop() is loop
     assert not loop.is_closed()
 
@@ -220,3 +224,56 @@ def test_the_stand_ins_app_tools_are_the_agents_api_documents_operations(
         "section",
         "reason",
     }
+
+
+CONTEXT_CALLS = [
+    call("lookup_term", term="unattended"),
+    call("describe_fields", record="claim"),
+    call("get_plan", plan="premium"),
+    call("get_claim_rules"),
+    call("search_reference_data", query="Lisbon strike"),
+    call("search_documents", query="unattended"),
+    call("read_section", document="claims_manual", number=14),
+    call("read_section", document="claims_manual", number=99),
+]
+
+
+def test_the_context_layers_tools_answer_on_each_route(
+    client, request, route_name, route
+):
+    model = stub(*CONTEXT_CALLS, *decide("refer", 0))
+    report = harness.work_claim("CLM-1003", None, agent_on(model, route=route))
+    assert report == "CLM-1003  refer  $0.00"
+    *answers, refused = [
+        m for m in model.prompts[len(CONTEXT_CALLS)] if isinstance(m, ToolMessage)
+    ]
+    files = [json.loads(a.text)["sources"][0]["file"] for a in answers]
+    assert files == [
+        "glossary.yaml",
+        "data_dictionary.yaml",
+        "plans.yaml",
+        "claim_rules.yaml",
+        "reference_data.yaml",
+        "policy_wording.md",
+        "claims_manual.md",
+    ]
+    assert refused.status == "error"
+    assert refused.text.startswith("Refused: ")
+    assert refused.text.endswith("Section 99 of the claims manual not found")
+    if route_name == "gateway":
+        gateway = request.getfixturevalue("gateway")
+        context_calls = [n for n in gateway.names if n.startswith(CONTEXT)]
+        assert context_calls == [
+            f"{CONTEXT}{c.tool_calls[0]['name']}" for c in CONTEXT_CALLS
+        ]
+
+
+# A port nothing on the laptop listens on.
+NOBODY = "http://127.0.0.1:9/mcp"
+
+
+def test_a_context_layer_that_isnt_answering_says_so_in_a_line(monkeypatch):
+    monkeypatch.setenv(CONTEXT_URL, NOBODY)
+    with pytest.raises(ConnectionError) as down:
+        direct.from_environment()
+    assert str(down.value) == f"The context layer isn't answering at {NOBODY}"

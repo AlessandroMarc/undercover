@@ -1,18 +1,26 @@
-"""The claim agent's tools, each calling the operation it is named after on the
-claim agent's route, and the context and state they read."""
+"""The claim agent's tools, each calling the app's operation or the context layer's
+tool it is named after on the claim agent's route, and the context and state they
+read."""
 
 import operator
 from dataclasses import dataclass
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
 from langchain.tools import ToolRuntime, tool
 from langchain_core.messages import AnyMessage, ToolMessage
 from langgraph.graph.message import add_messages
 from langgraph.types import Command
+from pydantic import StringConstraints
 
 from agent import api
 from agent.json_text import as_json
 from agent.routes import Route, Target
+
+# A search needs a word or phrase to look for.
+Query = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+DocumentName = Literal["policy_wording", "claims_manual"]
+RecordName = Literal["claim", "policy", "previous_claim"]
+PlanName = Literal["economy", "premium", "first"]
 
 
 @dataclass
@@ -57,6 +65,13 @@ def on_app(runtime: ToolRuntime[ClaimContext], operation: str, **inputs: Any) ->
     return runtime.context.route.call(Target.APP, operation, inputs)
 
 
+def on_context(
+    runtime: ToolRuntime[ClaimContext], operation: str, **inputs: Any
+) -> Any:
+    """Call one of the context layer's tools on the claim agent's route."""
+    return runtime.context.route.call(Target.CONTEXT, operation, inputs)
+
+
 @tool
 def get_claim(runtime: ToolRuntime[ClaimContext]) -> str:
     """Get your claim in full: the story, the items claimed and the documents."""
@@ -80,17 +95,47 @@ def get_claim_history(runtime: ToolRuntime[ClaimContext]) -> str:
 
 
 @tool
-def search_documents(query: str, runtime: ToolRuntime[ClaimContext]) -> str:
+def lookup_term(term: str, runtime: ToolRuntime[ClaimContext]) -> str:
+    """Look up a term the policy wording defines: its definition and sections."""
+    return as_json(on_context(runtime, "lookup_term", term=term))
+
+
+@tool
+def describe_fields(record: RecordName, runtime: ToolRuntime[ClaimContext]) -> str:
+    """Describe a record you read and the meaning of each of its fields."""
+    return as_json(on_context(runtime, "describe_fields", record=record))
+
+
+@tool
+def get_plan(plan: PlanName, runtime: ToolRuntime[ClaimContext]) -> str:
+    """Get a plan's limits, waiting periods, deductible and the add-ons."""
+    return as_json(on_context(runtime, "get_plan", plan=plan))
+
+
+@tool
+def get_claim_rules(runtime: ToolRuntime[ClaimContext]) -> str:
+    """Get the rules claims operations applies to every claim."""
+    return as_json(on_context(runtime, "get_claim_rules"))
+
+
+@tool
+def search_reference_data(query: Query, runtime: ToolRuntime[ClaimContext]) -> str:
+    """Find outside facts, such as storms, strikes and prices, with every word."""
+    return as_json(on_context(runtime, "search_reference_data", query=query))
+
+
+@tool
+def search_documents(query: Query, runtime: ToolRuntime[ClaimContext]) -> str:
     """Find the sections of the wording and the manual containing one word or phrase."""
-    return as_json(on_app(runtime, "search_documents", query=query))
+    return as_json(on_context(runtime, "search_documents", query=query))
 
 
 @tool(response_format="content_and_artifact")
 def read_section(
-    document: api.DocumentName, number: int, runtime: ToolRuntime[ClaimContext]
+    document: DocumentName, number: int, runtime: ToolRuntime[ClaimContext]
 ) -> tuple[str, tuple[api.StepKind, str]]:
     """Read one section of the policy wording or the claims manual in full."""
-    section = on_app(runtime, "read_section", document=document, number=number)
+    section = on_context(runtime, "read_section", document=document, number=number)
     read = f"{section['document_title']}, section {number}: {section['title']}"
     return as_json(section), ("reading", read)
 
@@ -147,14 +192,24 @@ def record_decision(
     return Command(update=update)
 
 
-CLAIM_TOOLS = [
+APP_TOOLS = [
     get_claim,
     get_policy,
     get_claim_history,
-    search_documents,
-    read_section,
     calculate_payout,
     record_decision,
 ]
+CONTEXT_TOOLS = [
+    lookup_term,
+    describe_fields,
+    get_plan,
+    get_claim_rules,
+    search_reference_data,
+    search_documents,
+    read_section,
+]
+CLAIM_TOOLS = APP_TOOLS + CONTEXT_TOOLS
 # The target each tool calls, by which a route names a call to it.
-TARGETS = {tool.name: Target.APP for tool in CLAIM_TOOLS}
+TARGETS = {tool.name: Target.APP for tool in APP_TOOLS} | {
+    tool.name: Target.CONTEXT for tool in CONTEXT_TOOLS
+}

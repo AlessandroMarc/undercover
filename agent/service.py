@@ -163,6 +163,9 @@ def work_in_background(
     try:
         run = create()
         work_run(run, claim_work(run, claim_agents))
+    except ConnectionError as error:  # a route's server isn't answering
+        log.error("The run stopped: %s", error)
+        api.stop_runs()
     except Exception:
         log.exception("The run stopped")
         api.stop_runs()

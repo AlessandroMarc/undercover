@@ -111,7 +111,6 @@ MOST_AGENTS = 25
 Agents = Annotated[
     int, Field(ge=1, le=MOST_AGENTS, description="How many claim agents work at once")
 ]
-DocumentName = Literal["policy_wording", "claims_manual"]
 Benefit = Literal[
     "trip_cancellation",
     "trip_interruption",
@@ -279,21 +278,6 @@ class SettingsPage(BaseModel):
     current: Settings
     changes: list[Settings]
     models_allowed: list[ModelAllowed]
-
-
-class Section(BaseModel):
-    document: DocumentName
-    document_title: str
-    number: int
-    title: str
-    text: str
-
-
-class SectionMatch(BaseModel):
-    document: DocumentName
-    number: int
-    title: str
-    excerpts: list[str]
 
 
 class StartRequest(BaseModel):

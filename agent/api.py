@@ -12,7 +12,6 @@ from agent.connection import call
 DecisionKind = Literal["approve", "decline", "refer"]
 APPROVE: DecisionKind = "approve"
 REFER: DecisionKind = "refer"
-DocumentName = Literal["policy_wording", "claims_manual"]
 StepKind = Literal[
     "screening", "tool_call", "tool_result", "message", "reading", "refusal"
 ]
@@ -104,14 +103,6 @@ def get_current_version() -> dict[str, Any]:
 
 def get_screening() -> dict[str, Any]:
     return call("GET", "/screening")
-
-
-def search_documents(query: str) -> list[dict[str, Any]]:
-    return call("GET", "/documents/search", params={"query": query})
-
-
-def read_section(document: DocumentName, number: int) -> dict[str, Any]:
-    return call("GET", f"/documents/{document}/sections/{number}")
 
 
 def calculate_payout(

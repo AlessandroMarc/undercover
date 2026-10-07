@@ -26,12 +26,18 @@ class McpTools:
     LangChain's ToolException with the service's answer, and an MCP error is
     raised as it is."""
 
-    def __init__(self, url: str, auth: httpx.Auth | None = None) -> None:
+    def __init__(self, server: str, url: str, auth: httpx.Auth | None = None) -> None:
+        """List the tools of the server named, raising ConnectionError when it
+        doesn't answer."""
         connection = StreamableHttpConnection(transport="streamable_http", url=url)
         if auth is not None:
             connection["auth"] = auth
         client = MultiServerMCPClient({SERVER: connection}, handle_tool_errors=False)
-        self.tools = {tool.name: tool for tool in run_async(client.get_tools())}
+        try:
+            tools = run_async(client.get_tools())
+        except* httpx.TransportError:
+            raise ConnectionError(f"{server} isn't answering at {url}") from None
+        self.tools = {tool.name: tool for tool in tools}
 
     def call(self, name: str, inputs: dict[str, Any]) -> str:
         """Call one tool by its name and return the text it answers with."""

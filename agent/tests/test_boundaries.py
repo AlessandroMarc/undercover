@@ -76,7 +76,7 @@ def test_the_routes_and_who_uses_them():
     for module in ("dispatcher", "service", "improver", "improver_api"):
         assert imports_of(module) & ROUTE_MODULES == set(), module
     assert imports_of("gateway") & agents_modules() == {"routes", "mcp_tools"}
-    assert imports_of("direct") & agents_modules() == {"routes", "api"}
+    assert imports_of("direct") & agents_modules() == {"routes", "mcp_tools", "api"}
     assert imports_of("routes") & agents_modules() == set()
     assert imports_of("mcp_tools") & agents_modules() == set()
     for module in ("improver", "improver_api"):

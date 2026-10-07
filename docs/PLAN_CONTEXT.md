@@ -232,23 +232,23 @@ Add `routes.py`, `mcp_tools.py`, `gateway.py` and `direct.py`, and the stand-in 
 
 Add the `context` package, its Lambda handler, the `context` group and its check, and `dev:context`. Seed the plans and the documents from `context/` through `backend/context_files.py`. Remove the app's `search_documents` and `read_section`, and move the claim agent's documents tools and the five new ones onto the context layer through both routes. Build both packages in the scratchpad and add the context layer to `docs/TECH_STACK.md`'s Deployment section. The live check for this step is in phase 6.
 
-- [ ] pytest (context), against the real files: `lookup_term("UNATTENDED")` gives the glossary's definition with section 5 and `glossary.yaml`'s source (The policy wording, version 2026.1; Legal; 2026-09-01); an unknown term gets an answer that lists the glossary's terms
-- [ ] pytest (context): `describe_fields("claim")` includes `decision.manual_version`; `get_plan("premium")` gives a deductible of 50.00, the deductible's two benefits and the three add-ons; `get_claim_rules()` gives the four rules; each names its file and source
-- [ ] pytest (context): `search_reference_data("lisbon STRIKE")` finds the Lisbon strike under `events` and nothing that holds only one of the words
-- [ ] pytest (context): `search_documents("unattended")` finds the sections it finds in the app today, each naming its file; `read_section("claims_manual", 14)` gives "Records" with `claims_manual.md`'s source; section 99 is refused, saying it wasn't found
-- [ ] pytest (context): no section holds any front matter, the documents' versions are 2026.1 and 2026.2, and the files are read at import and not again on a request
-- [ ] pytest (context): every tool has a one-line description, is read only, and has every input required
-- [ ] pytest (context): the Lambda handler, called twice in one process with Function URL events whose host is a Function URL's, first lists the seven tools and then calls `lookup_term`, and both succeed
-- [ ] `npm run check:context` passes, and the packages in `.venv` are the same before and after it; `npm run check:server` still passes, with `pyyaml`
-- [ ] `uv run -m context` serves `http://127.0.0.1:8006/mcp`, where a `tools/list` posted with `Accept: application/json, text/event-stream` answers in JSON with the seven tools; with it running, a short script with no model builds the direct route and calls each of the claim agent's context tools, and each answers
-- [ ] `uv run -m backend.seed` prints the same counts as before; pytest shows the payout rules equal `context/plans.yaml` without its source, and each document's text is its file's body without the front matter, with its version 2026.1 or 2026.2, which shows the documents come from `context/`; `git diff --exit-code week3day3-start -- data context/*.yaml context/*.md` passes
-- [ ] `grep -rn "plans.json" backend agent context --include='*.py'` finds nothing outside tests
-- [ ] pytest: `/api/agent/openapi.json` holds exactly `get_claim`, `get_policy`, `get_claim_history`, `calculate_payout`, `record_decision` and `pay_claim`; the app has no `search_documents` or `read_section`; a version's instructions still end with the contents of both documents
-- [ ] Stub tests: the context layer's tools answer on the direct route, from the real context layer, and on the Gateway route as `undercover-context___<operation>`; a section that doesn't exist reaches the model as a refusal on each route
-- [ ] The two packages, built in the scratchpad as the notebook builds them, are each under 50 MB zipped, and the report gives their sizes
-- [ ] `npm run dev` starts the backend, the agent's service, the context layer and the dashboard, and stops them all together
-- [ ] `docs/TECH_STACK.md`'s Deployment section: the context layer's package, its handler `context.server.handler` behind a Function URL with `AWS_IAM` auth and no environment variables, and the app reading `context/` only while seeding
-- [ ] `npm run check` passes with `.env` moved out of the way
+- [x] pytest (context), against the real files: `lookup_term("UNATTENDED")` gives the glossary's definition with section 5 and `glossary.yaml`'s source (The policy wording, version 2026.1; Legal; 2026-09-01); an unknown term gets an answer that lists the glossary's terms
+- [x] pytest (context): `describe_fields("claim")` includes `decision.manual_version`; `get_plan("premium")` gives a deductible of 50.00, the deductible's two benefits and the three add-ons; `get_claim_rules()` gives the four rules; each names its file and source
+- [x] pytest (context): `search_reference_data("lisbon STRIKE")` finds the Lisbon strike under `events` and nothing that holds only one of the words
+- [x] pytest (context): `search_documents("unattended")` finds the sections it finds in the app today, each naming its file; `read_section("claims_manual", 14)` gives "Records" with `claims_manual.md`'s source; section 99 is refused, saying it wasn't found
+- [x] pytest (context): no section holds any front matter, the documents' versions are 2026.1 and 2026.2, and the files are read at import and not again on a request
+- [x] pytest (context): every tool has a one-line description, is read only, and has every input required
+- [x] pytest (context): the Lambda handler, called twice in one process with Function URL events whose host is a Function URL's, first lists the seven tools and then calls `lookup_term`, and both succeed
+- [x] `npm run check:context` passes, and the packages in `.venv` are the same before and after it; `npm run check:server` still passes, with `pyyaml`
+- [x] `uv run -m context` serves `http://127.0.0.1:8006/mcp`, where a `tools/list` posted with `Accept: application/json, text/event-stream` answers in JSON with the seven tools; with it running, a short script with no model builds the direct route and calls each of the claim agent's context tools, and each answers
+- [x] `uv run -m backend.seed` prints the same counts as before; pytest shows the payout rules equal `context/plans.yaml` without its source, and each document's text is its file's body without the front matter, with its version 2026.1 or 2026.2, which shows the documents come from `context/`; `git diff --exit-code week3day3-start -- data context/*.yaml context/*.md` passes
+- [x] `grep -rn "plans.json" backend agent context --include='*.py'` finds nothing outside tests
+- [x] pytest: `/api/agent/openapi.json` holds exactly `get_claim`, `get_policy`, `get_claim_history`, `calculate_payout`, `record_decision` and `pay_claim`; the app has no `search_documents` or `read_section`; a version's instructions still end with the contents of both documents
+- [x] Stub tests: the context layer's tools answer on the direct route, from the real context layer, and on the Gateway route as `undercover-context___<operation>`; a section that doesn't exist reaches the model as a refusal on each route
+- [x] The two packages, built in the scratchpad as the notebook builds them, are each under 50 MB zipped, and the report gives their sizes (21.0 MB for the app and 10.3 MB for the context layer)
+- [x] `npm run dev` starts the backend, the agent's service, the context layer and the dashboard, and stops them all together
+- [x] `docs/TECH_STACK.md`'s Deployment section: the context layer's package, its handler `context.server.handler` behind a Function URL with `AWS_IAM` auth and no environment variables, and the app reading `context/` only while seeding
+- [x] `npm run check` passes with `.env` moved out of the way
 
 ## Phase 3: A complete decision record
 

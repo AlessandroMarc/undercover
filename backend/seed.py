@@ -1,4 +1,4 @@
-"""Rebuild the database from data/, with: uv run -m backend.seed"""
+"""Rebuild the database from data/ and context/, with: uv run -m backend.seed"""
 
 from backend.database import engine, location, seed
 

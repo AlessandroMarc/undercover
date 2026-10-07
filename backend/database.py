@@ -1,4 +1,5 @@
-"""The UnderCover database, seeded from the business data in data/.
+"""The UnderCover database, seeded from the business data in data/, and the plans
+and the documents from the context layer's files in context/.
 
 The same tables and queries serve Postgres on Supabase, when DATABASE_URL is set, and
 SQLite otherwise, as in the tests.
@@ -32,6 +33,7 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.pool import NullPool
 from sqlalchemy.schema import CreateSchema
 
+from backend import context_files
 from backend.free_models import model_or_free, models_or_free
 from backend.models import (
     EvaluationSet,
@@ -43,7 +45,8 @@ from backend.models import (
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
-DOCUMENTS = {"policy_wording": "Policy wording", "claims_manual": "Claims manual"}
+CLAIMS_MANUAL = "claims_manual"
+DOCUMENTS = {"policy_wording": "Policy wording", CLAIMS_MANUAL: "Claims manual"}
 INSTRUCTIONS = Path(__file__).resolve().parent / "instructions"
 # Version 1 is kept from the start, so the current version is the newest kept.
 FIRST_VERSION = {
@@ -108,6 +111,8 @@ documents = Table(
     Column("position", Integer, nullable=False),
     Column("title", Text, nullable=False),
     Column("text", Text, nullable=False),
+    # The version in the document's front matter, such as the manual's 2026.2.
+    Column("version", Text, nullable=False),
 )
 handlers = Table(
     "handlers",
@@ -486,20 +491,9 @@ def seed(db: Engine) -> dict[str, int]:
         metadata.drop_all(connection)
         metadata.create_all(connection)
         seed_settings(connection, company["payout_approval_limit"])
-        connection.execute(insert(payout_rules).values(plans=load("plans.json")))
+        connection.execute(insert(payout_rules).values(plans=context_files.plans()))
         seed_models_allowed(connection)
-        connection.execute(
-            insert(documents),
-            [
-                {
-                    "name": name,
-                    "position": position,
-                    "title": title,
-                    "text": (DATA / f"{name}.md").read_text(encoding="utf-8"),
-                }
-                for position, (name, title) in enumerate(DOCUMENTS.items())
-            ],
-        )
+        seed_documents(connection)
         connection.execute(
             insert(handlers),
             [
@@ -534,6 +528,24 @@ def seed(db: Engine) -> dict[str, int]:
         "customers": len(customer_rows),
         "handlers": len(handler_rows),
     } | labeled
+
+
+def seed_documents(connection: Connection) -> None:
+    """Store the policy wording and the claims manual from the context layer's
+    files, each with its version."""
+    rows = []
+    for position, (name, title) in enumerate(DOCUMENTS.items()):
+        text, version = context_files.document(name)
+        rows.append(
+            {
+                "name": name,
+                "position": position,
+                "title": title,
+                "text": text,
+                "version": version,
+            }
+        )
+    connection.execute(insert(documents), rows)
 
 
 def seed_settings(connection: Connection, approval_limit: float) -> None:

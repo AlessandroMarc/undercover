@@ -17,6 +17,7 @@ from agent.mcp_tools import McpTools
 from agent.routes import GatewayRefused, Target
 
 GATEWAY_URL = "UNDERCOVER_GATEWAY_URL"
+GATEWAY = "The Gateway"
 SERVICE = "bedrock-agentcore"
 # The Gateway names each tool <target>___<operation>.
 SEPARATOR = "___"
@@ -58,7 +59,7 @@ class Gateway:
     """The Gateway's tools, listed once when the route is made."""
 
     def __init__(self, url: str) -> None:
-        self.tools = McpTools(url, SigV4Auth(boto3.Session()))
+        self.tools = McpTools(GATEWAY, url, SigV4Auth(boto3.Session()))
 
     def name(self, target: Target, operation: str) -> str:
         return f"{target}{SEPARATOR}{operation}"

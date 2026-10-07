@@ -15,7 +15,7 @@ def operations_in(document):
     }
 
 
-def test_the_document_holds_the_claim_agents_eight_operations(client):
+def test_the_document_holds_the_claim_agents_six_operations(client):
     document = client.get(PATH).json()
     operations = operations_in(document)
     assert (
@@ -25,8 +25,6 @@ def test_the_document_holds_the_claim_agents_eight_operations(client):
             "get_claim",
             "get_policy",
             "get_claim_history",
-            "search_documents",
-            "read_section",
             "calculate_payout",
             "record_decision",
             "pay_claim",
@@ -58,3 +56,9 @@ def test_the_payment_keeps_its_amount_for_the_gateways_policy(client):
 def test_the_document_needs_the_key_or_a_sign_in(dashboard):
     assert read(dashboard, PATH).status_code == 200
     assert dashboard.get(PATH).status_code == 401
+
+
+def test_the_app_no_longer_serves_the_documents(client):
+    operations = operations_in(client.get("/openapi.json").json())
+    assert {"search_documents", "read_section"} & set(operations) == set()
+    assert client.get("/api/documents/search", params={"query": "x"}).status_code == 404

@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException
 from mangum import Mangum
 from sqlalchemy import Connection, RowMapping, insert, select, update
 
@@ -36,7 +36,6 @@ from backend.dependencies import (
     SignedInHandler,
     senior,
 )
-from backend.documents import search, sections, titles
 from backend.improvement import router as improvement
 from backend.lookups import CLAIM_NOT_FOUND, current_settings, run_row
 from backend.models import (
@@ -44,7 +43,6 @@ from backend.models import (
     ClaimSummary,
     DecisionKind,
     DecisionRequest,
-    DocumentName,
     FailureRequest,
     Handler,
     HoldRequest,
@@ -56,8 +54,6 @@ from backend.models import (
     Plans,
     Policy,
     PreviousClaim,
-    Section,
-    SectionMatch,
     StartRequest,
     Status,
     Step,
@@ -231,30 +227,6 @@ def get_claim_history(customer_id: str, db: Database) -> list[PreviousClaim]:
     if record is None:
         raise HTTPException(404, f"Customer {customer_id} not found")
     return [PreviousClaim(**claim) for claim in record["previous_claims"]]
-
-
-@app.get(
-    "/api/documents/search", operation_id="search_documents", dependencies=[AgentKey]
-)
-def search_documents(
-    query: Annotated[str, Query(min_length=1)], db: Database
-) -> list[SectionMatch]:
-    """Find the sections of the wording and the manual that mention a word or phrase."""
-    return search(db, query)
-
-
-@app.get(
-    "/api/documents/{document}/sections/{number}",
-    operation_id="read_section",
-    dependencies=[AgentKey],
-)
-def read_section(document: DocumentName, number: int, db: Database) -> Section:
-    """Read one section of the policy wording or the claims manual in full."""
-    for section in sections(db, document):
-        if section.number == number:
-            return section
-    title = titles(db)[document].lower()
-    raise HTTPException(404, f"Section {number} of the {title} not found")
 
 
 @app.get(

@@ -2,19 +2,23 @@
 Gateway names them. undercover-app___<operation> is each operation in the agent's
 API document, sent to the test backend with the agent's key, which the Gateway's
 credential provider holds, and the app's refusals come back as tool errors with the
-app's answer. Its Policy refuses a payment over $1,000, and any tool a test names,
-with an MCP error, as the Gateway's Policy does. It keeps each call's name, its
-inputs and whether it was signed with SigV4 for bedrock-agentcore."""
+app's answer. undercover-context___<tool> is each of the context layer's tools,
+answered by the context layer's own server, its refusals as tool errors. Its
+Policy refuses a payment over $1,000, and any tool a test names, with an MCP
+error, as the Gateway's Policy does. It keeps each call's name, its inputs and
+whether it was signed with SigV4 for bedrock-agentcore."""
 
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import anyio
 from fastapi.testclient import TestClient
 from mcp import types
+from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.fastmcp.server import StreamableHTTPASGIApp
 from mcp.server.lowlevel import Server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
@@ -27,8 +31,10 @@ from agent.routes import Target
 from backend import agent_api
 from backend.dependencies import API_KEY_HEADER
 from backend.main import app
+from context.server import build_server
 
 PAY_CLAIM = f"{Target.APP}{SEPARATOR}pay_claim"
+CONTEXT = f"{Target.CONTEXT}{SEPARATOR}"
 LIMIT = 1000.0
 DENIED = "Tool Execution Denied: Tool call not allowed due to policy enforcement"
 SIGNED_FOR = f"/{SERVICE}/aws4_request"
@@ -108,6 +114,7 @@ class GatewayStandIn:
     )
     backend: TestClient = field(default_factory=lambda: TestClient(app))
     server: Server = field(default_factory=lambda: Server("undercover-gateway"))
+    context: FastMCP = field(default_factory=build_server)
 
     def __post_init__(self) -> None:
         self.server.request_handlers[types.ListToolsRequest] = self.list_tools
@@ -124,8 +131,12 @@ class GatewayStandIn:
         return [call.name for call in self.calls]
 
     async def list_tools(self, _: types.ListToolsRequest) -> types.ServerResult:
+        context_tools = [
+            tool.model_copy(update={"name": f"{CONTEXT}{tool.name}"})
+            for tool in await self.context.list_tools()
+        ]
         tools = [operation.tool for operation in self.operations.values()]
-        return types.ServerResult(types.ListToolsResult(tools=tools))
+        return types.ServerResult(types.ListToolsResult(tools=tools + context_tools))
 
     async def call_tool(self, request: types.CallToolRequest) -> types.ServerResult:
         """Keep the call, then refuse it as the Policy does or answer it, an
@@ -138,14 +149,29 @@ class GatewayStandIn:
         self.calls.append(Call(name, inputs, signed))
         if self.policy_refuses(name, inputs):
             raise McpError(types.ErrorData(code=types.INVALID_REQUEST, message=DENIED))
+        if name.startswith(CONTEXT):
+            answer = await self.look_up(name.removeprefix(CONTEXT), inputs)
+            return types.ServerResult(answer)
         answer, refused = await anyio.to_thread.run_sync(self.send, name, inputs)
         text = types.TextContent(type="text", text=answer)
-        result = types.CallToolResult(content=[text], isError=refused)
-        return types.ServerResult(result)
+        return types.ServerResult(types.CallToolResult(content=[text], isError=refused))
 
     def policy_refuses(self, name: str, inputs: dict[str, Any]) -> bool:
         over_the_limit = name == PAY_CLAIM and inputs["amount"] > LIMIT
         return over_the_limit or name in self.refused
+
+    async def look_up(self, tool: str, inputs: dict[str, Any]) -> types.CallToolResult:
+        """Answer one of the context layer's tools with the context layer's own
+        server, its answer as structured content too, as its output schema asks,
+        or its refusal as a tool error."""
+        try:
+            called = await self.context.call_tool(tool, inputs)
+        except ToolError as refusal:
+            text = types.TextContent(type="text", text=str(refusal))
+            return types.CallToolResult(content=[text], isError=True)
+        # A tool with an output schema answers with its content and its structure.
+        content, answer = cast(tuple[list[types.ContentBlock], dict[str, Any]], called)
+        return types.CallToolResult(content=content, structuredContent=answer)
 
     def send(self, name: str, inputs: dict[str, Any]) -> tuple[str, bool]:
         """Send a call to the app's operation, with the agent's key, and return its

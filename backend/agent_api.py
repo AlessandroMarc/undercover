@@ -1,5 +1,5 @@
-"""The claim agent's own API document: the OpenAPI document of the eight operations
-its tools call, which the Gateway turns into tools."""
+"""The claim agent's own API document: the OpenAPI document of the six operations
+its tools and its payment call, which the Gateway turns into tools."""
 
 from typing import Any
 
@@ -11,8 +11,6 @@ OPERATIONS = {
     "get_claim",
     "get_policy",
     "get_claim_history",
-    "search_documents",
-    "read_section",
     "calculate_payout",
     "record_decision",
     "pay_claim",
