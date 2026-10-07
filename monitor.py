@@ -65,6 +65,9 @@ def read_budget(name):
     spend = {}
     for page in pages:
         for day in page["BudgetPerformanceHistory"]["BudgetedAndActualAmountsList"]:
+            # Skip days AWS hasn't filled in yet, such as today
+            if "ActualAmount" not in day:
+                continue
             date = day["TimePeriod"]["Start"].astimezone(UTC).date()
             spend[date] = float(day["ActualAmount"]["Amount"])
     budget = budgets.describe_budget(AccountId=account, BudgetName=name)["Budget"]
