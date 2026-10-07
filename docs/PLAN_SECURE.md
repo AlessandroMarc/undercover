@@ -39,7 +39,7 @@ Inside the agent, `harness` now uses `screening` beside `tools`, `api` and `open
 The dashboard:
 
 - `StepList.tsx`: a `screening` step shows as "Security check", with a shield icon and the check's line.
-- `DecisionPanel.tsx`: loses "Waiting for the agent to pay it", since a sign-off pays the claim at once.
+- `DecisionPanel.tsx`: loses "Signed off by ... Waiting for the agent to pay it", since a sign-off pays the claim at once. "Waiting for the agent to pay it." stays for an approval within the limit that isn't paid yet.
 - `api.ts`: `StepKind` gains `screening`. It never sends the key.
 - `vite.config.ts`: Vite reads `.env` from the repo root in development and production mode, so `npm run build` builds in the Supabase address and publishable key; the tests and the end-to-end dashboard still read none. The build splits the libraries into chunks of their own with Rolldown's `codeSplitting` groups, since today's single 551 kB chunk makes Vite warn. The warning's limit stays as it is.
 
@@ -213,23 +213,23 @@ Add `npm run build` and the chunk split, `backend/dashboard.py` and its mount, t
 
 Reseed once, then run every live check in this order, on the default model. Then update the docs, review the whole branch against `week3day2-start` with a fresh subagent and fix what it finds.
 
-- [ ] `npm run seed` prints 26 claims, 51 policies and 50 customers into the `undercover` schema on Postgres
-- [ ] Step 1: with `npm run dev` running, signed in as Dana Whitfield, the queue, a claim, the Scoreboard, the Improvement, Configuration and Settings pages load with no errors in `browser_console_messages`; `curl` to `POST /api/claims/CLM-1001/start` without the key prints 401
-- [ ] Step 1: `uv run -m agent CLM-1001` prints `CLM-1001  approve  $420.00`, and its steps start with the security check, passed
-- [ ] Steps 1 and 2: a dispatch at N=25 on the queue page works the other 25 claims; CLM-1901 is referred with a payout of zero, the check's reason and the security check's section, which its page shows (screenshot), and its model calls are the check's alone; no other claim is flagged, and the decisions are reported beside the last live run's
-- [ ] Step 2: an evaluation of the evaluation set's five tiny claims on the Scoreboard flags none of them
-- [ ] Step 3: Dana signs off a held payout from the dispatch on its page, which shows it paid at once, and the Supabase MCP server's `select count(*) from undercover.payments where claim_id = '...'` returns 1; `curl` with the key to `/api/agent/openapi.json` lists the eight operations
-- [ ] Step 4: with `npm run dev` stopped, the backend started with only `DATABASE_URL`, `VITE_SUPABASE_URL`, `UNDERCOVER_API_KEY` and `AWS_LAMBDA_FUNCTION_NAME` in its environment, read from `.env` without printing them, with `:5432/` swapped for `:6543/` in `DATABASE_URL` as the lab does, serves `GET /api/claims` to Dana's token from Supabase Auth, so the transaction pooler keeps the `undercover` schema; the Supabase MCP server shows no connection left open by it afterwards
-- [ ] Step 4: after `npm run build`, `uv run --env-file .env uvicorn backend.main:app` serves the dashboard at `http://127.0.0.1:8000`, where Dana Whitfield signs in and sees the claims, and a reload on a claim's page loads it, with no console errors
-- [ ] Report what the live checks spent, from the backend's records and the OpenRouter key's usage; on GPT-6 Luna it comes to under $0.25
-- [ ] `docs/SPEC.md`: the agent identifies itself with a key on every request, the check for hidden instructions and the referral it makes, the agent's work ending when a payout is held, and the sign-off that pays
-- [ ] `docs/TECH_STACK.md`: the key and its header, the gates, the check and its model from `get_screening`, the agent's document, the claim graph without its pause, the sign-off that pays, `UNDERCOVER_API_KEY` in `.env`, and the Deployment section
-- [ ] `docs/CODE_STANDARDS.md`: rule 10 no longer names `interrupt()` for the claim agent
-- [ ] `docs/PROCESS.md`: `npm run build`, the server check in `npm run check`, and these live checks in place of the improver's
-- [ ] `data/README.md`: seeding puts CLM-1901, its policy and its customer in the queue, and leaves its handler's decision out of both evaluation sets
-- [ ] `docs/STATUS.md` describes what's built, the live checks and what they cost, and the known gaps, without the gap the key closes
-- [ ] A fresh subagent reviews the whole branch against `week3day2-start`, not `main`, with `docs/CODE_STANDARDS.md`; everything it would block the merge for is fixed, or explained in the report where I disagree
-- [ ] `npm run check` passes, both with `.env` in place and with it moved out of the way
+- [x] `npm run seed` prints 26 claims, 51 policies and 50 customers into the `undercover` schema on Postgres
+- [x] Step 1: with `npm run dev` running, signed in as Dana Whitfield, the queue, a claim, the Scoreboard, the Improvement, Configuration and Settings pages load with no errors in `browser_console_messages`; `curl` to `POST /api/claims/CLM-1001/start` without the key prints 401
+- [x] Step 1: `uv run -m agent CLM-1001` prints `CLM-1001  approve  $420.00`, and its steps start with the security check, passed
+- [x] Steps 1 and 2: a dispatch at N=25 on the queue page works the other 25 claims; CLM-1901 is referred with a payout of zero, the check's reason and the security check's section, which its page shows (screenshot), and its model calls are the check's alone; no other claim is flagged, and the decisions are reported beside the last live run's
+- [x] Step 2: an evaluation of the evaluation set's five tiny claims on the Scoreboard flags none of them
+- [x] Step 3: Dana signs off a held payout from the dispatch on its page, which shows it paid at once, and the Supabase MCP server's `select count(*) from undercover.payments where claim_id = '...'` returns 1; `curl` with the key to `/api/agent/openapi.json` lists the eight operations
+- [x] Step 4: with `npm run dev` stopped, the backend started with only `DATABASE_URL`, `VITE_SUPABASE_URL`, `UNDERCOVER_API_KEY` and `AWS_LAMBDA_FUNCTION_NAME` in its environment, read from `.env` without printing them, with `:5432/` swapped for `:6543/` in `DATABASE_URL` as the lab does, serves `GET /api/claims` to Dana's token from Supabase Auth, so the transaction pooler keeps the `undercover` schema; the Supabase MCP server shows no connection left open by it afterwards
+- [x] Step 4: after `npm run build`, `uv run --env-file .env uvicorn backend.main:app` serves the dashboard at `http://127.0.0.1:8000`, where Dana Whitfield signs in and sees the claims, and a reload on a claim's page loads it, with no console errors
+- [x] Report what the live checks spent, from the backend's records and the OpenRouter key's usage; on GPT-6 Luna it comes to under $0.25: the backend recorded $0.0383 and the key's usage rose by $0.0383
+- [x] `docs/SPEC.md`: the agent identifies itself with a key on every request, the check for hidden instructions and the referral it makes, the agent's work ending when a payout is held, and the sign-off that pays
+- [x] `docs/TECH_STACK.md`: the key and its header, the gates, the check and its model from `get_screening`, the agent's document, the claim graph without its pause, the sign-off that pays, `UNDERCOVER_API_KEY` in `.env`, and the Deployment section
+- [x] `docs/CODE_STANDARDS.md`: rule 10 no longer names `interrupt()` for the claim agent
+- [x] `docs/PROCESS.md`: `npm run build`, the server check in `npm run check`, and these live checks in place of the improver's
+- [x] `data/README.md`: seeding puts CLM-1901, its policy and its customer in the queue, and leaves its handler's decision out of both evaluation sets
+- [x] `docs/STATUS.md` describes what's built, the live checks and what they cost, and the known gaps, without the gap the key closes
+- [x] A fresh subagent reviews the whole branch against `week3day2-start`, not `main`, with `docs/CODE_STANDARDS.md`; everything it would block the merge for is fixed, or explained in the report where I disagree
+- [x] `npm run check` passes, both with `.env` in place and with it moved out of the way
 
 ## Not in this plan
 

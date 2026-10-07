@@ -136,7 +136,7 @@ def test_claim_agents_are_built_on_the_services_pool(monkeypatch):
     assert service.claim_agents(request)({"number": 2}) == ({"number": 2}, pool)
 
 
-def test_the_services_operations_include_no_payment():
+def test_the_service_no_longer_resumes_claims():
     operations = {
         operation["operationId"]
         for methods in service.app.openapi()["paths"].values()

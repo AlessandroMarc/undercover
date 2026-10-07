@@ -20,8 +20,9 @@ NOT_SIGNED_IN = "The sign-in isn't valid. Please sign in again."
 NEEDS_THE_KEY = "This needs the agent's API key"
 NEEDS_A_SIGN_IN_OR_THE_KEY = "Sign in, or send the agent's API key"
 API_KEY_HEADER = "X-API-Key"
-# The challenge a 401 for a missing or bad sign-in carries.
+# The challenges a 401 carries, for a missing or bad sign-in or key.
 BEARER_CHALLENGE = {"WWW-Authenticate": "Bearer"}
+API_KEY_CHALLENGE = {"WWW-Authenticate": "APIKey"}
 
 
 def database() -> Iterator[Connection]:
@@ -70,7 +71,7 @@ def signed_in_handler(
 def the_agent(key: AgentKeyHeader) -> None:
     """Let through a request with the agent's key, and refuse any other with a 401."""
     if not api_key.is_the_agents(key):
-        raise HTTPException(401, NEEDS_THE_KEY, headers={"WWW-Authenticate": "APIKey"})
+        raise HTTPException(401, NEEDS_THE_KEY, headers=API_KEY_CHALLENGE)
 
 
 def handler_or_agent(

@@ -1,4 +1,5 @@
-"""Requests the backend's tests send to record runs, as the agent's service does."""
+"""Requests the backend's tests send to record runs, as the agent's service does, and
+to read them, as the dashboard does."""
 
 from backend.tests.dashboard_reads import read
 
