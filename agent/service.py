@@ -1,7 +1,6 @@
 """The agent's service: it works the dispatches, evaluations and rounds of the improver
-the backend starts, one at a time, picks a claim back up after a handler's
-sign-off, and carries a round on after a handler's review. npm run dev starts it
-beside the backend and the dashboard."""
+the backend starts, one at a time, and carries a round on after a handler's review.
+npm run dev starts it beside the backend and the dashboard."""
 
 import logging
 import threading
@@ -22,13 +21,7 @@ from agent import api, improver, improver_api
 from agent.connection import Refused, api_key
 from agent.console import describe, show_reports
 from agent.dispatcher import WorkInRun, work_run
-from agent.harness import (
-    NewGraph,
-    carry_on,
-    checkpoint_pool,
-    claim_graphs,
-    work_in_run,
-)
+from agent.harness import NewGraph, checkpoint_pool, claim_graphs, work_in_run
 
 ACCEPTED = {"status": "accepted"}
 # The most claim agents at once, as the backend and the dashboard also allow.
@@ -87,8 +80,6 @@ class OneAtATime:
 
 
 one_at_a_time = OneAtATime()
-# The claims being resumed after a sign-off, which a dispatch leaves alone.
-resuming: set[str] = set()
 
 
 @app.exception_handler(Refused)
@@ -161,7 +152,7 @@ def claim_work(run: dict[str, Any], claim_agents: ClaimAgents) -> WorkInRun:
 
 def evaluate(run: dict[str, Any], claim_agents: ClaimAgents) -> None:
     """Work one of a round's evaluations through the dispatcher."""
-    work_run(run, claim_work(run, claim_agents), resuming)
+    work_run(run, claim_work(run, claim_agents))
 
 
 def work_in_background(
@@ -171,7 +162,7 @@ def work_in_background(
     dispatcher fails is marked stopped."""
     try:
         run = create()
-        work_run(run, claim_work(run, claim_agents), resuming)
+        work_run(run, claim_work(run, claim_agents))
     except Exception:
         log.exception("The run stopped")
         api.stop_runs()
@@ -273,29 +264,6 @@ def start_dispatch(
     one_at_a_time.take(A_DISPATCH)
     create = partial(api.create_dispatch, request.agents)
     background.add_task(work_in_background, create, claim_agents)
-    return ACCEPTED
-
-
-def resume(claim_id: str, claim_agents: ClaimAgents) -> None:
-    """Carry a signed-off claim on with the current version, keeping dispatches away
-    from it meanwhile."""
-    try:
-        carry_on(claim_id, None, claim_agents(api.get_current_version())())
-    finally:
-        resuming.discard(claim_id)
-
-
-@app.post("/api/claims/{claim_id}/resume", operation_id="resume_claim", status_code=202)
-def resume_claim(
-    claim_id: str, claim_agents: ClaimAgentsDep, background: BackgroundTasks
-) -> dict[str, str]:
-    """Pick a claim back up after a handler's sign-off, without waiting for it."""
-    claim = api.get_claim(claim_id)
-    signed_off = claim["decision"] and claim["decision"]["signed_off_by"]
-    if claim["status"] != api.Status.IN_PROGRESS or not signed_off:
-        raise HTTPException(409, f"Claim {claim_id} has no sign-off waiting to be paid")
-    resuming.add(claim_id)
-    background.add_task(resume, claim_id, claim_agents)
     return ACCEPTED
 
 

@@ -231,28 +231,15 @@ def test_a_dispatch_stopped_partway_is_finished_by_the_next(client):
     assert {c["status"] for c in stopped.values()} == {"in_progress"}
     sign_off(client, "CLM-1002")
 
+    # The sign-off paid CLM-1002, so the next dispatch leaves it alone.
     reports = dispatch(model, saver, agents=2)
-    assert sorted(reports) == [
-        "CLM-1001  refer  $0.00",
-        "CLM-1002  approve  $1,350.00",
-        "CLM-1003  decline  $0.00",
-    ]
+    assert sorted(reports) == ["CLM-1001  refer  $0.00", "CLM-1003  decline  $0.00"]
     for claim_id, before in stopped.items():
         claim = claim_of(client, claim_id)
         assert (claim["status"], claim["attempts"]) == ("decided", 1)
         assert claim["thread_id"] == before["thread_id"]
     paid = claim_of(client, "CLM-1002")["payment"]
     assert (paid["amount"], paid["signed_off_by"]) == (1350.0, "Dana Whitfield")
-
-
-def test_a_dispatch_leaves_a_claim_being_resumed_alone(client):
-    leave_waiting("CLM-1001", "CLM-1002")
-    harness.work_claim("CLM-1002", None, graph_on(stub(*decide("approve", 1350.0))))
-    sign_off(client, "CLM-1002")
-    dispatch(swarm({"CLM-1001": decide("refer", 0)}), resuming={"CLM-1002"})
-
-    assert [c["claim_id"] for c in latest_dispatch(client)["claims"]] == ["CLM-1001"]
-    assert claim_of(client, "CLM-1002")["status"] == "in_progress"
 
 
 def test_an_approval_whose_payment_failed_is_paid_by_the_next_dispatch(

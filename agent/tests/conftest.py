@@ -55,13 +55,7 @@ def no_waits(monkeypatch):
 
 
 @pytest.fixture
-def versions_served():
-    """The versions the agent's service built claim agents for, in order."""
-    return []
-
-
-@pytest.fixture
-def serve(versions_served):
+def serve():
     """Run the agent's service, without its lifespan, with each version's claim
     agents on a stub model, given the version's instructions, whose graphs share a
     saver."""
@@ -70,7 +64,6 @@ def serve(versions_served):
         saver = saver or InMemorySaver()
 
         def claim_agents(version):
-            versions_served.append(version["number"])
             return partial(graph_on, model, saver, version["instructions"])
 
         service.app.dependency_overrides[service.claim_agents] = lambda: claim_agents
@@ -82,12 +75,10 @@ def serve(versions_served):
 
 @dataclass
 class HeldRun:
-    """A run the service is working, held open until the test releases it, and the
-    claims being resumed that the service handed the dispatcher."""
+    """A run the service is working, held open until the test releases it."""
 
     working: threading.Event = field(default_factory=threading.Event)
     release: threading.Event = field(default_factory=threading.Event)
-    resuming: list[set[str]] = field(default_factory=list)
 
 
 @pytest.fixture
@@ -99,11 +90,10 @@ def hold_runs(monkeypatch):
         held = HeldRun()
         work_run = service.work_run
 
-        def hold(run, work, resuming):
-            held.resuming.append(resuming)
+        def hold(run, work):
             held.working.set()
             held.release.wait(5)
-            return work_run(run, work, resuming)
+            return work_run(run, work)
 
         monkeypatch.setattr(service, "work_run", hold)
         return held
@@ -118,14 +108,13 @@ def held_run(hold_runs):
 
 
 @pytest.fixture
-def serve_rounds(versions_served):
+def serve_rounds():
     """Run the agent's service, without its lifespan, with a stub improver and stub
     claim agents for each version, which save their progress in memory."""
     saver = InMemorySaver()
 
     def with_models(improver_model, claim_model):
         def claim_agents(version):
-            versions_served.append(version["number"])
             return partial(graph_on, claim_model, saver, version["instructions"])
 
         workers = service.RoundWorkers(

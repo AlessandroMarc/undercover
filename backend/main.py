@@ -3,12 +3,12 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy import Connection, RowMapping, insert, select, update
 
-from backend import agent_service
+from backend import agent_api
 from backend.configuration import router as configuration
 from backend.database import (
     claim_view,
@@ -115,6 +115,22 @@ def find_policy(db: Connection, policy_id: str) -> Policy:
     if record is None:
         raise HTTPException(404, f"Policy {policy_id} not found")
     return Policy(**record)
+
+
+def over_the_limit(limit: float) -> str:
+    """Say that a payout over a limit needs a handler's sign-off."""
+    return f"A payout over {dollars(limit)} needs a handler's sign-off"
+
+
+def record_payment(db: Connection, claim: RowMapping) -> None:
+    """Pay an approved claim its payout, which decides it."""
+    claim_id = claim["claim_id"]
+    db.execute(
+        insert(payments).values(
+            claim_id=claim_id, amount=claim["payout"], paid_at=now()
+        )
+    )
+    set_status(db, claim_id, Status.DECIDED)
 
 
 def set_status(db: Connection, claim_id: str, status: Status) -> None:
@@ -235,6 +251,16 @@ def read_section(document: DocumentName, number: int, db: Database) -> Section:
             return section
     title = titles(db)[document].lower()
     raise HTTPException(404, f"Section {number} of the {title} not found")
+
+
+@app.get(
+    "/api/agent/openapi.json",
+    operation_id="get_agent_api",
+    dependencies=[HandlerOrAgent],
+)
+def get_agent_api() -> dict[str, Any]:
+    """Get the OpenAPI document of the claim agent's own operations, for the Gateway."""
+    return agent_api.document(app)
 
 
 @app.get("/api/me", operation_id="get_signed_in_handler")
@@ -383,42 +409,31 @@ def calculate_payout(claim_id: str, request: PayoutRequest, db: Database) -> Pay
     "/api/claims/{claim_id}/payment", operation_id="pay_claim", dependencies=[AgentKey]
 )
 def pay_claim(claim_id: str, request: PaymentRequest, db: Database) -> Claim:
-    """Pay an approved claim its payout once, unless it needs a handler's sign-off."""
+    """Pay an approved claim its payout once, unless it is over the limit."""
+    amount = round(request.amount, 2)
+    limit = approval_limit(db)
+    if needs_sign_off(amount, limit):
+        raise HTTPException(403, over_the_limit(limit))
     claim = find_claim(db, claim_id)
     if claim["decision"] != DecisionKind.APPROVE:
         raise HTTPException(409, f"Claim {claim_id} has not been approved")
-    amount = round(request.amount, 2)
     if claim["paid_at"] is not None:
         if amount == claim["amount"]:
             return to_claim(claim)
         raise HTTPException(409, f"Claim {claim_id} has already been paid")
     if claim["status"] == Status.WAITING_FOR_SIGN_OFF:
-        raise HTTPException(
-            403,
-            f"A payout over {dollars(claim['approval_limit'])} needs a handler's "
-            "sign-off",
-        )
+        raise HTTPException(403, over_the_limit(claim["approval_limit"]))
     if amount != claim["payout"]:
         raise HTTPException(
             422, f"The amount must be the approved payout of {dollars(claim['payout'])}"
         )
-    db.execute(
-        insert(payments).values(
-            claim_id=claim_id, amount=claim["payout"], paid_at=now()
-        )
-    )
-    set_status(db, claim_id, Status.DECIDED)
+    record_payment(db, claim)
     return to_claim(find_claim(db, claim_id))
 
 
 @app.post("/api/claims/{claim_id}/sign-off", operation_id="sign_off_claim")
-def sign_off_claim(
-    claim_id: str,
-    handler: SignsOffOverTheLimit,
-    db: Database,
-    background: BackgroundTasks,
-) -> Claim:
-    """Sign off a held payout as the handler signed in, so the agent pays it."""
+def sign_off_claim(claim_id: str, handler: SignsOffOverTheLimit, db: Database) -> Claim:
+    """Sign off a held payout as the handler signed in, which pays it."""
     claim = find_claim(db, claim_id)
     if claim["evaluation_id"] is not None:
         raise HTTPException(
@@ -431,8 +446,7 @@ def sign_off_claim(
         .where(decisions.c.claim_id == claim_id)
         .values(signed_off_by=handler.name, signed_off_at=now())
     )
-    set_status(db, claim_id, Status.IN_PROGRESS)
-    background.add_task(agent_service.resume_claim, claim_id)
+    record_payment(db, claim)
     return to_claim(find_claim(db, claim_id))
 
 

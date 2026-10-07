@@ -215,12 +215,6 @@ export async function finishOpenRound(request: Request) {
   await finishRound(request, round.round_id);
 }
 
-export async function resumed(request: Request): Promise<string[]> {
-  const response = await request.get(`${AGENT_STAND_IN}/api/resumed`);
-  await expect(response).toBeOK();
-  return (await response.json()) as string[];
-}
-
 export interface Started {
   path: string;
   body: unknown;

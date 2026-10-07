@@ -30,7 +30,7 @@ def database() -> Iterator[Connection]:
         yield connection
 
 
-# Committed before the response is sent and before any background task runs.
+# Committed before the response is sent.
 Database = Annotated[Connection, Depends(database, scope="function")]
 
 # Read the agent's key from its header, and a handler's access token from the

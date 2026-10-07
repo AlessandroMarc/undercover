@@ -4,8 +4,9 @@ import {
   payClaim,
   recordDecision,
   recordStep,
-  resumed,
+  reviews,
   startClaim,
+  started,
 } from "./api";
 import { HANDLERS } from "./handlers";
 
@@ -73,7 +74,7 @@ test("the claim page shows the agent at work", async ({ page, request }) => {
   await expect(page.getByText("Approved and paid $500.00.")).toBeVisible();
 });
 
-test("a sign-off on the dashboard reaches the agent's service", async ({
+test("a sign-off on the dashboard pays the held payout", async ({
   page,
   request,
 }) => {
@@ -86,23 +87,19 @@ test("a sign-off on the dashboard reaches the agent's service", async ({
   });
   const refused = await askToPay(request, "CLM-1020", 1350);
   expect(refused.status()).toBe(403);
+  const before = [await started(request), await reviews(request)];
 
   await page.goto("/claims/CLM-1020");
   const heading = page.locator(".page-header");
   await expect(heading.getByText("Waiting for sign-off")).toBeVisible();
-  expect(await resumed(request)).not.toContain("CLM-1020");
   await expect(page.getByRole("combobox")).toHaveCount(0);
   await page.getByRole("button", { name: "Sign off" }).click();
-  await expect(heading.getByText("In progress")).toBeVisible();
-  await expect(page.getByText(/Signed off by Dana Whitfield/)).toBeVisible();
-  await expect.poll(() => resumed(request)).toContain("CLM-1020");
-
-  // The test plays the agent, which pays the claim once it is told.
-  await payClaim(request, "CLM-1020", 1350);
   await expect(heading.getByText("Decided")).toBeVisible();
   await expect(
     page.getByText(/^Paid \$1,350\.00, signed off by Dana Whitfield at /),
   ).toBeVisible();
+  await expect(page.getByText(/Waiting for the agent/)).toHaveCount(0);
+  expect([await started(request), await reviews(request)]).toEqual(before);
 });
 
 test.describe("signed in as Marcus Oyelaran", () => {

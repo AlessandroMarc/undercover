@@ -8,7 +8,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import api, harness
 from agent.connection import Refused
-from agent.tests.records import claim_of
+from agent.tests.records import claim_of, payments_of
 from agent.tests.stubs import (
     INSTRUCTIONS,
     PASSED,
@@ -19,6 +19,7 @@ from agent.tests.stubs import (
     record,
     stub,
 )
+from backend.tests.claim_requests import sign_off
 from backend.tests.dashboard_reads import steps_of
 from backend.tests.settings_requests import change_settings
 
@@ -39,7 +40,6 @@ def test_the_graph():
         "refer",
         "agent",
         "tools",
-        "wait_for_sign_off",
         "pay",
         "__end__",
     }
@@ -52,10 +52,8 @@ def test_the_graph():
         ("agent", "tools", True),
         ("agent", "__end__", True),
         ("tools", "agent", True),
-        ("tools", "wait_for_sign_off", True),
         ("tools", "pay", True),
         ("tools", "__end__", True),
-        ("wait_for_sign_off", "pay", False),
         ("pay", "__end__", False),
     }
 
@@ -102,18 +100,25 @@ def test_the_claim_agent_reads_its_instructions_then_its_claim(client):
     assert first.content == "Claim CLM-1003"
 
 
-def test_pauses_before_a_payout_over_the_limit(client):
+def test_a_payout_held_for_sign_off_ends_the_claims_work(client, monkeypatch):
+    paid = []
+    monkeypatch.setattr(api, "pay_claim", lambda *payment: paid.append(payment))
     model = stub(*decide("approve", 1350.0))
     graph = graph_on(model)
     report = harness.work_claim("CLM-1002", None, graph)
     assert report == "CLM-1002  approve  $1,350.00, waiting for sign-off"
     assert len(model.prompts) == 2
-
-    state = state_of(graph, client, "CLM-1002")
-    assert state.next == (harness.PAUSE,)
-    assert len(state.interrupts) == 1
+    assert state_of(graph, client, "CLM-1002").next == ()
     claim = claim_of(client, "CLM-1002")
     assert (claim["status"], claim["payment"]) == ("waiting_for_sign_off", None)
+
+    sign_off(client, "CLM-1002")
+    steps = steps_of(client, "CLM-1002")
+    assert harness.carry_on("CLM-1002", None, graph) == "CLM-1002  approve  $1,350.00"
+    assert paid == []
+    assert len(model.prompts) == 2
+    assert steps_of(client, "CLM-1002") == steps
+    assert [p["amount"] for p in payments_of("CLM-1002")] == [1350.0]
 
 
 def test_the_graph_follows_the_backend_on_the_limit(client):

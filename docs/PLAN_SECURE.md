@@ -181,17 +181,17 @@ Seed CLM-1901 from `data/security/`. Add `get_screening`, `agent/screening.py`, 
 
 Add `backend/agent_api.py` and `get_agent_api`. Put the limit first in `pay_claim`. Make the sign-off pay, end the claim's work when its payout is held, and remove the pause, the resume branch, `finish_held_copy` and `resume_claim` from the backend, the agent's service, the dispatcher and the end-to-end stand-in. Update the decision panel.
 
-- [ ] pytest: `/api/agent/openapi.json` with the key holds exactly the eight operations, each with its operation id and its one-line docstring as its description, has no `servers`, no `components.securitySchemes`, no `security` on any operation and no header parameter, keeps `amount` in `pay_claim`'s body, and passes the API rules
-- [ ] pytest: the document returns 200 with Dana's sign-in and 401 with neither the key nor a sign-in
-- [ ] pytest: `pay_claim` of $4,800 on CLM-1901, which was never approved, and on CLM-9999 each return 403 with "A payout over $1,000.00 needs a handler's sign-off" and record nothing; $400 on CLM-1901 returns 409, as never approved; with the approval limit changed to $2,000 a $1,500 payment passes the limit check and the message names $2,000.00
-- [ ] pytest: Dana's sign-off on a payout of $1,350.00 held for sign-off decides the claim and records one payment of $1,350.00 signed off by Dana Whitfield, with no call to the agent's service; a `pay_claim` of $1,350.00 afterwards returns 403, and a second sign-off returns 409
-- [ ] Stub test: a claim agent approves $1,350.00, `work_claim` reports `CLM-1002  approve  $1,350.00, waiting for sign-off`, and the graph ends with nothing left to run on the thread and no call to `pay_claim`; after Dana's sign-off, `carry_on` on the same thread runs nothing, makes no call to `pay_claim`, and the claim keeps its one payment
-- [ ] Stub test: an evaluation's copy approved over the limit ends with nothing left to run on its thread and counts as finished, as before
-- [ ] Stub test: an approval of $420.00 is still paid once by the graph
-- [ ] `grep -rn "resume_claim\|resuming\|/resumed" agent backend e2e dashboard/src` finds nothing, and `grep -n "interrupt\|wait_for_sign_off\|finish_held_copy\|PAUSE" agent/harness.py` finds nothing
-- [ ] vitest: after a sign-off the decision panel shows "Paid $1,350.00, signed off by Dana Whitfield at" a time, and never "Waiting for the agent to pay it"
-- [ ] e2e: Dana signs off CLM-1020 held at $1,350.00 on its page, which shows it paid without the test paying it, and the agent's stand-in receives no call
-- [ ] `npm run check` passes with `.env` moved out of the way
+- [x] pytest: `/api/agent/openapi.json` with the key holds exactly the eight operations, each with its operation id and its one-line docstring as its description, has no `servers`, no `components.securitySchemes`, no `security` on any operation and no header parameter, keeps `amount` in `pay_claim`'s body, and passes the API rules
+- [x] pytest: the document returns 200 with Dana's sign-in and 401 with neither the key nor a sign-in
+- [x] pytest: `pay_claim` of $4,800 on CLM-1901, which was never approved, and on CLM-9999 each return 403 with "A payout over $1,000.00 needs a handler's sign-off" and record nothing; $400 on CLM-1901 returns 409, as never approved; with the approval limit changed to $2,000 a $1,500 payment passes the limit check and the message names $2,000.00
+- [x] pytest: Dana's sign-off on a payout of $1,350.00 held for sign-off decides the claim and records one payment of $1,350.00 signed off by Dana Whitfield, with no call to the agent's service; a `pay_claim` of $1,350.00 afterwards returns 403, and a second sign-off returns 409
+- [x] Stub test: a claim agent approves $1,350.00, `work_claim` reports `CLM-1002  approve  $1,350.00, waiting for sign-off`, and the graph ends with nothing left to run on the thread and no call to `pay_claim`; after Dana's sign-off, `carry_on` on the same thread runs nothing, makes no call to `pay_claim`, and the claim keeps its one payment
+- [x] Stub test: an evaluation's copy approved over the limit ends with nothing left to run on its thread and counts as finished, as before
+- [x] Stub test: an approval of $420.00 is still paid once by the graph
+- [x] `grep -rn "resume_claim\|resuming\|/resumed" agent backend e2e dashboard/src` finds nothing, and `grep -n "interrupt\|wait_for_sign_off\|finish_held_copy\|PAUSE" agent/harness.py` finds nothing
+- [x] vitest: after a sign-off the decision panel shows "Paid $1,350.00, signed off by Dana Whitfield at" a time, and never "Waiting for the agent to pay it"
+- [x] e2e: Dana signs off CLM-1020 held at $1,350.00 on its page, which shows it paid without the test paying it, and the agent's stand-in receives no call
+- [x] `npm run check` passes with `.env` moved out of the way
 
 ## Phase 4: Ready for Lambda
 

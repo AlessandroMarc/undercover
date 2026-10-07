@@ -30,7 +30,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.runtime import Runtime
-from langgraph.types import Command, RetryPolicy, interrupt
+from langgraph.types import Command, RetryPolicy
 from psycopg import Connection, sql
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import ConnectionPool
@@ -50,7 +50,7 @@ ClaimGraph = CompiledStateGraph[ClaimState, ClaimContext, Any, Any]
 NewGraph = Callable[[], ClaimGraph]
 Pool = ConnectionPool[Connection[DictRow]]
 Messages = dict[str, list[BaseMessage]]
-Start = Messages | Command | None
+Start = Messages | None
 # Tags for a claim's trace beside its run's, such as the round it works in.
 Tags = tuple[str, ...]
 
@@ -69,7 +69,6 @@ SCREEN = "screen"
 REFER = "refer"
 AGENT = "agent"
 TOOLS = "tools"
-PAUSE = "wait_for_sign_off"
 PAY = "pay"
 
 
@@ -209,12 +208,6 @@ def call_model(
     return {"messages": [reply], "model_calls": 1}
 
 
-def wait_for_sign_off(state: ClaimState, runtime: Runtime[ClaimContext]) -> None:
-    """Pause until a handler signs off the payout, which the backend records. On
-    resume this runs again from the top, so nothing comes before the interrupt."""
-    interrupt({"claim_id": runtime.context.claim_id})
-
-
 def pay(state: ClaimState, runtime: Runtime[ClaimContext]) -> dict[str, Any]:
     """Pay the approved payout, which the backend refuses unless it may be paid."""
     claim = api.pay_claim(runtime.context.claim_id, state["decision"]["payout"])
@@ -233,13 +226,12 @@ def after_agent(state: ClaimState) -> str:
 
 
 def after_tools(state: ClaimState) -> str:
-    """Go back to the model until a decision is recorded, then pay an approval, after
-    a sign-off if the backend holds it, or stop."""
+    """Go back to the model until a decision is recorded, then pay an approval the
+    backend can pay at once, or stop: a payout it holds is paid by the handler's
+    sign-off, so the claim's work ends there."""
     decision, status = state["decision"], state["status"]
     if not decision:
         return AGENT
-    if status == api.Status.WAITING_FOR_SIGN_OFF:
-        return PAUSE
     if decision["decision"] == api.APPROVE and status == api.Status.IN_PROGRESS:
         return PAY
     return END
@@ -271,14 +263,12 @@ def claim_graph(
         TOOLS,
         ToolNode(CLAIM_TOOLS, handle_tool_errors=refusal, wrap_tool_call=record_result),
     )
-    builder.add_node(PAUSE, wait_for_sign_off)
     builder.add_node(PAY, pay)
     builder.add_edge(START, SCREEN)
     builder.add_conditional_edges(SCREEN, after_screen, [REFER, AGENT])
     builder.add_edge(REFER, END)
     builder.add_conditional_edges(AGENT, after_agent, [TOOLS, END])
-    builder.add_conditional_edges(TOOLS, after_tools, [AGENT, PAUSE, PAY, END])
-    builder.add_edge(PAUSE, PAY)
+    builder.add_conditional_edges(TOOLS, after_tools, [AGENT, PAY, END])
     builder.add_edge(PAY, END)
     return builder.compile(checkpointer=saver)
 
@@ -397,15 +387,13 @@ def carry_on(
     claim_id: str, run_id: str | None, graph: ClaimGraph, tags: Tags = ()
 ) -> str:
     """Carry a claim in progress on from its saved progress, as the same attempt, and
-    report how it ended. A claim at the pause has been signed off, so it resumes past
-    it. One with nothing saved, stopped before its first step, starts on its own
-    thread; any other carries on, finishing a step whose writes were saved."""
+    report how it ended. One with nothing saved, stopped before its first step,
+    starts on its own thread; any other carries on, finishing a step whose writes
+    were saved. A claim whose work has ended has nothing left to run."""
     claim = api.get_claim(claim_id)
     saved = graph.get_state(thread_of(claim))
     start: Start = None
-    if saved.next == (PAUSE,):
-        start = Command(resume=True)
-    elif saved.created_at is None and claim["decision"] is None:
+    if saved.created_at is None and claim["decision"] is None:
         start = begin(claim_id)
     config = claim_config(claim, CARRY_ON, run_id, tags)
     with spell(claim_id, run_id):
@@ -418,23 +406,8 @@ def work_in_run(
 ) -> str:
     """Work one claim in a run on a claim graph of its own, carrying it on if it is
     in progress or starting it if it is waiting, and report how it ended, with any
-    tags for its trace beside the run's. A copy in an evaluation held for sign-off
-    is finished."""
+    tags for its trace beside the run's."""
     graph = new_graph()
     if api.get_claim(claim_id)["status"] == api.Status.IN_PROGRESS:
-        line = carry_on(claim_id, run_id, graph, tags)
-    else:
-        line = work_claim(claim_id, run_id, graph, tags)
-    finish_held_copy(claim_id, graph)
-    return line
-
-
-def finish_held_copy(claim_id: str, graph: ClaimGraph) -> None:
-    """Clear the saved progress of an evaluation's copy held for sign-off: nobody
-    can sign a copy off, so its work is finished."""
-    claim = api.get_claim(claim_id)
-    held = claim["status"] == api.Status.WAITING_FOR_SIGN_OFF
-    if claim["evaluation_id"] and held:
-        # claim_graph always compiles the graph with a saver.
-        saver = cast(BaseCheckpointSaver[Any], graph.checkpointer)
-        saver.delete_thread(claim["thread_id"])
+        return carry_on(claim_id, run_id, graph, tags)
+    return work_claim(claim_id, run_id, graph, tags)

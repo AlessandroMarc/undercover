@@ -53,12 +53,10 @@ LEFT = {api.DISPATCH: "left for the next dispatch", api.EVALUATION: "left in pro
 
 @dataclass
 class DispatchContext:
-    """The run being worked, how to work one of its claims, and the claims the
-    service is resuming after a sign-off, which a dispatch leaves alone."""
+    """The run being worked, and how to work one of its claims."""
 
     run: dict[str, Any]
     work: WorkInRun
-    resuming: set[str]
 
 
 Dispatcher = CompiledStateGraph[Dispatch, DispatchContext, Any, Any]
@@ -66,17 +64,13 @@ Dispatcher = CompiledStateGraph[Dispatch, DispatchContext, Any, Any]
 
 def list_claims(state: Dispatch, runtime: Runtime[DispatchContext]) -> dict[str, Any]:
     """Choose the claims to work: an evaluation's copies, which the backend made, or
-    the queue's claims in progress and waiting, oldest submitted first, less any
-    being resumed, which the dispatch records."""
-    run, resuming = runtime.context.run, runtime.context.resuming
+    the queue's claims in progress and waiting, oldest submitted first, which the
+    dispatch records."""
+    run = runtime.context.run
     if run["kind"] == api.EVALUATION:
         return {"claims": [claim["claim_id"] for claim in run["claims"]]}
     queue = sorted(api.list_claims(), key=lambda c: (c["submitted_on"], c["claim_id"]))
-    claims = [
-        c["claim_id"]
-        for c in queue
-        if c["status"] in TO_WORK and c["claim_id"] not in resuming
-    ]
+    claims = [c["claim_id"] for c in queue if c["status"] in TO_WORK]
     api.record_run_claims(run["run_id"], claims)
     return {"claims": claims}
 
@@ -133,10 +127,10 @@ def dispatcher() -> Dispatcher:
     return builder.compile()
 
 
-def work_run(run: dict[str, Any], work: WorkInRun, resuming: set[str]) -> list[str]:
+def work_run(run: dict[str, Any], work: WorkInRun) -> list[str]:
     """Work a dispatch or an evaluation with up to its N claim agents at once, and
     return each claim's report line."""
-    context = DispatchContext(run, work, resuming)
+    context = DispatchContext(run, work)
     config: RunnableConfig = {"max_concurrency": run["agents"]}
     state = as_root_run(
         dispatcher().invoke, {"claims": [], "reports": []}, config, context=context

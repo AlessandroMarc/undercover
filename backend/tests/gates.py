@@ -49,6 +49,7 @@ SHARED_READS = {
     "get_claim": "/api/claims/CLM-1001",
     "get_policy": "/api/policies/POL-2001",
     "get_claim_history": "/api/customers/CUS-3001/claims",
+    "get_agent_api": "/api/agent/openapi.json",
 }
 
 # Every operation only a signed-in handler may use, with a body it would accept.

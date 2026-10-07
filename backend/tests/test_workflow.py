@@ -1,10 +1,10 @@
-import httpx
 import pytest
-from sqlalchemy import select
 
-from backend.database import decisions, engine
+from backend.database import payments
 from backend.tests.claim_requests import decide, pay, sign_off, start
 from backend.tests.dashboard_reads import read, steps_of
+from backend.tests.rows import count
+from backend.tests.settings_requests import change_settings
 from backend.tests.sign_in import MARCUS
 
 
@@ -166,66 +166,25 @@ def test_over_the_limit_waits_for_sign_off(client):
     assert client.get("/api/claims/CLM-1002").json()["payment"] is None
 
 
-def test_a_sign_off_is_recorded_and_the_agent_is_told(client, agent_calls):
+def test_a_sign_off_pays_the_held_payout_once(client, agent_calls):
     start(client, "CLM-1002")
     decide(client, "CLM-1002", "approve", 1350.0)
     claim = sign_off(client, "CLM-1002").json()
-    assert (claim["status"], claim["payment"]) == ("in_progress", None)
-    assert claim["decision"]["signed_off_by"] == "Dana Whitfield"
-    signed_off_at = claim["decision"]["signed_off_at"]
-    assert signed_off_at
-    assert agent_calls == [("/api/claims/CLM-1002/resume", None)]
+    assert claim["status"] == "decided"
+    assert claim["payment"]["amount"] == 1350.0
+    assert claim["payment"]["signed_off_by"] == "Dana Whitfield"
+    assert claim["payment"]["signed_off_at"] == claim["decision"]["signed_off_at"]
+    assert count(payments) == 1
+    assert agent_calls == []
 
-    assert pay(client, "CLM-1002", 1300.0).status_code == 422
-    paid = pay(client, "CLM-1002", 1350.0).json()
-    assert paid["status"] == "decided"
-    assert paid["payment"]["amount"] == 1350.0
-    assert (paid["payment"]["signed_off_by"], paid["payment"]["signed_off_at"]) == (
-        "Dana Whitfield",
-        signed_off_at,
+    refused = pay(client, "CLM-1002", 1350.0)
+    assert (refused.status_code, refused.json()["detail"]) == (
+        403,
+        "A payout over $1,000.00 needs a handler's sign-off",
     )
     assert sign_off(client, "CLM-1002").status_code == 409
-    assert agent_calls == [("/api/claims/CLM-1002/resume", None)]
-
-
-def test_the_agent_is_told_only_once_the_sign_off_is_saved(client, agent_answers):
-    seen = []
-
-    def read_the_sign_off(request):
-        with engine().connect() as db:
-            query = select(decisions.c.signed_off_by).where(
-                decisions.c.claim_id == "CLM-1002"
-            )
-            seen.append(db.execute(query).scalar_one())
-        return httpx.Response(202, json={"status": "accepted"})
-
-    agent_answers(read_the_sign_off)
-    start(client, "CLM-1002")
-    decide(client, "CLM-1002", "approve", 1350.0)
-    sign_off(client, "CLM-1002")
-    assert seen == ["Dana Whitfield"]
-
-
-def test_a_sign_off_stands_when_the_agent_cant_be_reached(
-    client, agent_answers, caplog
-):
-    def unreachable(request):
-        raise httpx.ConnectError("Connection refused")
-
-    agent_answers(unreachable)
-    start(client, "CLM-1002")
-    decide(client, "CLM-1002", "approve", 1350.0)
-    response = sign_off(client, "CLM-1002")
-    assert response.status_code == 200
-    claim = client.get("/api/claims/CLM-1002").json()
-    assert claim["status"] == "in_progress"
-    assert claim["decision"]["signed_off_by"] == "Dana Whitfield"
-    assert [(r.levelname, r.message) for r in caplog.records] == [
-        (
-            "WARNING",
-            "The agent didn't pick up CLM-1002 after its sign-off: Connection refused",
-        )
-    ]
+    assert count(payments) == 1
+    assert client.get("/api/claims/CLM-1002").json() == claim
 
 
 def test_sign_off_needs_a_claim_waiting_for_it(client):
@@ -260,3 +219,30 @@ def test_declines_and_referrals_are_decided_and_unpaid(client, decision):
 def test_pay_needs_an_approval(client):
     start(client, "CLM-1001")
     assert pay(client, "CLM-1001", 420.0).status_code == 409
+
+
+@pytest.mark.parametrize("claim_id", ["CLM-1901", "CLM-9999"])
+def test_a_payment_over_the_limit_is_refused_before_the_claim_is_read(client, claim_id):
+    refused = pay(client, claim_id, 4800.0)
+    assert (refused.status_code, refused.json()["detail"]) == (
+        403,
+        "A payout over $1,000.00 needs a handler's sign-off",
+    )
+    assert count(payments) == 0
+
+
+def test_a_payment_within_the_limit_on_a_claim_never_approved_is_refused(client):
+    refused = pay(client, "CLM-1901", 400.0)
+    assert (refused.status_code, refused.json()["detail"]) == (
+        409,
+        "Claim CLM-1901 has not been approved",
+    )
+
+
+def test_the_payments_limit_is_the_one_in_force(client):
+    change_settings(client, approval_limit=2000.0)
+    assert pay(client, "CLM-1901", 1500.0).status_code == 409
+    refused = pay(client, "CLM-1901", 2500.0)
+    assert refused.json()["detail"] == (
+        "A payout over $2,000.00 needs a handler's sign-off"
+    )

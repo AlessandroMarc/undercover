@@ -134,19 +134,21 @@ def test_stopped_after_a_step_was_written_but_before_its_checkpoint(client):
     assert graph.get_state(thread).values["decision"]["payout"] == 420.0
 
 
-def test_stopped_on_the_way_into_the_pause_is_paid_after_the_sign_off(
+def test_a_held_payout_stopped_before_its_checkpoint_is_paid_by_the_sign_off(
     client, monkeypatch
 ):
-    saver = InMemorySaver()
-    fail_once(monkeypatch, harness, "interrupt", KeyboardInterrupt())
+    saver = StopBeforeCheckpoint()
     with pytest.raises(KeyboardInterrupt):
         harness.work_claim(
             "CLM-1002", None, graph_on(stub(*decide("approve", 1350.0)), saver)
         )
     sign_off(client, "CLM-1002")
 
-    report = harness.carry_on("CLM-1002", None, graph_on(stub(), saver))
+    payments = calls_to(monkeypatch, "pay_claim")
+    model = stub()
+    report = harness.carry_on("CLM-1002", None, graph_on(model, saver))
     assert report == "CLM-1002  approve  $1,350.00"
+    assert (payments, model.prompts) == ([], [])
     assert claim_of(client, "CLM-1002")["payment"]["signed_off_by"] == "Dana Whitfield"
 
 

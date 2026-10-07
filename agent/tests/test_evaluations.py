@@ -43,9 +43,10 @@ def test_an_evaluation_through_the_service(client, serve):
     assert queue(client) == before
     held = claim_of(client, "CLM-1020-E1")
     assert held["status"] == "waiting_for_sign_off"
-    assert saver.get_tuple(harness.thread_of(held)) is None
-    paid = claim_of(client, "CLM-1007-E1")
-    assert saver.get_tuple(harness.thread_of(paid)) is not None
+    # A copy held for sign-off counts as finished, with nothing left to run.
+    held_state = graph_on(stub(), saver).get_state(harness.thread_of(held))
+    assert held_state.created_at is not None
+    assert held_state.next == ()
     assert claim_of(client, "CLM-1021-E1")["status"] == "left_for_handler"
 
     evaluation = get_evaluation(client, listed["run_id"])
@@ -125,7 +126,7 @@ def test_a_copy_still_failing_after_its_tries_is_left_in_progress(client):
     work = partial(
         harness.work_in_run, new_graph=partial(graph_on, model, InMemorySaver())
     )
-    reports = dispatcher.work_run(run, work, set())
+    reports = dispatcher.work_run(run, work)
 
     assert (
         "CLM-1104-E1  left in progress: ModelRateLimitError: 429 Too Many Requests"

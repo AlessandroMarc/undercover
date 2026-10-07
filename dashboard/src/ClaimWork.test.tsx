@@ -251,29 +251,26 @@ it("shows new steps and the decision as the agent works", async () => {
   expect(screen.getAllByText("Decided").length).toBeGreaterThan(0);
 });
 
-it("lets a handler sign off a held payment as themselves", async () => {
+it("lets a handler sign off a held payment as themselves, which pays it", async () => {
   const { routes, fetchMock } = showClaim(held);
   const panel = await decisionPanel();
   expect(panel.getByText(/waits for a handler's sign-off/)).toBeDefined();
   expect(panel.queryByRole("combobox")).toBeNull();
 
-  const signedOff: Claim = {
+  const signOff = { signed_off_by: "Dana Whitfield", signed_off_at: decidedAt };
+  const paid: Claim = {
     ...held,
-    status: "in_progress",
-    decision: {
-      ...approval,
-      payout: 1350,
-      signed_off_by: "Dana Whitfield",
-      signed_off_at: decidedAt,
-    },
+    status: "decided",
+    decision: { ...approval, payout: 1350, ...signOff },
+    payment: { amount: 1350, paid_at: decidedAt, ...signOff },
   };
-  routes["POST /api/claims/CLM-1002/sign-off"] = signedOff;
-  routes["GET /api/claims/CLM-1002"] = signedOff;
+  routes["POST /api/claims/CLM-1002/sign-off"] = paid;
+  routes["GET /api/claims/CLM-1002"] = paid;
   fireEvent.click(panel.getByRole("button", { name: "Sign off" }));
 
-  const waiting = await panel.findByText(/Signed off by Dana Whitfield/);
-  expect(waiting.textContent).toBe(
-    `Signed off by Dana Whitfield at ${time(decidedAt)}. Waiting for the agent to pay it.`,
+  const payment = await panel.findByText(/^Paid/);
+  expect(payment.textContent).toBe(
+    `Paid $1,350.00, signed off by Dana Whitfield at ${time(decidedAt)}`,
   );
   expect(sent(fetchMock, "POST /api/claims/CLM-1002/sign-off")).toEqual([
     undefined,

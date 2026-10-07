@@ -71,21 +71,17 @@ class MovedClock:
         return time.monotonic() + self.moved
 
 
-def test_the_wait_for_a_sign_off_isnt_counted(client, monkeypatch):
+def test_a_held_claim_has_one_spell_and_its_sign_off_adds_none(client, monkeypatch):
     clock = MovedClock()
     monkeypatch.setattr(harness, "time", clock)
     run_id = new_dispatch()["run_id"]
-    graph = graph_on(stub(*decide("approve", 1350.0)))
-    harness.work_claim("CLM-1002", run_id, graph)
-    wait = 3600
-    clock.moved += wait
+    harness.work_claim("CLM-1002", run_id, graph_on(stub(*decide("approve", 1350.0))))
+    clock.moved += 3600
     sign_off(client, "CLM-1002")
-    harness.carry_on("CLM-1002", None, graph)
 
     assert claim_of(client, "CLM-1002")["status"] == "decided"
-    spells = work_times_of("CLM-1002")
-    assert [s["run_id"] for s in spells] == [run_id, None]
-    assert sum(s["seconds"] for s in spells) < 1
+    [spell] = work_times_of("CLM-1002")
+    assert (spell["run_id"], spell["seconds"] < 1) == (run_id, True)
 
 
 def test_a_failed_recording_still_settles_the_claim(client, monkeypatch):

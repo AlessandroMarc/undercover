@@ -5,22 +5,14 @@ from types import SimpleNamespace
 import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
-from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import api, harness, service
+from agent import api, service
 from agent.tests.dispatching import new_dispatch
 from agent.tests.queue_setup import leave_waiting
-from agent.tests.records import claim_of
-from agent.tests.stubs import decide, graph_on, stub, swarm
+from agent.tests.stubs import decide, stub, swarm
 from api_rules import rule_breaks
-from backend.tests.claim_requests import sign_off
-from backend.tests.dashboard_reads import steps_of
 from backend.tests.run_requests import latest_dispatch
 from backend.tests.versions import add_version
-
-
-def resume(agent, claim_id):
-    return agent.post(f"/api/claims/{claim_id}/resume")
 
 
 def start_dispatch(agent, agents):
@@ -33,81 +25,6 @@ def test_the_service_follows_the_api_rules():
 
 def test_health():
     assert TestClient(service.app).get("/api/health").json() == {"status": "ok"}
-
-
-def test_a_sign_off_picks_the_claim_up_and_pays_it_once(
-    client, serve, agent_calls, traces
-):
-    model, saver = stub(*decide("approve", 1350.0)), InMemorySaver()
-    harness.work_claim("CLM-1002", None, graph_on(model, saver))
-    signed = sign_off(client, "CLM-1002")
-    assert agent_calls == [("/api/claims/CLM-1002/resume", None)]
-
-    agent = serve(model, saver)
-    response = resume(agent, "CLM-1002")
-    assert response.status_code == 202
-    claim = claim_of(client, "CLM-1002")
-    assert claim["status"] == "decided"
-    assert claim["payment"]["amount"] == 1350.0
-    assert claim["payment"]["signed_off_by"] == "Dana Whitfield"
-    signed_off_at = signed.json()["decision"]["signed_off_at"]
-    assert claim["payment"]["signed_off_at"] == signed_off_at
-    assert len(model.prompts) == 2
-    session = f"CLM-1002:{claim['thread_id']}"
-    assert [(t["langfuse_session_id"], t["langfuse_trace_name"]) for t in traces] == [
-        (session, "Work claim"),
-        (session, "Carry on"),
-    ]
-
-    assert resume(agent, "CLM-1002").status_code == 409
-    assert claim_of(client, "CLM-1002")["payment"] == claim["payment"]
-
-
-def test_a_claim_is_kept_from_dispatches_while_it_is_resumed(
-    client, serve, monkeypatch
-):
-    model, saver = stub(*decide("approve", 1350.0)), InMemorySaver()
-    harness.work_claim("CLM-1002", None, graph_on(model, saver))
-    sign_off(client, "CLM-1002")
-    seen = []
-    carry_on = service.carry_on
-
-    def watch(claim_id, run_id, graph):
-        seen.append(set(service.resuming))
-        return carry_on(claim_id, run_id, graph)
-
-    monkeypatch.setattr(service, "carry_on", watch)
-    assert resume(serve(model, saver), "CLM-1002").status_code == 202
-    assert seen == [{"CLM-1002"}]
-    assert service.resuming == set()
-
-
-def test_a_claim_waiting_for_sign_off_is_not_picked_up(client, serve):
-    model, saver = stub(*decide("approve", 1350.0)), InMemorySaver()
-    harness.work_claim("CLM-1002", None, graph_on(model, saver))
-    before = steps_of(client, "CLM-1002")
-    response = resume(serve(model, saver), "CLM-1002")
-    assert response.status_code == 409
-    assert response.json()["detail"] == (
-        "Claim CLM-1002 has no sign-off waiting to be paid"
-    )
-    assert claim_of(client, "CLM-1002")["status"] == "waiting_for_sign_off"
-    assert steps_of(client, "CLM-1002") == before
-
-
-def test_a_claim_in_progress_without_a_sign_off_is_left_to_its_agent(client, serve):
-    client.post("/api/claims/CLM-1001/start", json={"thread_id": "working"})
-    response = resume(serve(stub()), "CLM-1001")
-    assert response.status_code == 409
-    claim = claim_of(client, "CLM-1001")
-    assert (claim["status"], claim["attempts"]) == ("in_progress", 1)
-    assert steps_of(client, "CLM-1001") == []
-
-
-def test_an_unknown_claim(serve):
-    response = resume(serve(stub()), "CLM-9999")
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Claim CLM-9999 not found"
 
 
 def test_start_a_dispatch(client, serve):
@@ -137,8 +54,6 @@ def test_one_run_at_a_time(client, serve, held_run):
     first = threading.Thread(target=start_dispatch, args=(agent, 3))
     first.start()
     assert held_run.working.wait(5)
-    [resuming] = held_run.resuming
-    assert resuming is service.resuming
 
     refused = start_dispatch(agent, 3)
     assert refused.status_code == 409
@@ -157,7 +72,7 @@ def test_a_dispatch_whose_dispatcher_fails_is_stopped(client, serve, monkeypatch
     leave_waiting()
     work_run = service.work_run
 
-    def broken(run, work, resuming):
+    def broken(run, work):
         raise RuntimeError("The backend is unreachable")
 
     monkeypatch.setattr(service, "work_run", broken)
@@ -213,21 +128,24 @@ def test_a_run_keeps_its_version_when_another_is_kept_meanwhile(
     assert [prompt[0].content for prompt in model.prompts] == [version_1] * 2
 
 
-def test_a_resume_after_a_sign_off_uses_the_current_version(
-    client, serve, versions_served
-):
-    model, saver = stub(*decide("approve", 1350.0)), InMemorySaver()
-    harness.work_claim("CLM-1002", None, graph_on(model, saver))
-    sign_off(client, "CLM-1002")
-    add_version("Version 2's instructions", verdict="kept")
-    assert resume(serve(model, saver), "CLM-1002").status_code == 202
-    assert versions_served == [2]
-    assert claim_of(client, "CLM-1002")["status"] == "decided"
-
-
 def test_claim_agents_are_built_on_the_services_pool(monkeypatch):
     pool = object()
     monkeypatch.setattr(service, "claim_graphs", lambda version, pool: (version, pool))
     app = SimpleNamespace(state=SimpleNamespace(pool=pool))
     request = Request({"type": "http", "app": app})
     assert service.claim_agents(request)({"number": 2}) == ({"number": 2}, pool)
+
+
+def test_the_services_operations_include_no_payment():
+    operations = {
+        operation["operationId"]
+        for methods in service.app.openapi()["paths"].values()
+        for operation in methods.values()
+    }
+    assert operations == {
+        "health",
+        "start_dispatch",
+        "start_evaluation",
+        "start_round",
+        "review_proposal",
+    }

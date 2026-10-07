@@ -1,7 +1,6 @@
-"""The agent's service, as the backend calls it: after each sign-off, to start a
-dispatch, an evaluation or a round, and to pass on a review of a proposal."""
+"""The agent's service, as the backend calls it: to start a dispatch, an evaluation
+or a round, and to pass on a review of a proposal."""
 
-import logging
 import os
 from http import HTTPStatus
 from typing import Any
@@ -17,18 +16,6 @@ NO_ANSWER = (
 )
 
 agent = httpx.Client(base_url=f"{AGENT_URL}/api", timeout=10)
-
-log = logging.getLogger(__name__)
-
-
-def resume_claim(claim_id: str) -> None:
-    """Ask the agent to pick a claim back up after its sign-off."""
-    try:
-        agent.post(f"/claims/{claim_id}/resume").raise_for_status()
-    except httpx.HTTPError as error:  # the sign-off stands without the agent
-        log.warning(
-            "The agent didn't pick up %s after its sign-off: %s", claim_id, error
-        )
 
 
 def send(path: str, body: dict[str, Any]) -> None:
