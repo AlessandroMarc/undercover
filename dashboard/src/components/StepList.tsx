@@ -1,6 +1,14 @@
-import { Ban, Shield } from "lucide-react";
+import {
+  Ban,
+  BookOpen,
+  History,
+  NotebookPen,
+  Shield,
+  type LucideIcon,
+} from "lucide-react";
+import type { ReactNode } from "react";
 import type { Step } from "../api";
-import { time } from "../format";
+import { sourceOf, time } from "../format";
 import { StateMessage } from "./StateMessage";
 
 const SUMMARY_LENGTH = 90;
@@ -34,15 +42,28 @@ export function StepList({
   );
 }
 
+// A step with an icon that says at a glance what kind it is.
+function Marked({
+  icon: Icon,
+  label,
+  children,
+}: Readonly<{ icon: LucideIcon; label: string; children: ReactNode }>) {
+  return (
+    <div className="step-marked">
+      <Icon />
+      <div>
+        <span className="step-label">{label}</span> {children}
+      </div>
+    </div>
+  );
+}
+
 function StepBody({ step }: Readonly<{ step: Step }>) {
   if (step.kind === "screening")
     return (
-      <p className="step-check">
-        <Shield />
-        <span>
-          <span className="step-label">Security check</span> {step.content}
-        </span>
-      </p>
+      <Marked icon={Shield} label="Security check">
+        {step.content}
+      </Marked>
     );
   if (step.kind === "tool_call")
     return (
@@ -66,11 +87,34 @@ function StepBody({ step }: Readonly<{ step: Step }>) {
       </details>
     );
   }
-  if (step.kind === "reading")
+  if (step.kind === "lookup")
     return (
-      <p>
-        <span className="step-label">Read</span> {step.content}
-      </p>
+      <Marked icon={BookOpen} label="Looked up">
+        {step.content}
+        {step.sources.length === 0 ? (
+          <p className="step-sources small muted">Found nothing</p>
+        ) : (
+          <ul className="step-sources small muted">
+            {step.sources.map((source) => (
+              <li key={source.file}>
+                <span className="mono">{source.file}</span>: {sourceOf(source)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Marked>
+    );
+  if (step.kind === "memory_search")
+    return (
+      <Marked icon={History} label="Searched memory">
+        <span className="step-text">{step.content}</span>
+      </Marked>
+    );
+  if (step.kind === "memory_save")
+    return (
+      <Marked icon={NotebookPen} label="Saved to memory">
+        <span className="step-text">{step.content}</span>
+      </Marked>
     );
   if (step.kind === "refusal")
     return (

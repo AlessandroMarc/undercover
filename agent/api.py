@@ -13,8 +13,17 @@ DecisionKind = Literal["approve", "decline", "refer"]
 APPROVE: DecisionKind = "approve"
 REFER: DecisionKind = "refer"
 StepKind = Literal[
-    "screening", "tool_call", "tool_result", "message", "reading", "refusal"
+    "screening",
+    "tool_call",
+    "tool_result",
+    "message",
+    "lookup",
+    "memory_search",
+    "memory_save",
+    "refusal",
 ]
+# The context files a lookup came from, each with its system, owner and review date.
+Sources = list[dict[str, str]]
 EvaluationSet = Literal["evaluation", "held_out"]
 RunKind = Literal["dispatch", "evaluation"]
 DISPATCH: RunKind = "dispatch"
@@ -116,8 +125,10 @@ def start_claim(claim_id: str, thread_id: str) -> dict[str, Any]:
     return call("POST", f"/claims/{claim_id}/start", json={"thread_id": thread_id})
 
 
-def record_step(claim_id: str, kind: StepKind, content: str) -> dict[str, Any]:
-    body = {"kind": kind, "content": content}
+def record_step(
+    claim_id: str, kind: StepKind, content: str, sources: Sources
+) -> dict[str, Any]:
+    body = {"kind": kind, "content": content, "sources": sources}
     return call("POST", f"/claims/{claim_id}/steps", json=body)
 
 

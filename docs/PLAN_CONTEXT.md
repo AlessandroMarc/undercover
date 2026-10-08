@@ -288,16 +288,16 @@ Add `langgraph-checkpoint-aws` with `uv add`, `agent/memory.py`, the `remember` 
 
 Add the step kinds `lookup`, `memory_search` and `memory_save` in the app, `agent/api.py` and `dashboard/src/api.ts`, with each step's `sources`, and drop `reading`. Record each lookup and memory step, name each call as its route does, and build the Context used panel and the whole decision record on the claim page. The live check for this step is in phase 6.
 
-- [ ] pytest (backend): a step of each kind is recorded and listed with its `sources`; a `reading` step returns 422; `sources` is required
-- [ ] Stub test: each of the seven context tools records one `lookup` step saying what was looked up, with its file and that file's system, owner and review date; a search of the documents names the files of the sections it found
-- [ ] Stub test: `search_memory` records a `memory_search` step with its query and what it found, and `remember` a `memory_save` step with what it saved
-- [ ] Stub test: a section 14 refusal is recorded as a `refusal` step, followed by the model's next `record_decision` call
-- [ ] Stub test: on the Gateway route, each `tool_call` step names its tool as the Gateway does, such as `undercover-context___lookup_term(term="unattended")`; on the direct route, by its own name
-- [ ] vitest: each kind of step shows as the design says, with its icon, and a refusal stands out; Context used lists each lookup once, grouped by file, each file with its source, and a search that found nothing under "Found nothing"; there's no Sections read panel
-- [ ] vitest: the decision panel shows the calculation line by line, who decided and when, the manual's version, and the sign-off; a decline shows no calculation
-- [ ] e2e: steps of each new kind recorded through the API show on a claim's page as they're recorded, without a reload, and the Context used panel and the decision with its calculation show
-- [ ] `grep -rn '"reading"\|SectionsRead\|Sections read' agent backend dashboard/src e2e --include='*.py' --include='*.ts' --include='*.tsx'` finds nothing (with its quotes, so `threading` doesn't match)
-- [ ] `npm run check` passes with `.env` moved out of the way
+- [x] pytest (backend): a step of each kind is recorded and listed with its `sources`; a `reading` step returns 422; `sources` is required
+- [x] Stub test: each of the seven context tools records one `lookup` step saying what was looked up, with its file and that file's system, owner and review date; a search of the documents names the files of the sections it found
+- [x] Stub test: `search_memory` records a `memory_search` step with its query and what it found, and `remember` a `memory_save` step with what it saved
+- [x] Stub test: a section 14 refusal is recorded as a `refusal` step, followed by the model's next `record_decision` call
+- [x] Stub test: on the Gateway route, each `tool_call` step names its tool as the Gateway does, such as `undercover-context___lookup_term(term="unattended")`; on the direct route, by its own name
+- [x] vitest: each kind of step shows as the design says, with its icon, and a refusal stands out; Context used lists each lookup once, grouped by file, each file with its source, and a search that found nothing under "Found nothing"; there's no Sections read panel
+- [x] vitest: the decision panel shows the calculation line by line, who decided and when, the manual's version, and the sign-off; a decline shows no calculation
+- [x] e2e: steps of each new kind recorded through the API show on a claim's page as they're recorded, without a reload, and the Context used panel and the decision with its calculation show
+- [x] `grep -rn '"reading"\|SectionsRead\|Sections read' agent backend dashboard/src e2e --include='*.py' --include='*.ts' --include='*.tsx'` finds nothing (with its quotes, so `threading` doesn't match) outside the two tests that check they're gone: the backend's, which sends a `reading` step and gets a 422 as the first criterion asks, and the dashboard's, which checks there's no Sections read panel
+- [x] `npm run check` passes with `.env` moved out of the way
 
 ## Phase 6: The live checks and the docs
 

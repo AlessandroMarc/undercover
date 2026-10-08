@@ -116,7 +116,15 @@ NO_REASONING_EFFORT = "default"
 
 
 StepKind = Literal[
-    "screening", "tool_call", "tool_result", "message", "reading", "refusal", "error"
+    "screening",
+    "tool_call",
+    "tool_result",
+    "message",
+    "lookup",
+    "memory_search",
+    "memory_save",
+    "refusal",
+    "error",
 ]
 MOST_AGENTS = 25
 Agents = Annotated[
@@ -251,11 +259,21 @@ class Handler(BaseModel):
     can_approve_over_limit: bool
 
 
+class Source(BaseModel):
+    """A context file a lookup's answer came from, and that file's source."""
+
+    file: str
+    system: str
+    owner: str
+    reviewed: str
+
+
 class Step(BaseModel):
     step_id: int
     thread_id: str
     kind: StepKind
     content: str
+    sources: list[Source]
     created_at: str
 
 
@@ -311,6 +329,9 @@ class StartRequest(BaseModel):
 class StepRequest(BaseModel):
     kind: StepKind
     content: str = Field(min_length=1)
+    sources: list[Source] = Field(
+        description="The context files a lookup came from, and none for other steps"
+    )
 
 
 class DecisionRequest(BaseModel):

@@ -11,6 +11,13 @@ def start(client, claim_id):
     return client.post(f"/api/claims/{claim_id}/start", json={"thread_id": "t-1"})
 
 
+def record_step(client, claim_id, kind, content, sources=()):
+    """Record a step as the agent does, with the context files a lookup came from,
+    and none for any other step."""
+    body = {"kind": kind, "content": content, "sources": list(sources)}
+    return client.post(f"/api/claims/{claim_id}/steps", json=body)
+
+
 def line(description, amount, kind="item", **extra):
     """A line of a payout request: one item, with no nights or hours, unless given."""
     return {

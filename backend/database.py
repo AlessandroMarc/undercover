@@ -212,6 +212,8 @@ steps = Table(
     Column("thread_id", Text, nullable=False),
     Column("kind", Text, nullable=False),
     Column("content", Text, nullable=False),
+    # The context files a lookup came from, each with its source.
+    Column("sources", JSON, nullable=False),
     Column("created_at", Text, nullable=False),
 )
 # The improver's rounds, each to the settings, the recipe and the version of the

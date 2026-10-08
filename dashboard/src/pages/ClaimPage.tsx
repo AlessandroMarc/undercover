@@ -2,11 +2,11 @@ import { useCallback } from "react";
 import { Link, useParams } from "react-router";
 import { api, type Claim } from "../api";
 import { StatusChip } from "../components/Chips";
+import { ContextUsed } from "../components/ContextUsed";
 import { DecisionPanel } from "../components/DecisionPanel";
 import { StateMessage } from "../components/StateMessage";
 import { PageHeader } from "../components/PageHeader";
 import { HistoryPanel, PolicyPanel } from "../components/PolicyPanels";
-import { SectionsRead } from "../components/SectionsRead";
 import { StepList } from "../components/StepList";
 import { date, label, money } from "../format";
 import { evaluationPage, QUEUE } from "../paths";
@@ -56,8 +56,8 @@ export function ClaimPage() {
           )
         }
       />
-      {/* The agent's steps grow at the end of the right column, and the sections
-          it read at the end of the left, so neither moves anything as the
+      {/* The agent's steps grow at the end of the right column, and the context
+          it used at the end of the left, so neither moves anything as the
           page refreshes. */}
       <div className="claim-layout">
         <div className="column">
@@ -66,7 +66,7 @@ export function ClaimPage() {
           <DocumentsPanel claim={claim} />
           <PolicyPanel policyId={claim.policy_id} />
           <HistoryPanel customerId={claim.customer_id} />
-          <SectionsRead steps={steps.data} />
+          <ContextUsed steps={steps.data} />
         </div>
         <div className="column">
           <DecisionPanel claim={claim} onSignedOff={reload} />

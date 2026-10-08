@@ -160,12 +160,12 @@ def record_reply(context: ClaimContext, reply: BaseMessage) -> None:
     """Record the model's reply on the claim: its text, then each tool it calls,
     named as the route names it."""
     if reply.text:
-        api.record_step(context.claim_id, "message", reply.text)
+        api.record_step(context.claim_id, "message", reply.text, [])
     if isinstance(reply, AIMessage):
         for call in reply.tool_calls:
             args = ", ".join(f"{k}={as_json(v)}" for k, v in call["args"].items())
             name = named(context, call["name"])
-            api.record_step(context.claim_id, "tool_call", f"{name}({args})")
+            api.record_step(context.claim_id, "tool_call", f"{name}({args})", [])
 
 
 def record_result(
@@ -173,8 +173,8 @@ def record_result(
     execute: Callable[[ToolCallRequest], ToolMessage | Command],
 ) -> ToolMessage | Command:
     """Run a tool and record its result on the claim, or its refusal, named as the
-    route names the tool, then any step it gives as its artifact, such as a
-    section it read."""
+    route names the tool, then any step it gives as its artifact, such as what it
+    looked up and the files that came from."""
     result = execute(request)
     if isinstance(result, ToolMessage):
         message = result
@@ -183,7 +183,7 @@ def record_result(
     context = cast(ClaimContext, request.runtime.context)
     kind = REFUSAL if message.status == "error" else "tool_result"
     name = named(context, request.tool_call["name"])
-    api.record_step(context.claim_id, kind, f"{name}: {message.text}")
+    api.record_step(context.claim_id, kind, f"{name}: {message.text}", [])
     if message.artifact:
         api.record_step(context.claim_id, *message.artifact)
     return result
@@ -207,7 +207,8 @@ def screen_claim(
     if screening is None:
         raise UnreadableScreening("The security check's answer couldn't be read")
     line = FOUND if screening.instructions_found else NONE_FOUND
-    api.record_step(context.claim_id, "screening", line.format(reason=screening.reason))
+    checked = line.format(reason=screening.reason)
+    api.record_step(context.claim_id, "screening", checked, [])
     return {"screening": screening.model_dump()}
 
 
@@ -259,7 +260,7 @@ def hold(context: ClaimContext, refused: GatewayRefused) -> dict[str, Any]:
     """Record the Gateway's refusal of a payment on the claim, and hold the payment
     for a handler's sign-off with the Gateway's reason."""
     name = context.route.name(Target.APP, PAY_CLAIM)
-    api.record_step(context.claim_id, REFUSAL, f"{name}: {refused.answer}")
+    api.record_step(context.claim_id, REFUSAL, f"{name}: {refused.answer}", [])
     return api.hold_payment(context.claim_id, str(refused))
 
 
@@ -287,11 +288,13 @@ def after_tools(state: ClaimState) -> str:
 
 
 def remember(state: ClaimState, runtime: Runtime[ClaimContext]) -> None:
-    """Save the claim the claim agent decided to its customer's memory. When the
-    memory can't be reached, the claim keeps its decision and the error is logged
-    as a warning, as any error after the decision is."""
+    """Save the claim the claim agent decided to its customer's memory, and record
+    what was saved on the claim. When the memory can't be reached, the claim keeps
+    its decision and the error is logged as a warning, as any error after the
+    decision is."""
     claim = api.get_claim(runtime.context.claim_id)
-    memory.remember(cast(BaseStore, runtime.store), claim)
+    saved = memory.remember(cast(BaseStore, runtime.store), claim)
+    api.record_step(claim["claim_id"], "memory_save", saved, [])
 
 
 def claim_graph(

@@ -168,7 +168,7 @@ def test_a_refused_decision_goes_back_to_the_model(client):
     assert claim_of(client, "CLM-1001")["payment"]["amount"] == 420.0
 
 
-def test_reading_a_section_is_recorded(client):
+def test_a_section_read_is_recorded_as_a_lookup(client):
     model = stub(
         call("read_section", document="claims_manual", number=9),
         call("read_section", document="claims_manual", number=15),
@@ -183,7 +183,7 @@ def test_reading_a_section_is_recorded(client):
         'read_section(document="claims_manual", number=9)',
     )
     assert steps[1][1].startswith('read_section: {"document": "claims_manual"')
-    assert steps[2] == ("reading", "Claims manual, section 9: Repeat claims")
+    assert steps[2] == ("lookup", "Claims manual, section 9: Repeat claims")
     assert steps[4] == (
         "refusal",
         "read_section: Refused: Error executing tool read_section: "
@@ -193,7 +193,10 @@ def test_reading_a_section_is_recorded(client):
     assert steps[6][1].startswith(
         'search_documents: {"sections": [{"document": "claims_manual"'
     )
-    assert [s for s in steps if s[0] == "reading"] == [steps[2]]
+    assert [s for s in steps if s[0] == "lookup"] == [
+        steps[2],
+        ("lookup", 'Documents: "wild animal"'),
+    ]
 
 
 def test_a_section_with_bad_arguments_goes_back_to_the_model(client):
@@ -201,7 +204,7 @@ def test_a_section_with_bad_arguments_goes_back_to_the_model(client):
         call("read_section", document="handbook", number=1), *decide("refer", 0)
     )
     assert work("CLM-1004", model) == "CLM-1004  refer  $0.00"
-    assert "reading" not in {s["kind"] for s in steps_of(client, "CLM-1004")}
+    assert "lookup" not in {s["kind"] for s in steps_of(client, "CLM-1004")}
 
 
 def test_working_out_the_payout(client):

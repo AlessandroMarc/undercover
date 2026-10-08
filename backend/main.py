@@ -170,17 +170,14 @@ def check_run(db: Connection, run_id: str | None) -> None:
         run_row(db, run_id)
 
 
-def add_step(
-    db: Connection, claim_id: str, thread_id: str, kind: str, content: str
-) -> Step:
+def add_step(db: Connection, claim_id: str, thread_id: str, step: StepRequest) -> Step:
     """Add one step of the agent's work to a claim."""
     query = (
         insert(steps)
         .values(
             claim_id=claim_id,
             thread_id=thread_id,
-            kind=kind,
-            content=content,
+            **step.model_dump(),
             created_at=now(),
         )
         .returning(steps)
@@ -278,7 +275,7 @@ def start_claim(claim_id: str, request: StartRequest, db: Database) -> Claim:
 def record_step(claim_id: str, request: StepRequest, db: Database) -> Step:
     """Record one step of the agent's work on a claim."""
     thread_id = started_thread(db, claim_id)
-    return add_step(db, claim_id, thread_id, request.kind, request.content)
+    return add_step(db, claim_id, thread_id, request)
 
 
 @app.post(
@@ -476,7 +473,8 @@ def fail_claim(claim_id: str, request: FailureRequest, db: Database) -> Claim:
         raise HTTPException(409, NOT_IN_PROGRESS.format(claim_id=claim_id))
     if claim["decision"] is not None:
         raise HTTPException(409, f"Claim {claim_id} has already been decided")
-    add_step(db, claim_id, claim["thread_id"], "error", request.reason)
+    error = StepRequest(kind="error", content=request.reason, sources=[])
+    add_step(db, claim_id, claim["thread_id"], error)
     status = (
         Status.LEFT_FOR_HANDLER if claim["attempts"] >= ATTEMPTS else Status.WAITING
     )

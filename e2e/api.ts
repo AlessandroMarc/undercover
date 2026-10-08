@@ -4,6 +4,7 @@ import type {
   EvaluationSet,
   Improvement,
   Run,
+  Source,
   StepKind,
 } from "../dashboard/src/api";
 import { HANDLERS, signedInAs } from "./handlers";
@@ -41,12 +42,20 @@ async function send(
 export const startClaim = (request: Request, claimId: string, thread: string) =>
   send(request, "POST", `${claimPath(claimId)}/start`, { thread_id: thread });
 
+// Records a step, with the context files a lookup came from, and none for any
+// other step.
 export const recordStep = (
   request: Request,
   claimId: string,
   kind: StepKind,
   content: string,
-) => send(request, "POST", `${claimPath(claimId)}/steps`, { kind, content });
+  sources: Source[] = [],
+) =>
+  send(request, "POST", `${claimPath(claimId)}/steps`, {
+    kind,
+    content,
+    sources,
+  });
 
 // Who makes the decisions the tests record, as the claim agent says it.
 const MAKER = "UnderCover Agent, version 1";

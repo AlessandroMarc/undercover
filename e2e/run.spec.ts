@@ -95,8 +95,16 @@ test("a claim that fails twice is left for a handler", async ({
   await recordStep(
     request,
     "CLM-1016",
-    "reading",
+    "lookup",
     "Policy wording, section 7: Emergency Medical",
+    [
+      {
+        file: "policy_wording.md",
+        system: "Published policy documents",
+        owner: "Legal",
+        reviewed: "2026-09-01",
+      },
+    ],
   );
   await failClaim(request, "CLM-1016", "RuntimeError: The model timed out");
   await expect(
@@ -116,8 +124,10 @@ test("a claim that fails twice is left for a handler", async ({
     ),
   ).toBeVisible();
 
-  const read = page.locator(".sections-read");
-  await expect(read.getByRole("listitem")).toHaveText([
+  const used = page.locator("section", {
+    has: page.getByRole("heading", { name: "Context used" }),
+  });
+  await expect(used.getByRole("listitem")).toHaveText([
     "Policy wording, section 7: Emergency Medical",
   ]);
   const failed = page.locator(".step", { hasText: "Failed" });

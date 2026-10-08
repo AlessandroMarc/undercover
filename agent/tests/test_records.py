@@ -73,7 +73,11 @@ def test_an_approval_with_no_calculation_goes_back_to_the_model(client):
     assert isinstance(refusal, ToolMessage)
     assert refusal.text == f"Refused with status 422: {NO_CALCULATION}"
     steps = [(s["kind"], s["content"]) for s in steps_of(client, "CLM-1001")]
-    assert ("refusal", f"record_decision: {refusal.text}") in steps
+    refused = steps.index(("refusal", f"record_decision: {refusal.text}"))
+    # The refusal is followed by the model's next attempt at the record.
+    after = [content for kind, content in steps[refused:] if kind == "tool_call"]
+    assert after[0].startswith("calculate_payout(")
+    assert after[1].startswith('record_decision(decision="approve"')
     decisions = [c for k, c in steps if k == "tool_result" and "record_decision" in c]
     assert len(decisions) == 1
     claim = claim_of(client, "CLM-1001")

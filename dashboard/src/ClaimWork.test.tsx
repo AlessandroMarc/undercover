@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { Claim, Decision, Step } from "./api";
+import type { Claim, Decision, Source, Step } from "./api";
 import { time } from "./format";
 import {
   wholeText,
@@ -31,29 +31,43 @@ afterEach(() => {
 
 const decidedAt = "2026-09-27T17:06:16+00:00";
 
+// A step of the agent's work, from no context file unless it's a lookup.
+const step = (
+  step_id: number,
+  kind: Step["kind"],
+  content: string,
+  sources: Source[] = [],
+): Step => ({
+  step_id,
+  thread_id: "t-1",
+  kind,
+  content,
+  sources,
+  created_at: decidedAt,
+});
+
 const steps: Step[] = [
-  {
-    step_id: 1,
-    thread_id: "t-1",
-    kind: "tool_call",
-    content: 'get_claim(claim_id="CLM-1002")',
-    created_at: decidedAt,
-  },
-  {
-    step_id: 2,
-    thread_id: "t-1",
-    kind: "tool_result",
-    content: `get_claim: {"claim_id":"CLM-1002","story":"${"A long story. ".repeat(10)}"}`,
-    created_at: decidedAt,
-  },
-  {
-    step_id: 3,
-    thread_id: "t-1",
-    kind: "message",
-    content: "Approved and paid.",
-    created_at: decidedAt,
-  },
+  step(1, "tool_call", 'get_claim(claim_id="CLM-1002")'),
+  step(
+    2,
+    "tool_result",
+    `get_claim: {"claim_id":"CLM-1002","story":"${"A long story. ".repeat(10)}"}`,
+  ),
+  step(3, "message", "Approved and paid."),
 ];
+
+const wording: Source = {
+  file: "policy_wording.md",
+  system: "Published policy documents",
+  owner: "Legal",
+  reviewed: "2026-09-01",
+};
+const manual: Source = {
+  file: "claims_manual.md",
+  system: "Claims operations",
+  owner: "Head of claims operations",
+  reviewed: "2026-09-01",
+};
 
 function showClaim(shown: Claim, stepsShown: Step[] = []) {
   const routes: Routes = {
@@ -72,9 +86,19 @@ const decisionPanel = () => panel("Decision");
 const approval: Decision = {
   decision: "approve",
   payout: 420,
+  calculation: {
+    lines: [
+      { step: "Suitcase, limited to $300.00", amount: 300 },
+      { step: "Clothes", amount: 170 },
+      { step: "Less the deductible", amount: -50 },
+    ],
+    payout: 420,
+  },
   section: "Section 5, Baggage and Personal Effects",
   reason: "The suitcase was lost by the carrier.",
+  decided_by: "UnderCover Agent, version 1",
   decided_at: decidedAt,
+  manual_version: "2026.2",
   signed_off_by: null,
   signed_off_at: null,
   gateway_refusal: null,
@@ -127,49 +151,86 @@ it("says when a claim is left for a handler", async () => {
   ).toBeDefined();
 });
 
-it("shows the sections read once each, and failed attempts", async () => {
-  const read = (step_id: number, content: string): Step => ({
-    step_id,
-    thread_id: "t-1",
-    kind: "reading",
-    content,
-    created_at: decidedAt,
-  });
+it("shows the context used once each, grouped by file, and failed attempts", async () => {
   showClaim({ ...claim, attempts: 1 }, [
-    read(1, "Policy wording, section 3: Trip Delay"),
-    read(2, "Claims manual, section 10: Meals without receipts"),
-    read(3, "Policy wording, section 3: Trip Delay"),
-    {
-      step_id: 4,
-      thread_id: "t-1",
-      kind: "error",
-      content: "RuntimeError: The model timed out",
-      created_at: decidedAt,
-    },
+    step(1, "lookup", "Policy wording, section 3: Trip Delay", [wording]),
+    step(2, "lookup", 'Documents: "unattended"', [wording, manual]),
+    step(3, "lookup", "Policy wording, section 3: Trip Delay", [wording]),
+    step(4, "lookup", 'Reference data: "zeppelin"'),
+    step(5, "error", "RuntimeError: The model timed out"),
   ]);
-  const heading = await screen.findByRole("heading", { name: "Sections read" });
-  const list = within(heading.parentElement ?? document.body).getAllByRole(
-    "listitem",
-  );
-  expect(list.map((item) => item.textContent)).toEqual([
+  const used = await panel("Context used");
+  const files = used.getAllByRole("heading", { level: 3 });
+  expect(files.map((file) => file.textContent)).toEqual([
+    "policy_wording.md",
+    "claims_manual.md",
+    "Found nothing",
+  ]);
+  const lookedUp = (file: HTMLElement) =>
+    within(file.parentElement ?? document.body)
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
+  expect(lookedUp(files[0])).toEqual([
     "Policy wording, section 3: Trip Delay",
-    "Claims manual, section 10: Meals without receipts",
+    'Documents: "unattended"',
   ]);
-  const reading = screen.getAllByText("Read");
-  expect(reading).toHaveLength(3);
+  expect(lookedUp(files[1])).toEqual(['Documents: "unattended"']);
+  expect(lookedUp(files[2])).toEqual(['Reference data: "zeppelin"']);
+  expect(
+    used.getByText(
+      "Claims operations, owned by the Head of claims operations, reviewed Sep 1, 2026",
+    ),
+  ).toBeDefined();
+  expect(
+    used.getByText(
+      "Published policy documents, owned by Legal, reviewed Sep 1, 2026",
+    ),
+  ).toBeDefined();
   const failed = screen.getByText("Failed");
   expect(failed.className).toBe("chip step-failed");
   expect(failed.parentElement?.textContent).toBe(
     "Failed RuntimeError: The model timed out",
   );
+  expect(screen.queryByText("Sections read")).toBeNull();
 });
 
-it("lists no sections when the agent has read none", async () => {
+it("shows no context used when the agent has looked nothing up", async () => {
   showClaim(approved, steps);
   expect(
     await screen.findByText('get_claim(claim_id="CLM-1002")'),
   ).toBeDefined();
-  expect(screen.queryByText("Sections read")).toBeNull();
+  expect(screen.queryByText("Context used")).toBeNull();
+});
+
+it("shows each lookup, memory search and save with its icon", async () => {
+  showClaim({ ...claim, status: "in_progress", thread_id: "t-1" }, [
+    step(1, "lookup", "Claims manual, section 14: Records", [manual]),
+    step(2, "memory_search", '"earlier claims"\n- Oliver Grant travels a lot.'),
+    step(3, "memory_save", "Claim CLM-1002: A lost suitcase"),
+    step(4, "lookup", 'Reference data: "zeppelin"'),
+  ]);
+  // The steps, not the files listed inside a lookup.
+  const [list] = (await panel("Agent at work")).getAllByRole("list");
+  const items = Array.from(list.children);
+  const lookup = items[0];
+  expect(lookup.querySelector("svg.lucide-book-open")).not.toBeNull();
+  expect(lookup.textContent).toContain(
+    "Looked up Claims manual, section 14: Records",
+  );
+  expect(lookup.textContent).toContain(
+    "claims_manual.md: Claims operations, owned by the Head of claims operations, reviewed Sep 1, 2026",
+  );
+  expect(items[1].querySelector("svg.lucide-history")).not.toBeNull();
+  expect(items[1].textContent).toContain(
+    'Searched memory "earlier claims"\n- Oliver Grant travels a lot.',
+  );
+  expect(items[2].querySelector("svg.lucide-notebook-pen")).not.toBeNull();
+  expect(items[2].textContent).toContain(
+    "Saved to memory Claim CLM-1002: A lost suitcase",
+  );
+  expect(items[3].textContent).toContain(
+    'Looked up Reference data: "zeppelin"Found nothing',
+  );
 });
 
 it("says when the agent is working", async () => {
@@ -178,11 +239,24 @@ it("says when the agent is working", async () => {
   expect(panel.getByText("The agent is working on this claim.")).toBeDefined();
 });
 
-it("shows an approval and its payment", async () => {
+it("shows an approval's whole record and its payment", async () => {
   showClaim(approved, steps);
   const panel = await decisionPanel();
   expect(panel.getByText("Approved")).toBeDefined();
-  expect(panel.getAllByText("$420.00")).toHaveLength(2);
+  const lines = within(panel.getByRole("table")).getAllByRole("row");
+  expect(lines.map((row) => row.textContent)).toEqual([
+    "Suitcase, limited to $300.00$300.00",
+    "Clothes$170.00",
+    "Less the deductible-$50.00",
+    "Payout$420.00",
+  ]);
+  expect(
+    panel.getByText(
+      `Decided by UnderCover Agent, version 1 at ${time(decidedAt)}`,
+    ),
+  ).toBeDefined();
+  expect(panel.getByText("Claims manual version 2026.2")).toBeDefined();
+  expect(panel.getAllByText("$420.00")).toHaveLength(3);
   expect(panel.getByText(approval.section)).toBeDefined();
   expect(panel.getByText(approval.reason)).toBeDefined();
   expect(panel.getByText(/^Paid/).textContent).toBe("Paid $420.00");
@@ -211,11 +285,18 @@ it("shows a payment with its sign-off", async () => {
 it("shows a decline without a payout", async () => {
   showClaim({
     ...approved,
-    decision: { ...approval, decision: "decline", payout: 0 },
+    decision: {
+      ...approval,
+      decision: "decline",
+      payout: 0,
+      calculation: null,
+    },
     payment: null,
   });
   const panel = await decisionPanel();
   expect(panel.getByText("Declined")).toBeDefined();
+  expect(panel.queryByRole("table")).toBeNull();
+  expect(panel.getByText("Claims manual version 2026.2")).toBeDefined();
   expect(panel.queryByText("$0.00")).toBeNull();
   expect(panel.queryByText(/paid/i)).toBeNull();
 });
@@ -334,13 +415,7 @@ it("shows a refusal standing out from the other steps", async () => {
   const refusal = "record_decision: Refused with status 422: No calculation";
   showClaim({ ...claim, status: "in_progress", thread_id: "t-1" }, [
     ...steps,
-    {
-      step_id: 4,
-      thread_id: "t-1",
-      kind: "refusal",
-      content: refusal,
-      created_at: decidedAt,
-    },
+    step(4, "refusal", refusal),
   ]);
   const chip = await screen.findByText("Refused");
   expect(chip.className).toBe("chip step-refused");
@@ -354,13 +429,11 @@ it("shows a refusal standing out from the other steps", async () => {
 
 it("shows the security check as the first step", async () => {
   showClaim({ ...claim, status: "in_progress", thread_id: "t-1" }, [
-    {
-      step_id: 1,
-      thread_id: "t-1",
-      kind: "screening",
-      content: "No instructions found. The claim describes a delayed flight.",
-      created_at: decidedAt,
-    },
+    step(
+      1,
+      "screening",
+      "No instructions found. The claim describes a delayed flight.",
+    ),
     ...steps,
   ]);
   const check = await screen.findByText("Security check");

@@ -5,6 +5,7 @@ import type {
   RoundStatus,
   RoundSummary,
   RunStatus,
+  Source,
   Status,
   Verdict,
   VersionStatus,
@@ -42,6 +43,16 @@ const modelDollars = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 4,
   maximumFractionDigits: 4,
 });
+
+// A context file's source as a handler reads it, such as "Claims operations,
+// owned by the Head of claims operations, reviewed Sep 1, 2026". An owner that
+// is a role, a head of something, is "the" head.
+export function sourceOf(source: Source): string {
+  const owner = source.owner.startsWith("Head of ")
+    ? `the ${source.owner}`
+    : source.owner;
+  return `${source.system}, owned by ${owner}, reviewed ${date(source.reviewed)}`;
+}
 
 export function money(amount: number): string {
   return dollars.format(amount);

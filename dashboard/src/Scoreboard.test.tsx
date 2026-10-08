@@ -189,9 +189,15 @@ it("shows a copy's evaluation, and no sign-off for a held copy", async () => {
     decision: {
       decision: "approve",
       payout: 1200,
+      calculation: {
+        lines: [{ step: "Laptop", amount: 1200 }],
+        payout: 1200,
+      },
       section: "Section 5",
       reason: "The loss is covered.",
+      decided_by: "UnderCover Agent, version 1",
       decided_at: "2026-10-03T17:03:00+00:00",
+      manual_version: "2026.2",
       signed_off_by: null,
       signed_off_at: null,
       gateway_refusal: null,

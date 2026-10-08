@@ -74,6 +74,87 @@ test("the claim page shows the agent at work", async ({ page, request }) => {
   await expect(page.getByText("Approved and paid $500.00.")).toBeVisible();
 });
 
+test("the claim page shows every kind of step, the context used and the whole record", async ({
+  page,
+  request,
+}) => {
+  const manual = {
+    file: "claims_manual.md",
+    system: "Claims operations",
+    owner: "Head of claims operations",
+    reviewed: "2026-09-01",
+  };
+  await page.goto("/claims/CLM-1006");
+  await expect(page.getByText(/No steps yet/)).toBeVisible();
+
+  await startClaim(request, "CLM-1006", "e2e-steps");
+  await recordStep(
+    request,
+    "CLM-1006",
+    "lookup",
+    "Claims manual, section 9: Repeat claims",
+    [manual],
+  );
+  await recordStep(request, "CLM-1006", "lookup", 'Reference data: "zeppelin"');
+  await recordStep(
+    request,
+    "CLM-1006",
+    "memory_search",
+    '"earlier claims"\n- CLM-1005 was approved for $243.00.',
+  );
+  await recordStep(
+    request,
+    "CLM-1006",
+    "refusal",
+    "record_decision: Refused with status 422: Claims manual section 14",
+  );
+  const steps = page.locator(".steps > li");
+  await expect(steps).toHaveText([
+    /Looked up Claims manual, section 9: Repeat claims.*owned by the Head of claims operations, reviewed Sep 1, 2026/,
+    /Looked up Reference data: "zeppelin"/,
+    /Searched memory "earlier claims"\s+- CLM-1005 was approved for \$243\.00\./,
+    /Refused record_decision: Refused with status 422/,
+  ]);
+  const used = page.locator("section", {
+    has: page.getByRole("heading", { name: "Context used" }),
+  });
+  await expect(used.getByRole("heading", { level: 3 })).toHaveText([
+    "claims_manual.md",
+    "Found nothing",
+  ]);
+  await expect(
+    used.getByText(
+      "Claims operations, owned by the Head of claims operations, reviewed Sep 1, 2026",
+    ),
+  ).toBeVisible();
+
+  await decide(request, "CLM-1006", {
+    decision: "approve",
+    payout: 243,
+    section: "Section 6, Emergency Medical",
+    reason: "The hospital bill is covered.",
+  });
+  await recordStep(
+    request,
+    "CLM-1006",
+    "memory_save",
+    "Claim CLM-1006: Food poisoning in Porto",
+  );
+  await expect(steps.last()).toHaveText(
+    /Saved to memory Claim CLM-1006: Food poisoning in Porto/,
+  );
+  const decision = page.locator("section", {
+    has: page.getByRole("heading", { name: "Decision" }),
+  });
+  await expect(decision.getByRole("row").last()).toHaveText("Payout$243.00");
+  await expect(
+    decision.getByText(/^Decided by UnderCover Agent, version 1 at /),
+  ).toBeVisible();
+  await expect(
+    decision.getByText("Claims manual version 2026.2"),
+  ).toBeVisible();
+});
+
 test("a sign-off on the dashboard pays the held payout", async ({
   page,
   request,

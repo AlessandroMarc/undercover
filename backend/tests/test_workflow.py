@@ -1,7 +1,7 @@
 import pytest
 
 from backend.database import payments
-from backend.tests.claim_requests import decide, pay, sign_off, start
+from backend.tests.claim_requests import decide, pay, record_step, sign_off, start
 from backend.tests.dashboard_reads import read, steps_of
 from backend.tests.rows import count
 from backend.tests.settings_requests import change_settings
@@ -22,18 +22,10 @@ def test_start_needs_a_thread_id(client):
 
 
 def test_steps(client):
-    assert (
-        client.post(
-            "/api/claims/CLM-1001/steps", json={"kind": "message", "content": "Hi"}
-        ).status_code
-        == 409
-    )
+    assert record_step(client, "CLM-1001", "message", "Hi").status_code == 409
     start(client, "CLM-1001")
     for kind, content in (("tool_call", "get_claim"), ("tool_result", "{}")):
-        response = client.post(
-            "/api/claims/CLM-1001/steps", json={"kind": kind, "content": content}
-        )
-        assert response.status_code == 200
+        assert record_step(client, "CLM-1001", kind, content).status_code == 200
     steps = steps_of(client, "CLM-1001")
     assert [(s["kind"], s["content"]) for s in steps] == [
         ("tool_call", "get_claim"),
@@ -45,12 +37,48 @@ def test_steps(client):
     assert read(client, "/api/claims/CLM-9999/steps").status_code == 404
 
 
-def test_step_kind_must_be_known(client):
+MANUAL = {
+    "file": "claims_manual.md",
+    "system": "Claims operations",
+    "owner": "Head of claims operations",
+    "reviewed": "2026-09-01",
+}
+
+
+def test_each_kind_of_step_is_recorded_with_its_sources(client):
     start(client, "CLM-1001")
-    response = client.post(
-        "/api/claims/CLM-1001/steps", json={"kind": "thought", "content": "Hmm"}
-    )
+    recorded = [
+        ("screening", "No instructions found.", []),
+        ("message", "Looking into it.", []),
+        ("tool_call", 'read_section(document="claims_manual", number=14)', []),
+        ("tool_result", 'read_section: {"title": "Records"}', []),
+        ("lookup", "Claims manual, section 14: Records", [MANUAL]),
+        ("memory_search", '"earlier claims": nothing found', []),
+        ("memory_save", "Claim CLM-1001: A delayed flight", []),
+        ("refusal", "record_decision: Refused with status 422", []),
+        ("error", "RuntimeError: The model timed out", []),
+    ]
+    for kind, content, sources in recorded:
+        response = record_step(client, "CLM-1001", kind, content, sources)
+        assert response.status_code == 200
+        assert response.json()["sources"] == sources
+    steps = steps_of(client, "CLM-1001")
+    assert [(s["kind"], s["content"], s["sources"]) for s in steps] == recorded
+
+
+def test_step_kind_must_be_known_and_reading_is_gone(client):
+    start(client, "CLM-1001")
+    for kind in ("thought", "reading"):
+        response = record_step(client, "CLM-1001", kind, "Hmm")
+        assert response.status_code == 422
+
+
+def test_a_step_needs_its_sources(client):
+    start(client, "CLM-1001")
+    body = {"kind": "message", "content": "Hi"}
+    response = client.post("/api/claims/CLM-1001/steps", json=body)
     assert response.status_code == 422
+    assert steps_of(client, "CLM-1001") == []
 
 
 def test_decision_needs_a_claim_in_progress(client):
