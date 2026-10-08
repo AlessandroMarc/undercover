@@ -4,7 +4,7 @@ import {
   createEvaluation,
   finishRun,
   payClaim,
-  recordDecision,
+  decide,
   recordModelCall,
   recordWorkTime,
   startClaim,
@@ -33,8 +33,12 @@ test("the Scoreboard shows an evaluation played out through the API", async ({
     await recordModelCall(request, claim_id, run_id, 0.0125);
     await recordWorkTime(request, claim_id, run_id, 40);
   }
-  const decide = (original: string, decision: DecisionKind, payout: number) =>
-    recordDecision(request, copyOf(original), {
+  const decideCopy = (
+    original: string,
+    decision: DecisionKind,
+    payout: number,
+  ) =>
+    decide(request, copyOf(original), {
       decision,
       payout,
       section: "Section 5",
@@ -42,12 +46,12 @@ test("the Scoreboard shows an evaluation played out through the API", async ({
     });
   const pay = (original: string, amount: number) =>
     payClaim(request, copyOf(original), amount);
-  await decide("CLM-1104", "approve", 250);
+  await decideCopy("CLM-1104", "approve", 250);
   await pay("CLM-1104", 250);
-  await decide("CLM-1106", "approve", 300);
+  await decideCopy("CLM-1106", "approve", 300);
   await pay("CLM-1106", 300);
-  await decide("CLM-1110", "refer", 0);
-  await decide("CLM-1112", "approve", 1200);
+  await decideCopy("CLM-1110", "refer", 0);
+  await decideCopy("CLM-1112", "approve", 1200);
   await finishRun(request, run_id);
 
   await page.goto("/scoreboard");

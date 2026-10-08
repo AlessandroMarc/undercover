@@ -4,7 +4,7 @@ import {
   failClaim,
   finishRun,
   payClaim,
-  recordDecision,
+  decide,
   recordModelCall,
   recordRunClaims,
   recordStep,
@@ -49,14 +49,14 @@ test("the dispatch panel follows a dispatch as it works", async ({
     /^CLM-1014.*In progress/,
   ]);
 
-  await recordDecision(request, "CLM-1013", {
+  await decide(request, "CLM-1013", {
     decision: "approve",
     payout: 300,
     section: "Section 3, Trip Delay",
     reason: "The delay was covered.",
   });
   await payClaim(request, "CLM-1013", 300);
-  await recordDecision(request, "CLM-1014", {
+  await decide(request, "CLM-1014", {
     decision: "refer",
     payout: 0,
     section: "Manual, section 2",

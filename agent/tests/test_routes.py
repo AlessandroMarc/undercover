@@ -16,7 +16,17 @@ from agent.mcp_tools import McpTools
 from agent.routes import Target
 from agent.tests.gateway_stand_in import DENIED
 from agent.tests.records import claim_of, payments_of
-from agent.tests.stubs import agent_on, call, decide, flags, passes, record, stub
+from agent.tests.stubs import (
+    agent_on,
+    approve,
+    calculate,
+    call,
+    decide,
+    flags,
+    passes,
+    record,
+    stub,
+)
 from agent.tools import claim_as_read
 from backend.agent_api import OPERATIONS
 from backend.tests.claim_requests import sign_off, start
@@ -133,7 +143,9 @@ def test_the_check_reads_what_get_claim_gives_on_the_gateway(client, gateway):
 def test_a_decision_the_app_refuses_is_a_refusal_on_each_route(
     client, route_name, route
 ):
-    model = stub(record("approve", 0), record("approve", 420.0))
+    model = stub(
+        record("approve", 0), calculate("CLM-1001", 420.0), record("approve", 420.0)
+    )
     report = harness.work_claim("CLM-1001", None, agent_on(model, route=route))
     assert report == "CLM-1001  approve  $420.00"
     refusal = model.prompts[1][-1]
@@ -142,7 +154,7 @@ def test_a_decision_the_app_refuses_is_a_refusal_on_each_route(
     # through the Gateway, the body the app answered with.
     answer = {"direct": "Refused with status 422: ", "gateway": 'Refused: {"detail":'}
     assert refusal.text.startswith(answer[route_name])
-    assert "An approval needs a payout above zero" in refusal.text
+    assert "section 14: an approval needs a payout above zero" in refusal.text
     refusals = [s for s in steps_of(client, "CLM-1001") if s["kind"] == "refusal"]
     name = route.name(Target.APP, "record_decision")
     assert [s["content"] for s in refusals] == [f"{name}: {refusal.text}"]
@@ -162,7 +174,7 @@ def test_a_tool_the_gateway_refuses_is_a_refusal_and_the_work_goes_on(client, ga
 
 def test_a_payment_the_gateway_refuses_waits_for_a_handlers_sign_off(client, gateway):
     change_settings(client, approval_limit=2000.0)
-    model = stub(*decide("approve", 1500.0))
+    model = stub(*approve("CLM-1002", 1500.0))
     agent = on_the_gateway(gateway, model)
     report = harness.work_claim("CLM-1002", None, agent)
     assert report == "CLM-1002  approve  $1,500.00, waiting for sign-off"
@@ -179,7 +191,7 @@ def test_a_payment_the_gateway_refuses_waits_for_a_handlers_sign_off(client, gat
     assert sign_off(client, "CLM-1002").status_code == 200
     steps = steps_of(client, "CLM-1002")
     assert harness.carry_on("CLM-1002", None, agent) == "CLM-1002  approve  $1,500.00"
-    assert len(model.prompts) == 2
+    assert len(model.prompts) == 3
     assert steps_of(client, "CLM-1002") == steps
     assert [p["amount"] for p in payments_of("CLM-1002")] == [1500.0]
 
@@ -223,6 +235,7 @@ def test_the_stand_ins_app_tools_are_the_agents_api_documents_operations(
         "payout",
         "section",
         "reason",
+        "decided_by",
     }
 
 

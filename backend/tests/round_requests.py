@@ -4,6 +4,7 @@ agent's service and the dashboard do."""
 from sqlalchemy import select, update
 
 from backend.database import engine, handler_decisions, runs
+from backend.tests.claim_requests import decide
 from backend.tests.dashboard_reads import read
 from backend.tests.run_requests import get_evaluation
 from backend.tests.sign_in import DANA, signed_in
@@ -116,15 +117,7 @@ def decide_copies(client, run, right):
         if n >= right:
             decision, payout = ("refer" if decision == "decline" else "decline"), 0
         client.post(f"/api/claims/{copy_id}/start", json={"thread_id": copy_id})
-        client.post(
-            f"/api/claims/{copy_id}/decision",
-            json={
-                "decision": decision,
-                "payout": payout,
-                "section": "Section 3",
-                "reason": "The reason.",
-            },
-        )
+        decide(client, copy_id, decision, payout, section="Section 3")
 
 
 def play_out(client, round_id, right=0, finish=True):

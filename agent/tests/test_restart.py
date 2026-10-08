@@ -11,7 +11,16 @@ from langgraph.checkpoint.memory import InMemorySaver
 from agent import api, harness
 from agent.tests.failures import fail_once
 from agent.tests.records import claim_of
-from agent.tests.stubs import StubModel, agent_on, call, decide, record, stub
+from agent.tests.stubs import (
+    StubModel,
+    agent_on,
+    approve,
+    calculate,
+    call,
+    decide,
+    record,
+    stub,
+)
 from backend.tests.claim_requests import sign_off
 from backend.tests.dashboard_reads import steps_of
 
@@ -63,7 +72,7 @@ def test_a_claim_stopped_partway_carries_on_from_its_last_step(client):
     assert (stopped["status"], stopped["attempts"]) == ("in_progress", 1)
     before = steps_of(client, "CLM-1001")
 
-    model = stub(record("approve", 420.0))
+    model = stub(calculate("CLM-1001", 420.0), record("approve", 420.0))
     report = harness.carry_on("CLM-1001", None, agent_on(model, saver))
     assert report == "CLM-1001  approve  $420.00"
     claim = claim_of(client, "CLM-1001")
@@ -75,7 +84,8 @@ def test_a_claim_stopped_partway_carries_on_from_its_last_step(client):
     assert earlier == ["get_claim", "get_policy"]
     steps = steps_of(client, "CLM-1001")
     assert steps[: len(before)] == before
-    assert len(steps) == len(before) + 2
+    # The calculation and the decision, each called and answered.
+    assert len(steps) == len(before) + 4
     assert {s["thread_id"] for s in steps} == {claim["thread_id"]}
     assert "error" not in {s["kind"] for s in steps}
 
@@ -85,7 +95,7 @@ def test_stopped_just_after_the_decision_is_recorded(client, monkeypatch):
     fail_once(monkeypatch, api, "record_decision", KeyboardInterrupt(), carry_out=True)
     with pytest.raises(KeyboardInterrupt):
         harness.work_claim(
-            "CLM-1001", None, agent_on(stub(*decide("approve", 420.0)), saver)
+            "CLM-1001", None, agent_on(stub(*approve("CLM-1001", 420.0)), saver)
         )
     assert claim_of(client, "CLM-1001")["payment"] is None
 
@@ -101,7 +111,7 @@ def test_stopped_just_after_the_payment_is_recorded(client, monkeypatch):
     fail_once(monkeypatch, api, "pay_claim", KeyboardInterrupt(), carry_out=True)
     with pytest.raises(KeyboardInterrupt):
         harness.work_claim(
-            "CLM-1001", None, agent_on(stub(*decide("approve", 420.0)), saver)
+            "CLM-1001", None, agent_on(stub(*approve("CLM-1001", 420.0)), saver)
         )
     paid = claim_of(client, "CLM-1001")["payment"]
 
@@ -119,7 +129,7 @@ def test_stopped_after_a_step_was_written_but_before_its_checkpoint(client):
     saver = StopBeforeCheckpoint()
     with pytest.raises(KeyboardInterrupt):
         harness.work_claim(
-            "CLM-1001", None, agent_on(stub(*decide("approve", 420.0)), saver)
+            "CLM-1001", None, agent_on(stub(*approve("CLM-1001", 420.0)), saver)
         )
     assert claim_of(client, "CLM-1001")["decision"]["payout"] == 420.0
 
@@ -140,7 +150,7 @@ def test_a_held_payout_stopped_before_its_checkpoint_is_paid_by_the_sign_off(
     saver = StopBeforeCheckpoint()
     with pytest.raises(KeyboardInterrupt):
         harness.work_claim(
-            "CLM-1002", None, agent_on(stub(*decide("approve", 1350.0)), saver)
+            "CLM-1002", None, agent_on(stub(*approve("CLM-1002", 1350.0)), saver)
         )
     sign_off(client, "CLM-1002")
 

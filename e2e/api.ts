@@ -48,16 +48,67 @@ export const recordStep = (
   content: string,
 ) => send(request, "POST", `${claimPath(claimId)}/steps`, { kind, content });
 
+// Who makes the decisions the tests record, as the claim agent says it.
+const MAKER = "UnderCover Agent, version 1";
+
+interface DecisionRequest {
+  decision: DecisionKind;
+  payout: number;
+  section: string;
+  reason: string;
+  decided_by: string;
+}
+
 export const recordDecision = (
   request: Request,
   claimId: string,
-  decision: {
-    decision: DecisionKind;
-    payout: number;
-    section: string;
-    reason: string;
-  },
+  decision: DecisionRequest,
 ) => send(request, "POST", `${claimPath(claimId)}/decision`, decision);
+
+export const calculatePayout = (
+  request: Request,
+  claimId: string,
+  payout: { benefit: string; lines: object[]; paid_by_others: number },
+) => send(request, "POST", `${claimPath(claimId)}/payout`, payout);
+
+// Works out the payout on one emergency medical bill, which the backend keeps
+// for the claim's attempt, and returns what it pays.
+async function payoutOnABill(request: Request, claimId: string, bill: number) {
+  const response = await calculatePayout(request, claimId, {
+    benefit: "emergency_medical",
+    lines: [
+      {
+        description: "The covered costs",
+        amount: bill,
+        quantity: 1,
+        kind: "expense",
+        nights: 0,
+        hours: 0,
+      },
+    ],
+    paid_by_others: 0,
+  });
+  const { payout } = (await response.json()) as { payout: number };
+  return payout;
+}
+
+// Records a decision as the claim agent does, with its maker. An approval's
+// payout is worked out first: a bill for the payout alone shows the plan's
+// deductible, and a bill for the payout and the deductible leaves exactly the
+// payout on file.
+export async function decide(
+  request: Request,
+  claimId: string,
+  decision: Omit<DecisionRequest, "decided_by">,
+) {
+  if (decision.decision === "approve") {
+    const deductible =
+      decision.payout -
+      (await payoutOnABill(request, claimId, decision.payout));
+    await payoutOnABill(request, claimId, decision.payout + deductible);
+  }
+  return recordDecision(request, claimId, { ...decision, decided_by: MAKER });
+}
 
 // Asks to pay a claim and returns the backend's answer, which may be a refusal.
 export const askToPay = (request: Request, claimId: string, amount: number) =>

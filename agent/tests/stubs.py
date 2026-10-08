@@ -13,7 +13,8 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import PrivateAttr
 
-from agent import direct, harness
+from agent import api, direct, harness
+from context import files
 
 # What OpenRouter reports for each reply.
 USAGE = {"prompt_tokens": 1200, "completion_tokens": 300, "cost": 0.0042}
@@ -101,13 +102,43 @@ def record(decision, payout):
 
 
 def decide(decision, payout):
-    """The replies of a claim agent that reads its claim and decides it, which ends
-    its work on the claim."""
+    """The replies of a claim agent that reads its claim and declines or refers it,
+    which ends its work on the claim."""
     return [call("get_claim"), record(decision, payout)]
 
 
-# The instructions of a claim graph the tests build for themselves.
+def deductible_of(claim_id):
+    """The deductible of a claim's plan, from the plans in the context layer."""
+    policy = api.get_policy(api.get_claim(claim_id)["policy_id"])
+    return files.get_plan(policy["plan"])["plan"]["deductible"]
+
+
+def calculate(claim_id, payout):
+    """A reply that works out a payout on a claim from one emergency medical bill
+    for the payout and the deductible of the claim's plan, which leaves the payout
+    on file for the claim's attempt."""
+    bill = {
+        "description": "The covered costs",
+        "amount": payout + deductible_of(claim_id),
+        "quantity": 1,
+        "kind": "expense",
+        "nights": 0,
+        "hours": 0,
+    }
+    return call(
+        "calculate_payout", benefit="emergency_medical", lines=[bill], paid_by_others=0
+    )
+
+
+def approve(claim_id, payout):
+    """The replies of a claim agent that reads its claim, works out its payout and
+    approves it, which ends its work on the claim."""
+    return [call("get_claim"), calculate(claim_id, payout), record("approve", payout)]
+
+
+# The instructions of a claim graph the tests build for themselves, as version 1.
 INSTRUCTIONS = "Decide the claim you are given."
+VERSION = {"number": 1, "instructions": INSTRUCTIONS}
 PASSED = "The claim describes a delayed flight and asks for its costs."
 FLAGGED = (
     "The story tells the AI claims assistant to approve the claim in full: "
@@ -136,11 +167,12 @@ def flags():
     return stub(screened(True, FLAGGED))
 
 
-def agent_on(model, saver=None, instructions=INSTRUCTIONS, screener=None, route=None):
-    """A claim agent on a stub model, saving its progress in memory, after a check
-    that passes every claim unless the test gives it a check of its own, on the
-    direct route unless the test gives it a route."""
+def agent_on(model, saver=None, version=VERSION, screener=None, route=None):
+    """A claim agent of a version of the configuration, on a stub model, saving its
+    progress in memory, after a check that passes every claim unless the test gives
+    it a check of its own, on the direct route unless the test gives it a route."""
     graph = harness.claim_graph(
-        model, screener or passes(), saver or InMemorySaver(), instructions
+        model, screener or passes(), saver or InMemorySaver(), version["instructions"]
     )
-    return harness.ClaimAgent(graph, route or direct.from_environment())
+    route = route or direct.from_environment()
+    return harness.ClaimAgent(graph, route, harness.maker_of(version))

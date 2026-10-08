@@ -10,6 +10,7 @@ from mangum import Mangum
 from sqlalchemy import Connection, RowMapping, insert, select, update
 
 from backend import agent_api, dashboard
+from backend.calculation import attempts_calculation, keep_calculation
 from backend.configuration import router as configuration
 from backend.database import (
     claim_view,
@@ -36,6 +37,7 @@ from backend.dependencies import (
     SignedInHandler,
     senior,
 )
+from backend.documents import manual_version
 from backend.improvement import router as improvement
 from backend.lookups import CLAIM_NOT_FOUND, current_settings, run_row
 from backend.models import (
@@ -63,6 +65,7 @@ from backend.models import (
 )
 from backend.money import dollars
 from backend.payout import needs_sign_off, work_out_payout
+from backend.records import check_calculation, check_request
 from backend.round_state import round_row, why_no_claim_starts
 from backend.runs import router as runs
 from backend.views import to_claim, to_summary
@@ -70,6 +73,8 @@ from backend.views import to_claim, to_summary
 ATTEMPTS = 2
 NOT_APPROVED = "Claim {claim_id} has not been approved"
 ALREADY_PAID = "Claim {claim_id} has already been paid"
+NOT_STARTED = "Claim {claim_id} has not been started"
+NOT_IN_PROGRESS = "Claim {claim_id} is not in progress"
 
 
 @asynccontextmanager
@@ -144,7 +149,7 @@ def started_thread(db: Connection, claim_id: str) -> str:
     """Return the thread of a claim that has been started, or raise a 404 or a 409."""
     thread_id = find_claim(db, claim_id)["thread_id"]
     if thread_id is None:
-        raise HTTPException(409, f"Claim {claim_id} has not been started")
+        raise HTTPException(409, NOT_STARTED.format(claim_id=claim_id))
     return thread_id
 
 
@@ -342,15 +347,19 @@ def list_steps(claim_id: str, db: Database) -> list[Step]:
     dependencies=[AgentKey],
 )
 def record_decision(claim_id: str, request: DecisionRequest, db: Database) -> Claim:
-    """Record a claim's decision once; an approval waits to be paid or signed off."""
+    """Record a claim's decision once, as section 14 asks; approvals await payment."""
+    check_request(request)
     claim = find_claim(db, claim_id)
-    payout = round(request.payout, 2)
+    payout = request.payout
     if claim["decision"] is not None:
         if (claim["decision"], claim["payout"]) == (request.decision, payout):
             return to_claim(claim)
         raise HTTPException(409, f"Claim {claim_id} has already been decided")
     if claim["status"] != Status.IN_PROGRESS:
-        raise HTTPException(409, f"Claim {claim_id} is not in progress")
+        raise HTTPException(409, NOT_IN_PROGRESS.format(claim_id=claim_id))
+    calculation = None
+    if request.decision == DecisionKind.APPROVE:
+        calculation = check_calculation(payout, attempts_calculation(db, claim))
     limit = approval_limit(db)
     db.execute(
         insert(decisions).values(
@@ -359,7 +368,10 @@ def record_decision(claim_id: str, request: DecisionRequest, db: Database) -> Cl
             payout=payout,
             section=request.section,
             reason=request.reason,
+            decided_by=request.decided_by,
             decided_at=now(),
+            manual_version=manual_version(db),
+            calculation=calculation and calculation.model_dump(),
             approval_limit=limit,
         )
     )
@@ -376,9 +388,16 @@ def record_decision(claim_id: str, request: DecisionRequest, db: Database) -> Cl
     dependencies=[AgentKey],
 )
 def calculate_payout(claim_id: str, request: PayoutRequest, db: Database) -> Payout:
-    """Work out an approval's payout with UnderCover's payout rules; records nothing."""
-    policy = find_policy(db, to_claim(find_claim(db, claim_id)).policy_id)
-    return work_out_payout(policy, plans(db), request, approval_limit(db))
+    """Work out and keep an approval's payout with UnderCover's payout rules."""
+    claim = to_claim(find_claim(db, claim_id))
+    if claim.thread_id is None:
+        raise HTTPException(409, NOT_STARTED.format(claim_id=claim_id))
+    if claim.status != Status.IN_PROGRESS:
+        raise HTTPException(409, NOT_IN_PROGRESS.format(claim_id=claim_id))
+    policy = find_policy(db, claim.policy_id)
+    payout = work_out_payout(policy, plans(db), request, approval_limit(db))
+    keep_calculation(db, claim_id, claim.thread_id, payout)
+    return payout
 
 
 @app.post(
@@ -454,7 +473,7 @@ def fail_claim(claim_id: str, request: FailureRequest, db: Database) -> Claim:
     """Put a failed claim back in the queue, or leave it for a handler after two."""
     claim = find_claim(db, claim_id)
     if claim["status"] != Status.IN_PROGRESS:
-        raise HTTPException(409, f"Claim {claim_id} is not in progress")
+        raise HTTPException(409, NOT_IN_PROGRESS.format(claim_id=claim_id))
     if claim["decision"] is not None:
         raise HTTPException(409, f"Claim {claim_id} has already been decided")
     add_step(db, claim_id, claim["thread_id"], "error", request.reason)

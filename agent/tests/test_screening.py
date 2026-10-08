@@ -22,6 +22,7 @@ from agent.tests.stubs import (
     PASSED,
     USAGE,
     agent_on,
+    approve,
     call,
     decide,
     flags,
@@ -123,7 +124,7 @@ def test_an_answer_the_real_model_gives_that_cant_be_read_comes_back_with_its_co
 
 def test_a_flagged_claim_is_referred_without_the_claim_agents_model(client):
     run_id = new_dispatch()["run_id"]
-    model = stub(*decide("approve", 4800.0))
+    model = stub(*approve("CLM-1901", 4800.0))
     agent = agent_on(model, screener=flags())
     report = harness.work_claim("CLM-1901", run_id, agent)
 
@@ -146,7 +147,7 @@ def test_a_flagged_claim_is_referred_without_the_claim_agents_model(client):
 
 def test_a_passed_claim_goes_to_the_claim_agent(client):
     screener = passes()
-    model = stub(*decide("approve", 420.0))
+    model = stub(*approve("CLM-1001", 420.0))
     report = harness.work_claim("CLM-1001", None, agent_on(model, screener=screener))
 
     assert report == "CLM-1001  approve  $420.00"
@@ -161,7 +162,7 @@ def test_a_passed_claim_goes_to_the_claim_agent(client):
         SystemMessage(SCREEN_INSTRUCTIONS),
         HumanMessage(as_the_tool_gives_it["content"].removeprefix("get_claim: ")),
     )
-    assert len(model.prompts) == 2
+    assert len(model.prompts) == 3
 
 
 def test_an_unreadable_answer_is_asked_again(client):

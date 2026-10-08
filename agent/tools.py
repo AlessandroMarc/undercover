@@ -26,13 +26,14 @@ PlanName = Literal["economy", "premium", "first"]
 @dataclass
 class ClaimContext:
     """The claim a claim agent is working on, its policy and customer, the run it
-    works in, if any, and the route its tools take."""
+    works in, if any, the route its tools take, and who its decisions are made by."""
 
     claim_id: str
     run_id: str | None
     policy_id: str
     customer_id: str
     route: Route
+    decided_by: str
 
 
 def keep_last(_: Any, new: Any) -> Any:
@@ -182,6 +183,7 @@ def record_decision(
         payout=payout,
         section=section,
         reason=reason,
+        decided_by=runtime.context.decided_by,
     )
     message = ToolMessage(as_json(claim), tool_call_id=runtime.tool_call_id)
     update = {

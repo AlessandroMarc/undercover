@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   askToPay,
   payClaim,
-  recordDecision,
+  decide,
   recordStep,
   reviews,
   startClaim,
@@ -51,7 +51,7 @@ test("the claim page shows the agent at work", async ({ page, request }) => {
     page.getByText('get_claim: {"claim_id":"CLM-1003"}').first(),
   ).toBeVisible();
 
-  await recordDecision(request, "CLM-1003", {
+  await decide(request, "CLM-1003", {
     decision: "approve",
     payout: 500,
     section: "Section 7, Emergency Medical",
@@ -79,7 +79,7 @@ test("a sign-off on the dashboard pays the held payout", async ({
   request,
 }) => {
   await startClaim(request, "CLM-1020", "e2e-2");
-  await recordDecision(request, "CLM-1020", {
+  await decide(request, "CLM-1020", {
     decision: "approve",
     payout: 1350,
     section: "Section 5, Baggage and Personal Effects",
@@ -110,7 +110,7 @@ test.describe("signed in as Marcus Oyelaran", () => {
     request,
   }) => {
     await startClaim(request, "CLM-1024", "e2e-7");
-    await recordDecision(request, "CLM-1024", {
+    await decide(request, "CLM-1024", {
       decision: "approve",
       payout: 1350,
       section: "Section 5, Baggage and Personal Effects",

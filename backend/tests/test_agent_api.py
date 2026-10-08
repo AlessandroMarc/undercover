@@ -62,3 +62,11 @@ def test_the_app_no_longer_serves_the_documents(client):
     operations = operations_in(client.get("/openapi.json").json())
     assert {"search_documents", "read_section"} & set(operations) == set()
     assert client.get("/api/documents/search", params={"query": "x"}).status_code == 404
+
+
+def test_the_decision_body_requires_its_maker(client):
+    document = client.get(PATH).json()
+    operation = operations_in(document)["record_decision"]
+    body = operation["requestBody"]["content"]["application/json"]["schema"]
+    model = document["components"]["schemas"][body["$ref"].split("/")[-1]]
+    assert "decided_by" in model["required"]

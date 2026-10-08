@@ -2,7 +2,7 @@
 improver that follows a script of tool calls, and stub claim agents that decide
 better once their instructions hold the improver's rule."""
 
-from agent.tests.stubs import StubModel, call, stub
+from agent.tests.stubs import StubModel, calculate, call, stub
 from backend.database import INSTRUCTIONS
 from backend.tests.round_requests import handler_answers
 
@@ -15,17 +15,20 @@ LUNA = {"model": "openai/gpt-6-luna", "reasoning_effort": "low"}
 
 class RuleFollowingModel(StubModel):
     """A stub claim agent that reads its claim, then refers it, or once its
-    instructions hold the rule, decides it as the handler did."""
+    instructions hold the rule, decides it as the handler did, working out an
+    approval's payout first."""
 
     answers: dict[str, tuple[str, float]] = {}
 
     def next_reply(self, messages):
         if len(messages) == 2:
             return call("get_claim")
-        claim_id = messages[1].content.removeprefix("Claim ").rsplit("-E", 1)[0]
+        copy_id = messages[1].content.removeprefix("Claim ")
         decision, payout = ("refer", 0)
         if RULE.strip() in messages[0].content:
-            decision, payout = self.answers[claim_id]
+            decision, payout = self.answers[copy_id.rsplit("-E", 1)[0]]
+        if decision == "approve" and messages[-1].name != "calculate_payout":
+            return calculate(copy_id, payout)
         return call(
             "record_decision",
             decision=decision,

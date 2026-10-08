@@ -58,32 +58,6 @@ def test_decision_needs_a_claim_in_progress(client):
     assert decide(client, "CLM-9999", "decline", 0).status_code == 404
 
 
-@pytest.mark.parametrize(
-    ("decision", "payout", "section"),
-    [
-        ("approve", 0, "Section 3"),
-        ("decline", 50, "Section 3"),
-        ("refer", 10, "Section 3"),
-        ("maybe", 0, "Section 3"),
-        ("approve", -5, "Section 3"),
-        ("decline", 0, ""),
-    ],
-)
-def test_invalid_decisions(client, decision, payout, section):
-    start(client, "CLM-1001")
-    response = client.post(
-        "/api/claims/CLM-1001/decision",
-        json={
-            "decision": decision,
-            "payout": payout,
-            "section": section,
-            "reason": "Because.",
-        },
-    )
-    assert response.status_code == 422
-    assert client.get("/api/claims/CLM-1001").json()["decision"] is None
-
-
 def test_approve_and_pay_within_the_limit(client):
     start(client, "CLM-1001")
     claim = decide(client, "CLM-1001", "approve", 420.0).json()

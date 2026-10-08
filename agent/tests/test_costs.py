@@ -8,19 +8,19 @@ from agent.tests.dispatching import dispatch, new_dispatch
 from agent.tests.failures import fail_once
 from agent.tests.queue_setup import leave_waiting
 from agent.tests.records import claim_of, model_calls_of, work_times_of
-from agent.tests.stubs import USAGE, agent_on, call, decide, stub, swarm
+from agent.tests.stubs import USAGE, agent_on, approve, call, decide, stub, swarm
 from backend.tests.claim_requests import sign_off
 from backend.tests.dashboard_reads import steps_of
 from backend.tests.run_requests import latest_dispatch
 
 
 def test_each_model_call_and_spell_of_work_is_recorded(client):
-    harness.work_claim("CLM-1001", None, agent_on(stub(*decide("approve", 420.0))))
+    harness.work_claim("CLM-1001", None, agent_on(stub(*approve("CLM-1001", 420.0))))
     thread_id = claim_of(client, "CLM-1001")["thread_id"]
     calls = model_calls_of("CLM-1001")
     assert [
         (c["input_tokens"], c["output_tokens"], c["cost"], c["run_id"]) for c in calls
-    ] == [(USAGE["prompt_tokens"], USAGE["completion_tokens"], USAGE["cost"], None)] * 3
+    ] == [(USAGE["prompt_tokens"], USAGE["completion_tokens"], USAGE["cost"], None)] * 4
     assert {c["thread_id"] for c in calls} == {thread_id}
     [spell] = work_times_of("CLM-1001")
     assert (spell["thread_id"], spell["run_id"]) == (thread_id, None)
@@ -61,7 +61,7 @@ def test_both_attempts_of_a_claim_are_under_the_run(client):
 
 def test_a_held_claim_has_one_spell_and_its_sign_off_adds_none(client):
     run_id = new_dispatch()["run_id"]
-    harness.work_claim("CLM-1002", run_id, agent_on(stub(*decide("approve", 1350.0))))
+    harness.work_claim("CLM-1002", run_id, agent_on(stub(*approve("CLM-1002", 1350.0))))
     sign_off(client, "CLM-1002")
 
     assert claim_of(client, "CLM-1002")["status"] == "decided"

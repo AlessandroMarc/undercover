@@ -174,12 +174,28 @@ decisions = Table(
     Column("section", Text, nullable=False),
     Column("reason", Text, nullable=False),
     Column("decided_at", Text, nullable=False),
+    # Who or what made the decision, and the claims manual's version in force.
+    Column("decided_by", Text, nullable=False),
+    Column("manual_version", Text, nullable=False),
+    # An approval's calculation, its lines and its payout, and none otherwise.
+    Column("calculation", JSON),
     # The approval limit in force when the decision was recorded.
     Column("approval_limit", Float, nullable=False),
     Column("signed_off_by", Text),
     Column("signed_off_at", Text),
     # Why the Gateway refused to pay an approval, which then waits for sign-off.
     Column("gateway_refusal", Text),
+)
+# Each claim's latest calculation of its payout, on the thread of the attempt it was
+# made in, which an approval in that attempt must match.
+calculations = Table(
+    "calculations",
+    metadata,
+    Column("claim_id", Text, ForeignKey("claims.claim_id"), primary_key=True),
+    Column("thread_id", Text, nullable=False),
+    Column("lines", JSON, nullable=False),
+    Column("payout", Float, nullable=False),
+    Column("calculated_at", Text, nullable=False),
 )
 payments = Table(
     "payments",
@@ -369,6 +385,9 @@ claim_view = (
         decisions.c.section,
         decisions.c.reason,
         decisions.c.decided_at,
+        decisions.c.decided_by,
+        decisions.c.manual_version,
+        decisions.c.calculation,
         decisions.c.approval_limit,
         decisions.c.signed_off_by,
         decisions.c.signed_off_at,

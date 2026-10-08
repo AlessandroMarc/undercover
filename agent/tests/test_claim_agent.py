@@ -14,6 +14,8 @@ from agent.tests.stubs import (
     PASSED,
     StubModel,
     agent_on,
+    approve,
+    calculate,
     call,
     decide,
     record,
@@ -64,11 +66,12 @@ def test_approves_and_the_graph_pays_within_the_limit(client, caplog):
         call("get_claim"),
         call("get_policy", policy_id="POL-2001"),
         call("get_claim_history", customer_id="CUS-3001"),
+        calculate("CLM-1001", 420.0),
         record("approve", 420.0),
     )
     assert work("CLM-1001", model) == "CLM-1001  approve  $420.00"
     assert caplog.messages == ["CLM-1001  approve  $420.00"]
-    assert len(model.prompts) == 4
+    assert len(model.prompts) == 5
 
     claim = claim_of(client, "CLM-1001")
     assert claim["status"] == "decided"
@@ -82,11 +85,12 @@ def test_approves_and_the_graph_pays_within_the_limit(client, caplog):
         "screening",
         f"No instructions found. {PASSED}",
     )
-    assert [s["kind"] for s in steps] == ["tool_call", "tool_result"] * 4
+    assert [s["kind"] for s in steps] == ["tool_call", "tool_result"] * 5
     assert steps[0]["content"] == "get_claim()"
     assert steps[1]["content"].startswith('get_claim: {"claim_id": "CLM-1001"')
-    assert steps[6]["content"].startswith("record_decision(")
-    assert steps[7]["content"].startswith('record_decision: {"claim_id": "CLM-1001"')
+    assert steps[6]["content"].startswith("calculate_payout(")
+    assert steps[8]["content"].startswith("record_decision(")
+    assert steps[9]["content"].startswith('record_decision: {"claim_id": "CLM-1001"')
     assert "pay_claim" not in "".join(s["content"] for s in steps)
     assert {s["thread_id"] for s in [check, *steps]} == {claim["thread_id"]}
 
@@ -103,11 +107,11 @@ def test_the_claim_agent_reads_its_instructions_then_its_claim(client):
 def test_a_payout_held_for_sign_off_ends_the_claims_work(client, monkeypatch):
     paid = []
     monkeypatch.setattr(api, "pay_claim", lambda **payment: paid.append(payment))
-    model = stub(*decide("approve", 1350.0))
+    model = stub(*approve("CLM-1002", 1350.0))
     agent = agent_on(model)
     report = harness.work_claim("CLM-1002", None, agent)
     assert report == "CLM-1002  approve  $1,350.00, waiting for sign-off"
-    assert len(model.prompts) == 2
+    assert len(model.prompts) == 3
     assert state_of(agent, client, "CLM-1002").next == ()
     claim = claim_of(client, "CLM-1002")
     assert (claim["status"], claim["payment"]) == ("waiting_for_sign_off", None)
@@ -116,14 +120,14 @@ def test_a_payout_held_for_sign_off_ends_the_claims_work(client, monkeypatch):
     steps = steps_of(client, "CLM-1002")
     assert harness.carry_on("CLM-1002", None, agent) == "CLM-1002  approve  $1,350.00"
     assert paid == []
-    assert len(model.prompts) == 2
+    assert len(model.prompts) == 3
     assert steps_of(client, "CLM-1002") == steps
     assert [p["amount"] for p in payments_of("CLM-1002")] == [1350.0]
 
 
 def test_the_graph_follows_the_backend_on_the_limit(client):
     change_settings(client, approval_limit=2000.0)
-    report = work("CLM-1002", stub(*decide("approve", 1350.0)))
+    report = work("CLM-1002", stub(*approve("CLM-1002", 1350.0)))
     assert report == "CLM-1002  approve  $1,350.00"
     assert claim_of(client, "CLM-1002")["payment"]["amount"] == 1350.0
 
@@ -141,16 +145,22 @@ def test_declines_and_refers(client, decision):
 
 def test_two_decisions_in_one_reply_are_recorded_and_paid_once(client):
     twice = [record("approve", 420.0).tool_calls[0] for _ in range(2)]
-    model = stub(AIMessage(content="", tool_calls=twice))
+    model = stub(calculate("CLM-1001", 420.0), AIMessage(content="", tool_calls=twice))
     assert work("CLM-1001", model) == "CLM-1001  approve  $420.00"
     claim = claim_of(client, "CLM-1001")
     assert (claim["status"], claim["payment"]["amount"]) == ("decided", 420.0)
-    results = [s for s in steps_of(client, "CLM-1001") if s["kind"] == "tool_result"]
+    results = [
+        s
+        for s in steps_of(client, "CLM-1001")
+        if s["kind"] == "tool_result" and s["content"].startswith("record_decision")
+    ]
     assert len(results) == 2
 
 
 def test_a_refused_decision_goes_back_to_the_model(client):
-    model = stub(record("approve", 0), record("approve", 420.0))
+    model = stub(
+        record("approve", 0), calculate("CLM-1001", 420.0), record("approve", 420.0)
+    )
     assert work("CLM-1001", model) == "CLM-1001  approve  $420.00"
     refusal = model.prompts[1][-1]
     assert isinstance(refusal, ToolMessage)
@@ -223,7 +233,7 @@ def test_working_out_the_payout(client):
     ]
     model = stub(
         call("calculate_payout", benefit="trip_delay", lines=lines, paid_by_others=0),
-        *decide("approve", 420.0),
+        record("approve", 420.0),
     )
     assert work("CLM-1001", model) == "CLM-1001  approve  $420.00"
     # After the check's step and the call.
@@ -322,7 +332,7 @@ def test_a_failure_after_the_decision_keeps_it(client, monkeypatch, caplog):
         raise RuntimeError("The connection was lost")
 
     monkeypatch.setattr(api, "pay_claim", lost)
-    report = work("CLM-1001", stub(*decide("approve", 420.0)))
+    report = work("CLM-1001", stub(*approve("CLM-1001", 420.0)))
     assert report == "CLM-1001  approve  $420.00, not paid yet"
     assert "CLM-1001  RuntimeError: The connection was lost" in caplog.messages
     claim = claim_of(client, "CLM-1001")

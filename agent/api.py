@@ -3,7 +3,7 @@ function for each operation they use. It has no way to the scores, the settings,
 the rounds or the handlers' decisions."""
 
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict, Unpack
 
 from pydantic import BaseModel, Field
 
@@ -121,16 +121,21 @@ def record_step(claim_id: str, kind: StepKind, content: str) -> dict[str, Any]:
     return call("POST", f"/claims/{claim_id}/steps", json=body)
 
 
+class DecisionRequest(TypedDict):
+    """A decision to record, with who or what made it."""
+
+    decision: DecisionKind
+    payout: float
+    section: str
+    reason: str
+    decided_by: str
+
+
+# The body's fields as keywords, as the direct route passes a tool's inputs.
 def record_decision(
-    claim_id: str, decision: DecisionKind, payout: float, section: str, reason: str
+    claim_id: str, **request: Unpack[DecisionRequest]
 ) -> dict[str, Any]:
-    body = {
-        "decision": decision,
-        "payout": payout,
-        "section": section,
-        "reason": reason,
-    }
-    return call("POST", f"/claims/{claim_id}/decision", json=body)
+    return call("POST", f"/claims/{claim_id}/decision", json=request)
 
 
 def pay_claim(claim_id: str, amount: float) -> dict[str, Any]:

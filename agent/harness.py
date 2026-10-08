@@ -81,11 +81,15 @@ PAY_CLAIM = "pay_claim"
 REFUSAL = "refusal"
 
 
-# The check's result as the claim's first step, and the section of the referral it
-# makes when it finds an instruction.
+# The check's result as the claim's first step, and the section and the maker of
+# the referral it makes when it finds an instruction, which sits outside the
+# versions of the claim agent.
 FOUND = "Instructions found. {reason}"
 NONE_FOUND = "No instructions found. {reason}"
 SECURITY_CHECK = "Security check: no section of the wording or the manual applies"
+CHECK_DECIDES = "Security check"
+# Who makes the claim agent's decisions: the version of its configuration.
+AGENT_DECIDES = "UnderCover Agent, version {number}"
 
 
 class TooManyModelCalls(Exception):
@@ -209,7 +213,12 @@ def refer(state: ClaimState, runtime: Runtime[ClaimContext]) -> dict[str, Any]:
     """Refer a claim the check flagged to a handler, with the check's reason."""
     reason = state["screening"]["reason"]
     claim = api.record_decision(
-        runtime.context.claim_id, api.REFER, 0, SECURITY_CHECK, reason
+        runtime.context.claim_id,
+        decision=api.REFER,
+        payout=0,
+        section=SECURITY_CHECK,
+        reason=reason,
+        decided_by=CHECK_DECIDES,
     )
     return {"decision": claim["decision"], "status": claim["status"]}
 
@@ -313,14 +322,20 @@ def claim_graph(
 
 @dataclass
 class ClaimAgent:
-    """A claim graph with a saver of its own, and the route its tools and payment
-    take, which its claims' contexts need."""
+    """A claim graph with a saver of its own, and what its claims' contexts need:
+    the route its tools and payment take, and who its decisions are made by."""
 
     graph: ClaimGraph
     route: Route
+    decided_by: str
 
 
 NewAgent = Callable[[], ClaimAgent]
+
+
+def maker_of(version: dict[str, Any]) -> str:
+    """Say who makes the decisions of a version of the claim agent."""
+    return AGENT_DECIDES.format(number=version["number"])
 
 
 def tool_route() -> Route:
@@ -336,12 +351,12 @@ def claim_graphs(version: dict[str, Any], pool: Pool) -> NewAgent:
     backend names for it."""
     llm, screener = model(version), model(api.get_screening())
     route = tool_route()
+    decided_by = maker_of(version)
 
     def new_agent() -> ClaimAgent:
         saver = PostgresSaver(pool)
-        return ClaimAgent(
-            claim_graph(llm, screener, saver, version["instructions"]), route
-        )
+        graph = claim_graph(llm, screener, saver, version["instructions"])
+        return ClaimAgent(graph, route, decided_by)
 
     return new_agent
 
@@ -377,7 +392,12 @@ def context_of(
     """What the claim agent knows of the claim it works on, in the run given if
     any."""
     return ClaimContext(
-        claim["claim_id"], run_id, claim["policy_id"], claim["customer_id"], agent.route
+        claim["claim_id"],
+        run_id,
+        claim["policy_id"],
+        claim["customer_id"],
+        agent.route,
+        agent.decided_by,
     )
 
 

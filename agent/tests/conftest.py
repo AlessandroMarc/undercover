@@ -82,7 +82,7 @@ def serve():
         saver = saver or InMemorySaver()
 
         def claim_agents(version):
-            return partial(agent_on, model, saver, version["instructions"])
+            return partial(agent_on, model, saver, version)
 
         service.app.dependency_overrides[service.claim_agents] = lambda: claim_agents
         return TestClient(service.app)
@@ -133,7 +133,7 @@ def serve_rounds():
 
     def with_models(improver_model, claim_model):
         def claim_agents(version):
-            return partial(agent_on, claim_model, saver, version["instructions"])
+            return partial(agent_on, claim_model, saver, version)
 
         workers = service.RoundWorkers(
             claim_agents, lambda round: improver_model, saver

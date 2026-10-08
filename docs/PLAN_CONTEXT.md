@@ -254,18 +254,18 @@ Add the `context` package, its Lambda handler, the `context` group and its check
 
 Keep each claim's latest calculation, add `decided_by`, `records.py` and the record's new fields, and the manual's version on the documents. Give each test suite its one helper for approvals. The live check for this step is in phase 6.
 
-- [ ] pytest: `calculate_payout` keeps the latest calculation for the claim's current attempt, a second replacing the first; a new attempt starts with none; on a claim never started it returns 409
-- [ ] pytest: a blank reason, a blank section, a blank maker, an approval paying 0, and a decline and a referral paying $243 each return 422 with a one-sentence `detail` naming claims manual section 14, on a claim in progress and on CLM-9999 alike, and record nothing
-- [ ] pytest: an approval with no calculation for this attempt, one with a payout other than the calculation's, and one whose calculation was made on an earlier attempt each return 422 naming section 14 and record nothing
-- [ ] pytest: a complete approval's record holds the calculation's lines and payout, `decided_by`, `decided_at` and `manual_version` "2026.2"; a decline and a referral hold no calculation; a sign-off still adds who signed off and when
-- [ ] pytest: every `decision.` field `context/data_dictionary.yaml` names is a field of a claim's decision
-- [ ] Stub test: the claim agent's decisions are made by "UnderCover Agent, version 1", or the version its run works on, and the check's referral by "Security check"; the model's `record_decision` tool has no `decided_by` input
-- [ ] Stub test: an approval with no calculation reaches the model as a refusal naming section 14, recorded as a `refusal` step; the model then works out the payout and records the decision, which is recorded once
-- [ ] Stub test, Gateway route: the stand-in's `undercover-app___record_decision` receives `decided_by`
-- [ ] The backend's, the agent's and the end-to-end tests each record approvals through their one helper, and no test's expected payout changes
-- [ ] The shared OpenAPI rules test passes, and the agent's API document's `record_decision` body requires `decided_by`
-- [ ] e2e: every spec passes with the helper
-- [ ] `npm run check` passes with `.env` moved out of the way
+- [x] pytest: `calculate_payout` keeps the latest calculation for the claim's current attempt, a second replacing the first; a new attempt starts with none; on a claim never started it returns 409
+- [x] pytest: a blank reason, a blank section, a blank maker, an approval paying 0, and a decline and a referral paying $243 each return 422 with a one-sentence `detail` naming claims manual section 14, on a claim in progress and on CLM-9999 alike, and record nothing
+- [x] pytest: an approval with no calculation for this attempt, one with a payout other than the calculation's, and one whose calculation was made on an earlier attempt each return 422 naming section 14 and record nothing
+- [x] pytest: a complete approval's record holds the calculation's lines and payout, `decided_by`, `decided_at` and `manual_version` "2026.2"; a decline and a referral hold no calculation; a sign-off still adds who signed off and when
+- [x] pytest: every `decision.` field `context/data_dictionary.yaml` names is a field of a claim's decision
+- [x] Stub test: the claim agent's decisions are made by "UnderCover Agent, version 1", or the version its run works on, and the check's referral by "Security check"; the model's `record_decision` tool has no `decided_by` input
+- [x] Stub test: an approval with no calculation reaches the model as a refusal naming section 14, recorded as a `refusal` step; the model then works out the payout and records the decision, which is recorded once
+- [x] Stub test, Gateway route: the stand-in's `undercover-app___record_decision` receives `decided_by`
+- [x] The backend's, the agent's and the end-to-end tests each record approvals through their one helper, and no test's expected payout changes
+- [x] The shared OpenAPI rules test passes, and the agent's API document's `record_decision` body requires `decided_by`
+- [x] e2e: every spec passes with the helper
+- [x] `npm run check` passes with `.env` moved out of the way
 
 ## Phase 4: Memory of each customer
 
