@@ -88,9 +88,9 @@ def refused(_: Request, error: Refused) -> JSONResponse:
     return JSONResponse({"detail": error.detail}, status_code=error.status_code)
 
 
-# How to build the claim agents of a version of the claim agent, each with a
-# saver of its own.
-ClaimAgents = Callable[[dict[str, Any]], NewAgent]
+# How to build the claim agents of a version of the claim agent for a kind of run,
+# each with a saver of its own.
+ClaimAgents = Callable[[dict[str, Any], api.RunKind], NewAgent]
 
 
 def claim_agents(request: Request) -> ClaimAgents:
@@ -145,7 +145,7 @@ class ReviewRequest(BaseModel):
 def claim_work(run: dict[str, Any], claim_agents: ClaimAgents) -> WorkInRun:
     """How to work one of a run's claims, on the claim agents of the run's own
     version, tagged with its round when it has one."""
-    new_agent = claim_agents(api.get_version(run["version"]))
+    new_agent = claim_agents(api.get_version(run["version"]), run["kind"])
     tags = (run["round_id"],) if run["round_id"] else ()
     return partial(work_in_run, new_agent=new_agent, tags=tags)
 

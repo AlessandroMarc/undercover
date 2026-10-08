@@ -1511,6 +1511,20 @@ wheels = [
 ]
 
 [[package]]
+name = "langgraph-checkpoint-aws"
+version = "1.2.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "boto3" },
+    { name = "langgraph" },
+    { name = "langgraph-checkpoint" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f4/ae/9af6ad5c6b7a4a27c8805092ca82c52baf216bf7e112b0cf3886ef6f7a68/langgraph_checkpoint_aws-1.2.4.tar.gz", hash = "sha256:2d76da709b7173d3a0d021b230c9d71af47984759952a25656d2315c86451066", size = 346533, upload-time = "2026-10-02T03:30:33.983Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/80/a5/a7753b1fcb2b1a2b6520e59ac3bfe4df56d3f9ac3dd1314b715594707663/langgraph_checkpoint_aws-1.2.4-py3-none-any.whl", hash = "sha256:63ea1d0f2747b5949c869665b3ac2e770846e3914869e537bc6cbbe21a84b059", size = 186405, upload-time = "2026-10-02T03:30:32.775Z" },
+]
+
+[[package]]
 name = "langgraph-checkpoint-postgres"
 version = "3.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -3449,6 +3463,7 @@ dependencies = [
     { name = "langchain-mcp-adapters" },
     { name = "langchain-openai" },
     { name = "langfuse" },
+    { name = "langgraph-checkpoint-aws" },
     { name = "langgraph-checkpoint-postgres" },
     { name = "mangum" },
     { name = "mcp" },
@@ -3507,6 +3522,7 @@ requires-dist = [
     { name = "langchain-mcp-adapters", specifier = ">=0.3.2" },
     { name = "langchain-openai", specifier = ">=1.6.2" },
     { name = "langfuse", specifier = ">=4.16.0" },
+    { name = "langgraph-checkpoint-aws", specifier = ">=1.2.4" },
     { name = "langgraph-checkpoint-postgres", specifier = ">=3.1.2" },
     { name = "mangum", specifier = ">=0.22.0" },
     { name = "mcp", specifier = ">=1.30.0" },

@@ -43,7 +43,7 @@ def test_a_runs_claim_agents_decide_as_its_version(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setattr(harness, "PostgresSaver", lambda pool: InMemorySaver())
     version = api.get_current_version() | {"number": 2}
-    agent = harness.claim_graphs(version, cast(harness.Pool, None))()
+    agent = harness.claim_graphs(version, None, cast(harness.Pool, None))()
     assert agent.decided_by == "UnderCover Agent, version 2"
 
 

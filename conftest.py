@@ -10,6 +10,7 @@ from openrouter import OpenRouter
 
 from agent.direct import CONTEXT_URL
 from agent.gateway import GATEWAY_URL
+from agent.memory import MEMORY_ID
 from backend import agent_service, auth, judge
 from backend.dashboard import DashboardFiles
 from backend.dashboard import mount as dashboard_mount
@@ -38,10 +39,10 @@ def database(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def no_aws(tmp_path, monkeypatch):
     """Keep every test away from AWS, a Gateway and the servers running on the
-    laptop: no Gateway or context layer from the environment, and stand-in AWS
-    credentials and a region in place of the AWS CLI's."""
-    names = (GATEWAY_URL, CONTEXT_URL, "AWS_PROFILE", "AWS_SESSION_TOKEN", "AWS_REGION")
-    for name in names:
+    laptop: no Gateway, context layer or memory from the environment, and stand-in
+    AWS credentials and a region in place of the AWS CLI's."""
+    ours = (GATEWAY_URL, CONTEXT_URL, MEMORY_ID)
+    for name in (*ours, "AWS_PROFILE", "AWS_SESSION_TOKEN", "AWS_REGION"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-access-key")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")

@@ -8,7 +8,7 @@ A version of the configuration that does better on claims it hasn't seen: more a
 
 ## What the claim agent works from
 
-Each claim agent reads its instructions, which end with the contents of the policy wording and the claims manual. It reads the claim, the customer's policy and the customer's earlier claims, and it has tools to search the policy wording and the claims manual, to read a section in full and to work out a payout with UnderCover's payout rules. It records one decision on its claim: approve with a payout, decline or refer, with its reason and the sections it relied on. A change to its instructions is a change to what every claim agent reads.
+Each claim agent reads its instructions, which end with the contents of the policy wording and the claims manual. It reads the claim, the customer's policy and the customer's earlier claims, and it has tools to look up the context layer's definitions, the meaning of each field, the plans, the claim rules and outside reference data, to search the policy wording and the claims manual and read a section in full, outside evaluations, to search what we remember about the customer from their earlier claims, and to work out a payout with UnderCover's payout rules. It records one decision on its claim: approve with a payout, decline or refer, with its reason and the sections it relied on. A change to its instructions is a change to what every claim agent reads.
 
 ## What you have to work from
 

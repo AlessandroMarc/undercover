@@ -5,15 +5,18 @@ import itertools
 import threading
 import time
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, TypedDict, Unpack
 
+from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.store.base import BaseStore
 from pydantic import PrivateAttr
 
 from agent import api, direct, harness
+from agent.routes import Route
 from context import files
 
 # What OpenRouter reports for each reply.
@@ -167,12 +170,25 @@ def flags():
     return stub(screened(True, FLAGGED))
 
 
-def agent_on(model, saver=None, version=VERSION, screener=None, route=None):
+class Surroundings(TypedDict, total=False):
+    """What a test may give a claim agent in place of what it has by default: a
+    check of its own, a route, and a memory of each customer."""
+
+    screener: BaseChatModel
+    route: Route
+    store: BaseStore
+
+
+def agent_on(model, saver=None, version=VERSION, **given: Unpack[Surroundings]):
     """A claim agent of a version of the configuration, on a stub model, saving its
-    progress in memory, after a check that passes every claim unless the test gives
-    it a check of its own, on the direct route unless the test gives it a route."""
+    progress in memory, after a check that passes every claim, on the direct route
+    and with no memory, unless the test gives it a check, a route or a memory."""
     graph = harness.claim_graph(
-        model, screener or passes(), saver or InMemorySaver(), version["instructions"]
+        model,
+        given.get("screener") or passes(),
+        saver or InMemorySaver(),
+        version["instructions"],
+        given.get("store"),
     )
-    route = route or direct.from_environment()
+    route = given.get("route") or direct.from_environment()
     return harness.ClaimAgent(graph, route, harness.maker_of(version))

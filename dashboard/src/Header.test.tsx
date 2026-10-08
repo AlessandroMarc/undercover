@@ -58,12 +58,14 @@ it("closes the menu on Escape, back on the avatar, on a click outside it, or as 
   fireEvent.pointerDown(screen.getByRole("heading", { name: "Claims queue" }));
   expect(menuOpen()).toBeNull();
 
+  // The dispatch panel shows its button once its own request answers.
+  const startButton = await screen.findByRole("button", {
+    name: "Start a dispatch",
+  });
   fireEvent.click(avatar);
   fireEvent.blur(avatar, { relatedTarget: menuOpen() });
   expect(menuOpen()).not.toBeNull();
-  fireEvent.blur(avatar, {
-    relatedTarget: screen.getByRole("button", { name: "Start a dispatch" }),
-  });
+  fireEvent.blur(avatar, { relatedTarget: startButton });
   expect(menuOpen()).toBeNull();
 });
 

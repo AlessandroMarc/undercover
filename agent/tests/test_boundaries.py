@@ -79,7 +79,10 @@ def test_the_routes_and_who_uses_them():
     assert imports_of("direct") & agents_modules() == {"routes", "mcp_tools", "api"}
     assert imports_of("routes") & agents_modules() == set()
     assert imports_of("mcp_tools") & agents_modules() == set()
-    for module in ("improver", "improver_api"):
-        assert {"routes", "gateway", "direct", "mcp_tools"} & imports_of(
-            module
-        ) == set()
+
+
+def test_the_memory_uses_nothing_else_in_the_agent_and_the_claim_agent_uses_it():
+    assert imports_of("memory") & agents_modules() == set()
+    assert "memory" in imports_of("tools") & imports_of("harness")
+    for module in ("improver", "improver_api", "dispatcher", "service"):
+        assert "memory" not in imports_of(module), module

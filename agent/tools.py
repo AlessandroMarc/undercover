@@ -4,15 +4,16 @@ read."""
 
 import operator
 from dataclasses import dataclass
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict, cast
 
-from langchain.tools import ToolRuntime, tool
+from langchain.tools import BaseTool, ToolException, ToolRuntime, tool
 from langchain_core.messages import AnyMessage, ToolMessage
 from langgraph.graph.message import add_messages
+from langgraph.store.base import BaseStore
 from langgraph.types import Command
 from pydantic import StringConstraints
 
-from agent import api
+from agent import api, memory
 from agent.json_text import as_json
 from agent.routes import Route, Target
 
@@ -142,6 +143,22 @@ def read_section(
 
 
 @tool
+def search_memory(query: Query, runtime: ToolRuntime[ClaimContext]) -> str:
+    """Search what we remember about this claim's customer from their earlier claims."""
+    context = runtime.context
+    try:
+        found = memory.recall(
+            cast(BaseStore, runtime.store),
+            context.customer_id,
+            context.claim_id,
+            query,
+        )
+    except memory.UNREACHABLE as error:
+        raise ToolException(f"The memory can't be reached. {error}") from error
+    return as_json(found)
+
+
+@tool
 def calculate_payout(
     benefit: Annotated[api.Benefit, "The benefit the claim is paid under"],
     lines: Annotated[
@@ -211,6 +228,13 @@ CONTEXT_TOOLS = [
     read_section,
 ]
 CLAIM_TOOLS = APP_TOOLS + CONTEXT_TOOLS
+
+
+def claim_tools(remembers: bool) -> list[BaseTool]:
+    """The claim agent's tools, with a search of its memory when it has one."""
+    return CLAIM_TOOLS + [search_memory] if remembers else CLAIM_TOOLS
+
+
 # The target each tool calls, by which a route names a call to it.
 TARGETS = {tool.name: Target.APP for tool in APP_TOOLS} | {
     tool.name: Target.CONTEXT for tool in CONTEXT_TOOLS

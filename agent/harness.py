@@ -31,12 +31,13 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.runtime import Runtime
+from langgraph.store.base import BaseStore
 from langgraph.types import Command, RetryPolicy
 from psycopg import Connection, sql
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import ConnectionPool
 
-from agent import api, direct, gateway
+from agent import api, direct, gateway, memory
 from agent.connection import Refused
 from agent.console import describe
 from agent.json_text import as_json
@@ -45,11 +46,11 @@ from agent.root_run import as_root_run
 from agent.routes import GatewayRefused, Route, Target
 from agent.screening import screen
 from agent.tools import (
-    CLAIM_TOOLS,
     TARGETS,
     ClaimContext,
     ClaimState,
     claim_as_read,
+    claim_tools,
 )
 
 log = logging.getLogger(__name__)
@@ -77,6 +78,7 @@ REFER = "refer"
 AGENT = "agent"
 TOOLS = "tools"
 PAY = "pay"
+REMEMBER = "remember"
 PAY_CLAIM = "pay_claim"
 REFUSAL = "refusal"
 
@@ -284,15 +286,28 @@ def after_tools(state: ClaimState) -> str:
     return END
 
 
+def remember(state: ClaimState, runtime: Runtime[ClaimContext]) -> None:
+    """Save the claim the claim agent decided to its customer's memory. When the
+    memory can't be reached, the claim keeps its decision and the error is logged
+    as a warning, as any error after the decision is."""
+    claim = api.get_claim(runtime.context.claim_id)
+    memory.remember(cast(BaseStore, runtime.store), claim)
+
+
 def claim_graph(
     llm: BaseChatModel,
     screener: BaseChatModel,
     saver: BaseCheckpointSaver[Any],
     instructions: str,
+    store: BaseStore | None,
 ) -> ClaimGraph:
     """Build the claim agent's graph, which saves its progress after every step: the
     check for hidden instructions on its own model, then the claim agent on its
-    model, with its instructions."""
+    model, with its instructions. With a memory, it can search the customer's, and
+    a claim it decides is remembered once its work ends."""
+    remembers = store is not None
+    tools = claim_tools(remembers)
+    decided = REMEMBER if remembers else END
     builder = StateGraph(ClaimState, context_schema=ClaimContext)
     builder.add_node(
         SCREEN, partial(screen_claim, screener=screener), retry_policy=SCREEN_RETRY
@@ -302,22 +317,27 @@ def claim_graph(
         AGENT,
         partial(
             call_model,
-            llm=llm.bind_tools(CLAIM_TOOLS),
+            llm=llm.bind_tools(tools),
             instructions=SystemMessage(instructions),
         ),
     )
     builder.add_node(
         TOOLS,
-        ToolNode(CLAIM_TOOLS, handle_tool_errors=refusal, wrap_tool_call=record_result),
+        ToolNode(tools, handle_tool_errors=refusal, wrap_tool_call=record_result),
     )
     builder.add_node(PAY, pay)
     builder.add_edge(START, SCREEN)
     builder.add_conditional_edges(SCREEN, after_screen, [REFER, AGENT])
     builder.add_edge(REFER, END)
     builder.add_conditional_edges(AGENT, after_agent, [TOOLS, END])
-    builder.add_conditional_edges(TOOLS, after_tools, [AGENT, PAY, END])
-    builder.add_edge(PAY, END)
-    return builder.compile(checkpointer=saver)
+    builder.add_conditional_edges(
+        TOOLS, after_tools, {AGENT: AGENT, PAY: PAY, END: decided}
+    )
+    builder.add_edge(PAY, decided)
+    if remembers:
+        builder.add_node(REMEMBER, remember)
+        builder.add_edge(REMEMBER, END)
+    return builder.compile(checkpointer=saver, store=store)
 
 
 @dataclass
@@ -344,18 +364,22 @@ def tool_route() -> Route:
     return gateway.from_environment() or direct.from_environment()
 
 
-def claim_graphs(version: dict[str, Any], pool: Pool) -> NewAgent:
-    """Return how to build a version's claim agent: a claim graph with a saver of its
-    own on the pool, since a saver lets one claim at a time read or write, on the
-    route read when the run's agents are built. The check runs on the model the
-    backend names for it."""
+def claim_graphs(
+    version: dict[str, Any], kind: api.RunKind | None, pool: Pool
+) -> NewAgent:
+    """Return how to build a version's claim agent for a kind of run, or none: a
+    claim graph with a saver of its own on the pool, since a saver lets one claim
+    at a time read or write, on the route and with the memory read when the run's
+    agents are built. An evaluation's claim agents have no memory, so its scores
+    don't depend on it. The check runs on the model the backend names for it."""
     llm, screener = model(version), model(api.get_screening())
     route = tool_route()
+    store = memory.memory_store() if kind != api.EVALUATION else None
     decided_by = maker_of(version)
 
     def new_agent() -> ClaimAgent:
         saver = PostgresSaver(pool)
-        graph = claim_graph(llm, screener, saver, version["instructions"])
+        graph = claim_graph(llm, screener, saver, version["instructions"], store)
         return ClaimAgent(graph, route, decided_by)
 
     return new_agent

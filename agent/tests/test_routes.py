@@ -202,9 +202,11 @@ def test_the_route_is_read_when_the_claim_agents_are_built(gateway, monkeypatch)
     version = api.get_current_version()
     monkeypatch.setenv(GATEWAY_URL, gateway.url)
     no_pool = cast(harness.Pool, None)
-    assert isinstance(harness.claim_graphs(version, no_pool)().route, Gateway)
+    assert isinstance(harness.claim_graphs(version, None, no_pool)().route, Gateway)
     monkeypatch.delenv(GATEWAY_URL)
-    assert isinstance(harness.claim_graphs(version, no_pool)().route, direct.Direct)
+    assert isinstance(
+        harness.claim_graphs(version, None, no_pool)().route, direct.Direct
+    )
 
 
 def test_an_mcp_call_leaves_the_main_threads_event_loop(gateway):

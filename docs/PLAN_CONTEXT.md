@@ -271,18 +271,18 @@ Keep each claim's latest calculation, add `decided_by`, `records.py` and the rec
 
 Add `langgraph-checkpoint-aws` with `uv add`, `agent/memory.py`, the `remember` node and `search_memory`, and the run's kind in `claim_graphs`. Rewrite "What you have to go on" in `claim.md` and the sentence in `improver.md`. Add the agent's settings to `docs/TECH_STACK.md`'s Deployment section. The live check for this step is in phase 6.
 
-- [ ] `langgraph-checkpoint-aws` is in the project's dependencies and in neither the `server` nor the `context` group
-- [ ] Stub test, with a stand-in store: after an approval is paid, two events are saved with the customer as the actor and the claim as the session: the claim (summary, benefit claimed, date and place of the incident, items claimed) as a `HumanMessage`, and the decision with its payout, section and reason as an `AIMessage`; neither holds the story or a document's text
-- [ ] Stub test: a decline, a referral by the model and an approval held for sign-off each save the two events; a claim the check referred, an evaluation's copy and a claim that fails before a decision save nothing
-- [ ] Stub test: a claim carried on after `remember` has run saves nothing more
-- [ ] Stub test, with the stand-in store answering in `AgentCoreMemoryStore`'s shape: `search_memory` searches only under `("customers", <the claim's customer>)`, returns each memory's text, and leaves out the summary of the claim it's working on, found by its `value["namespaces"]` while every result's `namespace` is the prefix searched; the customer's facts and other claims' summaries come back, and another customer's memories never do
-- [ ] Stub test: with memory off, and in an evaluation with memory on, the graph has no `remember` node and the model has no `search_memory` tool
-- [ ] Stub test: with a store that can't be reached, saving logs a warning and the claim keeps its decision, and a search reaches the model as a refusal
-- [ ] pytest (agent): `UNDERCOVER_MEMORY_ID` set after the agent's modules are imported is read when the next claim graph is built, and `AgentCoreMemoryStore` is made with that `memory_id` and boto3's default region, with the constructor replaced by a recorder
-- [ ] `grep -rn "UNDERCOVER_MEMORY_ID\|AgentCoreMemoryStore" agent --include='*.py'` finds them only in `agent/memory.py` and tests
-- [ ] `claim.md` names the context layer's definitions, plans, rules, reference data and documents and the memory of the customer, written as goals with no list of steps; `improver.md` names the claim agent's new tools; a test that version 1's instructions are `claim.md` still passes
-- [ ] `docs/TECH_STACK.md`'s Deployment section lists the agent's settings: `UNDERCOVER_GATEWAY_URL`, `UNDERCOVER_CONTEXT`, `UNDERCOVER_MEMORY_ID` and the AWS CLI's credentials and region when either AWS setting is set
-- [ ] `npm run check` passes with `.env` moved out of the way
+- [x] `langgraph-checkpoint-aws` is in the project's dependencies and in neither the `server` nor the `context` group
+- [x] Stub test, with a stand-in store: after an approval is paid, two events are saved with the customer as the actor and the claim as the session: the claim (summary, benefit claimed, date and place of the incident, items claimed) as a `HumanMessage`, and the decision with its payout, section and reason as an `AIMessage`; neither holds the story or a document's text
+- [x] Stub test: a decline, a referral by the model and an approval held for sign-off each save the two events; a claim the check referred, an evaluation's copy and a claim that fails before a decision save nothing
+- [x] Stub test: a claim carried on after `remember` has run saves nothing more
+- [x] Stub test, with the stand-in store answering in `AgentCoreMemoryStore`'s shape: `search_memory` searches only under `("customers", <the claim's customer>)`, returns each memory's text, and leaves out the summary of the claim it's working on, found by its `value["namespaces"]` while every result's `namespace` is the prefix searched; the customer's facts and other claims' summaries come back, and another customer's memories never do
+- [x] Stub test: with memory off, and in an evaluation with memory on, the graph has no `remember` node and the model has no `search_memory` tool
+- [x] Stub test: with a store that can't be reached, saving logs a warning and the claim keeps its decision, and a search reaches the model as a refusal
+- [x] pytest (agent): `UNDERCOVER_MEMORY_ID` set after the agent's modules are imported is read when the next claim graph is built, and `AgentCoreMemoryStore` is made with that `memory_id` and boto3's default region, with the constructor replaced by a recorder
+- [x] `grep -rn "UNDERCOVER_MEMORY_ID\|AgentCoreMemoryStore" agent --include='*.py'` finds them only in `agent/memory.py` and tests
+- [x] `claim.md` names the context layer's definitions, plans, rules, reference data and documents and the memory of the customer, written as goals with no list of steps; `improver.md` names the claim agent's new tools; a test that version 1's instructions are `claim.md` still passes
+- [x] `docs/TECH_STACK.md`'s Deployment section lists the agent's settings: `UNDERCOVER_GATEWAY_URL`, `UNDERCOVER_CONTEXT`, `UNDERCOVER_MEMORY_ID` and the AWS CLI's credentials and region when either AWS setting is set
+- [x] `npm run check` passes with `.env` moved out of the way
 
 ## Phase 5: Every step on the claim page
 
