@@ -75,6 +75,7 @@ NOT_APPROVED = "Claim {claim_id} has not been approved"
 ALREADY_PAID = "Claim {claim_id} has already been paid"
 NOT_STARTED = "Claim {claim_id} has not been started"
 NOT_IN_PROGRESS = "Claim {claim_id} is not in progress"
+ALREADY_DECIDED = "Claim {claim_id} has already been decided"
 
 
 @asynccontextmanager
@@ -351,7 +352,7 @@ def record_decision(claim_id: str, request: DecisionRequest, db: Database) -> Cl
     if claim["decision"] is not None:
         if (claim["decision"], claim["payout"]) == (request.decision, payout):
             return to_claim(claim)
-        raise HTTPException(409, f"Claim {claim_id} has already been decided")
+        raise HTTPException(409, ALREADY_DECIDED.format(claim_id=claim_id))
     if claim["status"] != Status.IN_PROGRESS:
         raise HTTPException(409, NOT_IN_PROGRESS.format(claim_id=claim_id))
     calculation = None
@@ -472,7 +473,7 @@ def fail_claim(claim_id: str, request: FailureRequest, db: Database) -> Claim:
     if claim["status"] != Status.IN_PROGRESS:
         raise HTTPException(409, NOT_IN_PROGRESS.format(claim_id=claim_id))
     if claim["decision"] is not None:
-        raise HTTPException(409, f"Claim {claim_id} has already been decided")
+        raise HTTPException(409, ALREADY_DECIDED.format(claim_id=claim_id))
     error = StepRequest(kind="error", content=request.reason, sources=[])
     add_step(db, claim_id, claim["thread_id"], error)
     status = (

@@ -68,13 +68,13 @@ interface DecisionRequest {
   decided_by: string;
 }
 
-export const recordDecision = (
+const recordDecision = (
   request: Request,
   claimId: string,
   decision: DecisionRequest,
 ) => send(request, "POST", `${claimPath(claimId)}/decision`, decision);
 
-export const calculatePayout = (
+const calculatePayout = (
   request: Request,
   claimId: string,
   payout: { benefit: string; lines: object[]; paid_by_others: number },

@@ -44,7 +44,7 @@ class ClaimToWork(TypedDict):
 
 
 # Works one claim in a run, given the claim's id and the run's, and reports how it
-# ended: the harness's work_in_run, bound to how its claim graphs are built.
+# ended: the harness's work_in_run, bound to how its claim agents are built.
 WorkInRun = Callable[[str, str], str]
 
 # How a claim still failing after its tries is left, by the kind of run.

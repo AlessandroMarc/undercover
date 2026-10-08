@@ -303,24 +303,24 @@ Add the step kinds `lookup`, `memory_search` and `memory_save` in the app, `agen
 
 Reseed once, then run every live check in this order, on the default model, on the direct route with memory off. Then update the docs, review the whole branch against `week3day3-start` with a fresh subagent and fix what it finds.
 
-- [ ] `grep -c '^UNDERCOVER_GATEWAY_URL=\|^UNDERCOVER_MEMORY_ID=' .env` prints `0`
-- [ ] `npm run seed` prints 26 claims, 51 policies and 50 customers into the `undercover` schema on Postgres
-- [ ] With `npm run dev` running, signed in as Dana Whitfield, the queue, a claim, the Scoreboard, the Improvement, Configuration and Settings pages load with no errors in `browser_console_messages`; a short script with no model calls each of the claim agent's context tools on the direct route, and each answers
-- [ ] Steps 1 and 3: `uv run -m agent CLM-1001` prints `CLM-1001  approve  $420.00`, and `curl` with the key shows its record complete: the calculation's payout of $420.00, "UnderCover Agent, version 1", `decided_at` and manual version 2026.2
-- [ ] Step 4: `uv run -m agent CLM-1005`, then `uv run -m agent CLM-1006`, each record a complete decision with no memory tool and no memory step, and the decisions are reported
-- [ ] A dispatch at N=25 on the queue page works the other 23 claims, and the decisions are reported beside the last live run's. CLM-1901 is referred by "Security check", every approval's payout equals its calculation's, and the report counts the section 14 refusals and the claims that needed a second attempt
-- [ ] An evaluation of the evaluation set's five tiny claims on the Scoreboard finishes, and its measures are reported beside the last live run's
-- [ ] Step 5: through the Playwright MCP server, signed in as Dana Whitfield, CLM-1005's and CLM-1006's pages show the tool calls, the lookups with the file each came from, the Context used panel and the decision with its calculation, in light and dark mode (screenshots), with no console errors
-- [ ] The Supabase MCP server's `select count(*) from undercover.decisions where decided_by is null or manual_version is null` returns 0, and `select count(*) from undercover.decisions where decision = 'approve' and calculation is null` returns 0
-- [ ] Report what the live checks spent, from the backend's records and the OpenRouter key's usage; on GPT-6 Luna it comes to under $0.25
-- [ ] `docs/SPEC.md`: the three sources of data, the context layer, the Gateway for the model's tools and the payment, the memory of each customer kept to that customer's claims, the complete decision record, and what the claim page shows
-- [ ] `docs/TECH_STACK.md`: `context/` and its server, the two routes, `mcp_tools.py`, the memory, `records.py`, seeding from `context/`, the six operations in the agent's document, `hold_payment`, the new settings, and the Deployment section
-- [ ] `docs/PROCESS.md`: `npm run dev` starts the context layer, `npm run check` includes the context check, and these live checks in place of the security changes'
-- [ ] `docs/CODE_STANDARDS.md` describes the agent's parts as built
-- [ ] `data/README.md`: seeding reads the plans and the two documents from `context/`, and `plans.json`, `policy_wording.md` and `claims_manual.md` stay in `data/` for the labs
-- [ ] `docs/STATUS.md` describes what's built, the live checks and what they cost, and the known gaps, including the data dictionary not describing `gateway_refusal`, AgentCore's memories arriving about 90 seconds after a save, and a `remember` stopped partway saving its events again when the claim carries on
-- [ ] A fresh subagent reviews the whole branch against `week3day3-start`, not `main`, with `docs/CODE_STANDARDS.md`; everything it would block the merge for is fixed, or explained in the report where I disagree
-- [ ] `npm run check` passes, both with `.env` in place and with it moved out of the way
+- [x] `grep -c '^UNDERCOVER_GATEWAY_URL=\|^UNDERCOVER_MEMORY_ID=' .env` prints `0`
+- [x] `npm run seed` prints 26 claims, 51 policies and 50 customers into the `undercover` schema on Postgres
+- [x] With `npm run dev` running, signed in as Dana Whitfield, the queue, a claim, the Scoreboard, the Improvement, Configuration and Settings pages load with no errors in `browser_console_messages`; a short script with no model calls each of the claim agent's context tools on the direct route, and each answers
+- [x] Steps 1 and 3: `uv run -m agent CLM-1001` prints `CLM-1001  approve  $420.00`, and the record read with the key (by a short script, so the key never appears on a command line) shows it complete: the calculation's payout of $420.00, "UnderCover Agent, version 1", `decided_at` and manual version 2026.2
+- [x] Step 4: `uv run -m agent CLM-1005`, then `uv run -m agent CLM-1006`, each record a complete decision with no memory tool and no memory step, and the decisions are reported
+- [x] A dispatch at N=25 on the queue page works the other 23 claims, and the decisions are reported beside the last live run's. CLM-1901 is referred by "Security check", every approval's payout equals its calculation's, and the report counts the section 14 refusals and the claims that needed a second attempt
+- [x] An evaluation of the evaluation set's five tiny claims on the Scoreboard finishes, and its measures are reported beside the last live run's
+- [x] Step 5: through the Playwright MCP server, signed in as Dana Whitfield, CLM-1005's and CLM-1006's pages show the tool calls, the lookups with the file each came from, the Context used panel and the decision with its calculation, in light and dark mode (screenshots), with no console errors
+- [x] The Supabase MCP server's `select count(*) from undercover.decisions where decided_by is null or manual_version is null` returns 0, and `select count(*) from undercover.decisions where decision = 'approve' and calculation is null` returns 0
+- [x] Report what the live checks spent, from the backend's records and the OpenRouter key's usage; on GPT-6 Luna it comes to under $0.25
+- [x] `docs/SPEC.md`: the three sources of data, the context layer, the Gateway for the model's tools and the payment, the memory of each customer kept to that customer's claims, the complete decision record, and what the claim page shows
+- [x] `docs/TECH_STACK.md`: `context/` and its server, the two routes, `mcp_tools.py`, the memory, `records.py`, seeding from `context/`, the six operations in the agent's document, `hold_payment`, the new settings, and the Deployment section
+- [x] `docs/PROCESS.md`: `npm run dev` starts the context layer, `npm run check` includes the context check, and these live checks in place of the security changes'
+- [x] `docs/CODE_STANDARDS.md` describes the agent's parts as built
+- [x] `data/README.md`: seeding reads the plans and the two documents from `context/`, and `plans.json`, `policy_wording.md` and `claims_manual.md` stay in `data/` for the labs
+- [x] `docs/STATUS.md` describes what's built, the live checks and what they cost, and the known gaps, including the data dictionary not describing `gateway_refusal`, AgentCore's memories arriving about 90 seconds after a save, and a `remember` stopped partway saving its events again when the claim carries on
+- [x] A fresh subagent reviews the whole branch against `week3day3-start`, not `main`, with `docs/CODE_STANDARDS.md`; everything it would block the merge for is fixed, or explained in the report where I disagree
+- [x] `npm run check` passes, both with `.env` in place and with it moved out of the way
 
 ## Not in this plan
 

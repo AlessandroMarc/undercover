@@ -1,5 +1,5 @@
-"""The claim agent's tools, each calling the app's operation or the context layer's
-tool it is named after on the claim agent's route, and the context and state they
+"""The claim agent's tools, the app's operations and the context layer's tools it
+calls on its route and the search of its memory, and the context and state they
 read."""
 
 import operator

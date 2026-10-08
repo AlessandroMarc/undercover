@@ -277,8 +277,9 @@ def after_agent(state: ClaimState) -> str:
 
 def after_tools(state: ClaimState) -> str:
     """Go back to the model until a decision is recorded, then pay an approval the
-    backend can pay at once, or stop: a payout it holds is paid by the handler's
-    sign-off, so the claim's work ends there."""
+    backend can pay at once, or end the claim agent's work: a payout it holds is
+    paid by the handler's sign-off. The graph maps the end to `remember` when it
+    has a memory."""
     decision, status = state["decision"], state["status"]
     if not decision:
         return AGENT

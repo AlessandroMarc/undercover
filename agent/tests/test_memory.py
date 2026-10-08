@@ -11,6 +11,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import api, harness, memory
 from agent.memory import MEMORY_ID
+from agent.tests.dispatching import new_dispatch
 from agent.tests.failures import fail_once
 from agent.tests.memory_stand_in import MemoryStandIn
 from agent.tests.records import claim_of
@@ -91,15 +92,23 @@ def test_a_claim_that_fails_before_its_decision_is_never_saved(client):
     assert store.events == []
 
 
-def test_a_claim_is_saved_once_however_often_its_work_carries_on(client, monkeypatch):
+def test_an_approval_stopped_before_its_payment_is_saved_once_it_is_paid(
+    client, monkeypatch
+):
     store, saver = MemoryStandIn(), InMemorySaver()
-    fail_once(monkeypatch, api, "pay_claim", KeyboardInterrupt(), carry_out=True)
+    fail_once(monkeypatch, api, "pay_claim", KeyboardInterrupt())
     agent = agent_on(stub(*approve("CLM-1001", 420.0)), saver, store=store)
     with pytest.raises(KeyboardInterrupt):
         harness.work_claim("CLM-1001", None, agent)
+    assert claim_of(client, "CLM-1001")["status"] == "in_progress"
     assert store.events == []
+    # The dispatcher carries on a claim in progress; once it's paid and
+    # remembered, its work has ended and there's nothing left to run.
     again = agent_on(stub(), saver, store=store)
-    assert harness.carry_on("CLM-1001", None, again) == "CLM-1001  approve  $420.00"
+    run_id = new_dispatch()["run_id"]
+    assert harness.work_in_run("CLM-1001", run_id, lambda: again) == (
+        "CLM-1001  approve  $420.00"
+    )
     assert len(store.events) == 2
     assert harness.carry_on("CLM-1001", None, again) == "CLM-1001  approve  $420.00"
     assert len(store.events) == 2

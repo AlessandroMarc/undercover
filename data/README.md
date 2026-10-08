@@ -5,7 +5,7 @@ The data behind UnderCover Travel Insurance, a fictional insurer. Everything her
 ## The insurer's systems
 
 - `company.json`: company settings, including the $1,000 payout approval limit, which seeding makes the first value of the setting.
-- `plans.json`: the three plans (Economy, Premium, First) with their limits, waiting periods and deductibles, and the three add-ons.
+- `plans.json`: the three plans (Economy, Premium, First) with their limits, waiting periods and deductibles, and the three add-ons. The labs read it; seeding reads the same plans from `context/plans.yaml`.
 - `policies.json`: one policy per trip, with the plan, the add-ons, the purchase date, the trip and the travelers.
 - `customers.json`: contact details and claim history, with the date and a one line summary of each earlier claim. This is personal data.
 - `handlers.json`: the claims handlers, with the email each signs in with. Only Dana Whitfield (`dana.whitfield@undercover.example`) can sign off payouts over the limit, start and stop rounds, review the improver's proposals and change the settings; Marcus Oyelaran and Priya Raman can't.
@@ -19,6 +19,8 @@ Set `MODEL_NAME` in `.env` before `npm run seed` if you're on a free model: seed
 
 - `policy_wording.md`: the contract with the customer. Short enough to fit in a prompt.
 - `claims_manual.md`: the internal handling manual. Longer, and it holds rules the wording does not, such as the third claim in 12 months, losses to wild animals and meals without receipts.
+
+These two files and `plans.json` stay here for the labs. The product's copies are in `context/`, the context layer's seven files, which data governance owns: each names the system it comes from, its owner and when it was last reviewed, and the documents add their version. Seeding loads the plans and both documents from there.
 
 ## The evaluation set
 

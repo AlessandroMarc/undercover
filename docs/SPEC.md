@@ -11,9 +11,20 @@ UnderCover sells travel insurance on three plans: Economy, Premium and First. Ou
 We want an AI agent, the UnderCover Agent, to work the queue the way a handler does. For each claim it should:
 
 - read the claim, the customer's policy and claim history, and the sections of the policy wording and the claims manual it needs
+- look up what else the business knows that bears on the claim, and what we remember about the customer
 - approve, decline or refer the claim
 - work out the payout when it approves
 - explain the decision in two or three sentences, along with the relevant section of the policy
+
+## What the agent works from
+
+The agent works from three sources of data, each with a different owner:
+
+- **The context layer** is the business's data from other systems, which data governance owns and the agent only reads: the terms the policy wording defines, what each field of a claim, a policy and an earlier claim means, the plans, the rules claims operations applies to every claim, facts from outside UnderCover such as storms, strikes and product prices, and the policy wording and the claims manual. Every answer names the file it came from, with that file's system, owner and review date.
+- **Memory** is the agent's own notes on each customer. Once the agent's work on a claim ends with a decision it recorded, the claim and the decision are saved to that customer's memory, never the story or the documents, and the agent can search what we remember about a customer on their later claims. Each customer's memories are used only for that customer's claims. Nothing is saved for a claim the security check referred, and evaluations use no memory. The claim history in our records is still what counts for repeat claims.
+- **The database** is the system of record: claims, policies, customers, decisions and payments. The agent reaches it only through our app.
+
+When our AgentCore Gateway is set up, the agent's tools and its payments go through it, so the Gateway's Policy sees every call the model makes and every payment, and refuses any payment over $1,000. A tool call the Gateway refuses goes back to the agent as a refusal, and a payment it refuses waits for a handler's sign-off. Without the Gateway, the agent calls our app directly. Either way the agent can act only on its own claim and read only its own customer's records.
 
 Our goal is to handle claims straight through, as accurately as our handlers do.
 
@@ -24,7 +35,8 @@ The agent works the queue in dispatches, with many claims at once:
 - A handler starts a dispatch on the queue page, choosing how many claim agents work at once, from 1 to 25. A dispatch works every claim left in progress and every waiting claim, oldest submitted first. Code chooses the claims and keeps track of the dispatch, with no model, and only one dispatch or evaluation runs at a time. The agent can also work one named claim.
 - Each claim goes to a claim agent of its own that works that one claim from a clean start and reports back in a line: the decision and payout, or what went wrong. Every step on a claim is recorded on that claim.
 - Before the claim agent's model sees a claim, a second model reads everything the customer wrote, as the claim agent would read it, and checks whether it tries to instruct whoever handles the claim. A claim with such an instruction goes to a handler as a referral with the check's reason, and the claim agent's model never sees it. The check runs once at the start of a claim's work, on a model of its own that the improver can't change, and its result is the first step on the claim.
-- For each claim the agent looks up the sections of the policy wording and the claims manual it needs, the way a handler would, rather than being handed whole documents. It works out an approval's payout with UnderCover's payout rules, which are part of our systems.
+- For each claim the agent looks up the sections of the policy wording and the claims manual it needs, the way a handler would, rather than being handed whole documents, and whatever else in the context layer bears on the claim. It works out an approval's payout with UnderCover's payout rules, which are part of our systems.
+- Every decision record meets claims manual section 14: it holds the decision, the payout, the calculation of an approval's payout, the section relied on, the reason, who or what made the decision (the UnderCover Agent with its version, or the security check) and when, and the claims manual's version in force. The system refuses a record that falls short, saying what is missing, and an approval's payout must be the calculation it worked out for that attempt.
 - An approval over the approval limit ends the agent's work on that claim, and the payment waits for a handler's sign-off. When a handler who can sign off over the limit does, the sign-off pays the claim at once, without the agent. The payment records who signed off and when. For now a handler can only sign off.
 - Work survives a restart. If the agent is stopped partway through a claim, by a crash, a restart or Ctrl-C, the next dispatch carries on with that claim from where it got to, and that doesn't count as a new attempt. A dispatch that was stopped shows as stopped.
 - Problems are put right automatically. A claim that hits a rate limit or a timeout waits and carries on from where it got to, as the same attempt, and one still hitting them after its waits stays in progress for the next dispatch. A claim that fails with any other error before it is decided goes back in the queue and the same dispatch tries it once more from the start, and a claim that fails twice is left for a handler. One bad claim never stops a dispatch, and no claim is ever decided or paid twice, even when a step runs again after a restart.
@@ -48,7 +60,7 @@ The claim agent's instructions, model and reasoning effort make up one configura
 - The latest dispatch, with each of its claims and where it stands, its model cost and time, and its summary when it finishes.
 - A scoreboard of the evaluations, newest first, with their measures, each opening to its claims beside the handlers' decisions with the misses easy to spot.
 - Each claim in full, with the agent's decision and its reasons.
-- What the agent is doing on a claim while it works, step by step, starting with the security check, including the sections it read and any attempt that failed.
+- What the agent is doing on a claim while it works, step by step, starting with the security check: each tool it calls, each lookup in the context layer with where it came from, each search of the memory and each save to it, each refusal, standing out from the other steps, and any attempt that failed. A panel lists everything it looked up, once each, grouped by the file it came from with that file's source, and the decision shows the whole record with the calculation line by line.
 - The claim agent's configuration: every version, what it changed from the one before, why, who proposed and approved it, and its held-out scores.
 - The improvement rounds as they happen: where a round has got to, a proposal waiting with its change shown as a diff, the rounds so far with the held-out scores before and after, the verdict and why, who approved or rejected what and when, and the cost, a chart of each version tried, and the recipe's versions.
 - The platform's settings: the approval limit, our objectives, the noise and tolerance, the spending limit for each round and the claim agents at once in its evaluations, with who changed them and when, and the models the claim agent may use.
@@ -59,12 +71,14 @@ The claim agent's instructions, model and reasoning effort make up one configura
 - The agent identifies itself with an API key on every request it makes to our systems. What only the agent does needs the key, what only handlers do needs a signed-in handler, and the key never stands in for a handler.
 - A payout over the approval limit, $1,000 to start with and a setting, needs a sign-off from a handler who can sign off over it. The agent can approve such a claim, but the payment waits until that sign-off. The system refuses any payment over the limit, even if the agent tries to pay, and the sign-off itself pays the claim. Only such a handler can also start or stop a round, approve or reject the improver's proposals or change a setting; anyone else is told what they can't do and why.
 - Decisions follow the policy wording and the claims manual. The wording comes first, and the manual says how to read it.
+- Every decision record meets claims manual section 14, and carries the manual's version (section 13).
+- Each customer's memories are used only for that customer's claims (claims manual section 11).
 - Our handlers' own decisions on these claims are in `data/evals/`. We use them to check the agent's work, and the dashboard shows them beside the agent's for both labeled sets. The claim agent must never see them. The improver reads our handlers' decisions and reasons on the evaluation set, to learn from the misses, but nothing in the agent reads the held-out set's: those claims only score its changes.
 - Amounts are in US dollars.
 
 ## Our records
 
-Everything is in `data/`, described in `data/README.md`: the claims queue, the policies, the customers, the plans, the handlers, the policy wording and the claims manual. The held-out claims in `data/evals/` are for evaluations and stay out of the queue.
+Everything is in `data/`, described in `data/README.md`: the claims queue, the policies, the customers, the plans, the handlers, the policy wording and the claims manual. The held-out claims in `data/evals/` are for evaluations and stay out of the queue. Data governance's seven files in `context/` are the context layer: the data dictionary, the glossary, the plans, the claim rules, the reference data, the policy wording and the claims manual, each naming its source. Our systems load the plans and the two documents from there, and nobody but data governance changes them.
 
 ## Not for now
 
@@ -72,3 +86,5 @@ Everything is in `data/`, described in `data/README.md`: the claims queue, the p
 - Rejecting a held payout. For now a handler can only sign off.
 - No real payments.
 - No messages to customers.
+- Memory in evaluations.
+- Masking personal fields for the agent, and requesting documents from customers.
