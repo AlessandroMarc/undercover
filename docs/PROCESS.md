@@ -27,11 +27,11 @@ When asked to plan, as in "Please plan the pilot", write the plan to `docs/PLAN.
 
 When asked to implement the plan, as in "Please implement the plan for the pilot", build every phase in order without stopping. For each phase:
 
-1. Build it, with tests.
-2. Check every success criterion and fix whatever fails.
-3. Review the phase's changes, as described below, and fix what the review finds.
+1. Build it, with tests. While you work, run only the tests for the code you're changing, without coverage, for example `uv run pytest agent/tests/test_service.py --no-cov`.
+2. Check every success criterion and fix whatever fails. Then run `npm run check` and fix whatever fails.
+3. Review the phase's changes, as described below, and fix what the review finds. After the fixes, run only the tests they touch, plus `npm run e2e` if they change the dashboard or the API.
 4. Tick off its criteria in `docs/PLAN.md` and update `docs/STATUS.md`.
-5. Commit. The pre-commit hook runs the checks; if it fails, fix the problem and commit again.
+5. Commit without running `npm run check` again. The pre-commit hook reruns the checks; if it fails, fix the problem and commit again.
 
 When the last phase is done, review the whole branch against `main` in the same way and fix what the review finds. Then run `npm run check` and report the results, including what the reviews found and what you changed.
 
