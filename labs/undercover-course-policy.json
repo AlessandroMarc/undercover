@@ -83,13 +83,16 @@
       "Resource": "*"
     },
     {
-      "Sid": "ServiceLinkedRolesForAgentCore",
+      "Sid": "ServiceLinkedRolesForAgentCoreAndTraces",
       "Effect": "Allow",
       "Action": "iam:CreateServiceLinkedRole",
       "Resource": "*",
       "Condition": {
         "StringLike": {
-          "iam:AWSServiceName": "*bedrock-agentcore*"
+          "iam:AWSServiceName": [
+            "*bedrock-agentcore*",
+            "application-signals.cloudwatch.amazonaws.com"
+          ]
         }
       }
     },
@@ -142,7 +145,8 @@
         "ssm:GetParameter",
         "ssm:GetParameters",
         "ssm:PutParameter",
-        "ssm:DeleteParameter"
+        "ssm:DeleteParameter",
+        "ssm:ListTagsForResource"
       ],
       "Resource": "arn:aws:ssm:*:*:parameter/cdk-bootstrap/*"
     },
@@ -160,6 +164,7 @@
         "kms:GetKeyPolicy",
         "kms:PutKeyPolicy",
         "kms:EnableKeyRotation",
+        "kms:GetKeyRotationStatus",
         "kms:ScheduleKeyDeletion",
         "kms:TagResource",
         "kms:Encrypt",
