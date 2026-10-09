@@ -43,8 +43,15 @@ e2e/.auth/
 cdk.out/
 .bedrock_agentcore/
 agentcore/.cli/
+agentcore/.cache/
+agentcore/aws-targets.json
 *.zip
 lambda_package/
+
+# What the AgentCore CLI makes as it runs the Week 3 Day 4 Lab 1's project
+labs/undercoverlab/agentcore/.cli/
+labs/undercoverlab/agentcore/.cache/
+labs/undercoverlab/agentcore/aws-targets.json
 
 # Local databases and data
 *.db
