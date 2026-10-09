@@ -33,7 +33,7 @@ When asked to implement the plan, as in "Please implement the plan for the pilot
 4. Tick off its criteria in `docs/PLAN.md` and update `docs/STATUS.md`.
 5. Commit without running `npm run check` again. The pre-commit hook reruns the checks; if it fails, fix the problem and commit again.
 
-When the last phase is done, review the whole branch against `main` in the same way and fix what the review finds. Then run `npm run check` and report the results, including what the reviews found and what you changed.
+When the last phase is done, review the whole branch against `main` in the same way. Fix what the review finds, run the tests the fixes touch, plus `npm run e2e` if they change the dashboard or the API, and commit. Then report the results, including what the reviews found and what you changed.
 
 ## Reviewing
 
@@ -49,7 +49,7 @@ The checks show that the code works, but not that it is fit to merge. Every code
 - Every page needs a signed-in handler. For browser checks with the Playwright MCP server, sign in on `/sign-in` with a handler's email from `data/handlers.json` and `HANDLER_PASSWORD` from `.env`: Dana Whitfield to act, Marcus Oyelaran to see what a handler who can't sign off over the limit sees.
 - Before the live runs with the real model, reseed once with `npm run seed`. Evaluations work their own copies and need no reseed. Keep to the runs the plan asks for: for the context layer, memory and the Gateway, on the direct route with memory off, `uv run -m agent CLM-1001`, then `CLM-1005` and `CLM-1006`, a dispatch at N=25 on the queue page and an evaluation of the evaluation set's five tiny claims, then CLM-1005's and CLM-1006's pages in light and dark mode, and report what they spent from the backend's records and the OpenRouter key's usage.
 - Outside a plan, commit each change once you have checked and reviewed it.
-- Run `npm run check` before you hand work over.
+- Outside a plan, run `npm run check` before you hand work over.
 - Never use `git commit --no-verify`.
 - Never lower a threshold, turn off a rule or exclude a file to get a green run. If a rule looks wrong, stop and ask.
 - Keep `docs/STATUS.md` up to date.
