@@ -46,6 +46,7 @@ context = [
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.16.9",
 ]
 server = [
@@ -86,6 +87,8 @@ pythonpath = ["."]
 addopts = "--import-mode=importlib --cov --cov-report=term-missing"
 
 [tool.coverage.run]
+# Python's own monitoring, far quicker than a trace function for line coverage.
+core = "sysmon"
 source = ["backend", "agent", "context"]
 omit = ["*/tests/*"]
 

@@ -70,7 +70,7 @@ The `scripts` section of `package.json` gives names to the commands you run ofte
 "scripts": {
   "prepare": "lefthook install && playwright install chromium",
   "dev:backend": "uv run uvicorn backend.main:app --reload --reload-dir backend",
-  "check:python": "uv run ruff format --check && uv run ruff check && pyright && uv run pytest -q"
+  "check:python": "uv run ruff format --check && uv run ruff check && pyright --threads && uv run pytest -q -n auto --dist worksteal"
 }
 ```
 
@@ -85,7 +85,7 @@ Each check is a dev dependency with a script that runs it:
 | Formatting | `ruff format` | Prettier |
 | Linting | `ruff check` | ESLint |
 | Types | pyright | `tsc` |
-| Unit tests and coverage | pytest with pytest-cov | vitest |
+| Unit tests and coverage | pytest with pytest-cov, across the cores with pytest-xdist | vitest |
 | End to end | Playwright | Playwright |
 
 This repo installs pyright with npm (`npm install -D pyright`), since pyright is a Node program. The settings for the checks are in the `[tool.*]` sections of `pyproject.toml`, and in `eslint.config.js`, `tsconfig.json`, `dashboard/vite.config.ts` and `playwright.config.ts`. Prettier works with no settings at all.

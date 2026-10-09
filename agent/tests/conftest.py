@@ -32,10 +32,13 @@ def context_at(no_aws, context_layer, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def backend(monkeypatch):
-    """Send the agent's requests to the test backend, at the same address."""
-    test_backend = TestClient(app, base_url=str(connection.backend.base_url))
-    monkeypatch.setattr(connection, "backend", test_backend)
+def backend(database, monkeypatch):
+    """Send the agent's requests to the test backend, at the same address. The
+    client stays open for the test, so its requests share one event loop, as they
+    would on a server, rather than starting a thread and a loop for each."""
+    with TestClient(app, base_url=str(connection.backend.base_url)) as test_backend:
+        monkeypatch.setattr(connection, "backend", test_backend)
+        yield
 
 
 class RecordRoots(BaseCallbackHandler):

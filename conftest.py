@@ -1,6 +1,7 @@
 """Fixtures for the backend's and the agent's tests."""
 
 import json
+import shutil
 
 import httpx
 import jwt
@@ -25,14 +26,30 @@ from backend.tests.sign_in import PUBLIC_KEYS, SUPABASE_URL
 TEST_KEY = "test-agent-key-0123456789abcdefghijklmnop"
 
 
-@pytest.fixture(autouse=True)
-def database(tmp_path, monkeypatch):
-    """Give every test its own freshly seeded SQLite database, never Postgres."""
-    path = tmp_path / "undercover.db"
+def use_sqlite(monkeypatch, path):
+    """Point the backend at a SQLite file, never Postgres, on the default model."""
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("MODEL_NAME", raising=False)
     monkeypatch.setenv("UNDERCOVER_DB", str(path))
-    seed(engine())
+
+
+@pytest.fixture(scope="session")
+def seeded(tmp_path_factory):
+    """A SQLite database seeded once for the whole session."""
+    path = tmp_path_factory.mktemp("seeded") / "undercover.db"
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        use_sqlite(monkeypatch, path)
+        seed(engine())
+    return path
+
+
+@pytest.fixture(autouse=True)
+def database(seeded, tmp_path, monkeypatch):
+    """Give every test its own copy of the session's seeded SQLite database, which
+    is quicker than seeding each time."""
+    path = tmp_path / "undercover.db"
+    use_sqlite(monkeypatch, path)
+    shutil.copyfile(seeded, path)
     return path
 
 
@@ -133,15 +150,20 @@ def agent_calls(agent_answers):
 
 
 @pytest.fixture
-def client():
-    """The backend, called as the agent's side calls it, with the agent's key."""
-    return TestClient(app, headers={API_KEY_HEADER: TEST_KEY})
+def client(database):
+    """The backend, called as the agent's side calls it, with the agent's key. Each
+    client stays open for the test, so its requests share one event loop rather
+    than starting a thread and a loop for each."""
+    with TestClient(app, headers={API_KEY_HEADER: TEST_KEY}) as caller:
+        yield caller
 
 
 @pytest.fixture
-def dashboard():
-    """The backend, called as a handler's browser calls it, with no key."""
-    return TestClient(app)
+def dashboard(database):
+    """The backend, called as a handler's browser calls it, with no key, open for
+    the test like the agent's side."""
+    with TestClient(app) as caller:
+        yield caller
 
 
 @pytest.fixture
