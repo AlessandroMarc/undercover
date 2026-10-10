@@ -8,6 +8,7 @@ import threading
 import httpx
 import pytest
 
+from backend import main
 from backend.database import payments
 from backend.tests.agent_answers import broken, refusing, slow, unreachable
 from backend.tests.claim_requests import held, sign_off
@@ -56,6 +57,20 @@ def test_a_sign_off_stands_whatever_happens_to_the_call(
     assert committed_claim("CLM-1002")["status"] == "decided"
     [warning] = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert warning.getMessage().startswith("CLM-1002 wasn't resumed: ")
+
+
+def test_a_sign_off_pays_the_decision_its_move_found(client, monkeypatch):
+    held(client, "CLM-1002", 1350.0)
+    # The claim as read before a send back and a new decision held it again.
+    as_read = dict(committed_claim("CLM-1002")) | {"payout": 1999.0}
+    find_claim, reads = main.find_claim, []
+
+    def first_read_is_old(db, claim_id):
+        reads.append(claim_id)
+        return as_read if len(reads) == 1 else find_claim(db, claim_id)
+
+    monkeypatch.setattr(main, "find_claim", first_read_is_old)
+    assert sign_off(client, "CLM-1002").json()["payment"]["amount"] == 1350.0
 
 
 def test_two_sign_offs_at_the_same_moment_pay_the_claim_once(client, agent_calls):

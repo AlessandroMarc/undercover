@@ -10,7 +10,12 @@ from sqlalchemy import func, select, update
 from backend.database import engine, grades, handler_decisions, runs
 from backend.tests.claim_requests import decide, start
 from backend.tests.judging import answer
-from backend.tests.run_requests import create_evaluation, finish, get_evaluation
+from backend.tests.run_requests import (
+    create_evaluation,
+    fail_run,
+    finish,
+    get_evaluation,
+)
 
 
 def count_grades():
@@ -142,8 +147,7 @@ def test_a_student_on_a_free_model_has_no_judge(client, judged, monkeypatch):
 def test_a_stopped_evaluation_isnt_graded(client, judged):
     evaluation = create_evaluation(client).json()
     decide_all_but_one(client, evaluation)
-    failure = {"reason": "RuntimeError: The dispatcher broke"}
-    client.post(f"/api/runs/{evaluation['run_id']}/failure", json=failure)
+    fail_run(client, evaluation["run_id"])
     finished = finish(client, evaluation["run_id"])
     assert (finished.status_code, finished.json()["status"]) == (200, "stopped")
     assert (judged, count_grades()) == ([], 0)

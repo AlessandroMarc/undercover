@@ -165,6 +165,12 @@ export function inWords(reason: string | null): string {
   return (reason ?? "").replaceAll("_", " ");
 }
 
+// Why a run stopped, as a sentence: "Stopped: The agent stopped answering." A
+// reason that already ends with a stop, as an error's message may, keeps it.
+export function stoppedBecause(reason: string): string {
+  return `Stopped: ${reason}${/[.!?]$/.test(reason) ? "" : "."}`;
+}
+
 // Where an open round has got to, such as "First evaluations, 2 of 3", or
 // "Kept: accuracy improved" once its verdict is in.
 export function whereRoundIs(round: RoundSummary): string {

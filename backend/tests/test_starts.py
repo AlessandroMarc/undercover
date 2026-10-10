@@ -5,22 +5,11 @@ import pytest
 
 from backend.database import runs
 from backend.tests.rows import count, newest_run
-from backend.tests.run_requests import latest_dispatch
-from backend.tests.sign_in import MARCUS, signed_in
-
-
-def start_dispatch(client, agents):
-    return client.post(
-        "/api/dispatches", json={"agents": agents}, headers=signed_in(MARCUS)
-    )
-
-
-def start_evaluation(client, evaluation_set="held_out", tiny=True, agents=5):
-    return client.post(
-        "/api/evaluations",
-        json={"evaluation_set": evaluation_set, "tiny": tiny, "agents": agents},
-        headers=signed_in(MARCUS),
-    )
+from backend.tests.run_requests import (
+    latest_dispatch,
+    start_dispatch,
+    start_evaluation,
+)
 
 
 def test_start_a_dispatch(client, agent_calls):

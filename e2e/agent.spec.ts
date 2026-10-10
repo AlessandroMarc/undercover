@@ -206,7 +206,7 @@ test.describe("signed in as Marcus Oyelaran", () => {
     ).toBeVisible();
     await expect(
       page.getByText(
-        "Only a handler who can sign off payouts over $1,000.00 can sign this off. Marcus Oyelaran can't.",
+        "Only a handler who can sign off payouts over $1,000.00 can sign this off or send it back. Marcus Oyelaran can't.",
       ),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign off" })).toHaveCount(0);

@@ -27,6 +27,7 @@ export function ReasonForm({
   children?: ReactNode;
 }>) {
   const textId = useId();
+  const hintId = useId();
   const ready = value.trim() !== "";
   return (
     <form
@@ -41,6 +42,7 @@ export function ReasonForm({
       <textarea
         id={textId}
         required
+        aria-describedby={hintId}
         rows={3}
         maxLength={maxLength}
         value={value}
@@ -48,7 +50,9 @@ export function ReasonForm({
           onChange(event.target.value);
         }}
       />
-      <p className="muted small">{hint}</p>
+      <p id={hintId} className="muted small">
+        {hint}
+      </p>
       <button
         type="submit"
         className="button"

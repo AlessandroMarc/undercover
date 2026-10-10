@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { started, stopTheWork } from "./api";
+import { getRun, nextStarted, started, stopTheWork } from "./api";
 
 // Starting runs on the dashboard creates them and reaches the stand-in for the
 // agent, which accepts them and starts nothing.
@@ -18,16 +18,22 @@ test("a dispatch started on the queue page reaches the agent", async ({
     .getByRole("combobox", { name: "Claim agents at once" })
     .selectOption("7");
   const button = panel.getByRole("button", { name: "Start a dispatch" });
+  const before = (await started(request)).length;
   await button.click();
-  await expect
-    .poll(() => started(request))
-    .toContainEqual(expect.objectContaining({ operation: "work_run" }));
+  const payload = await nextStarted(request, before);
+  expect(payload).toEqual({
+    operation: "work_run",
+    run_id: expect.any(String),
+  });
+  const run = await getRun(request, String(payload.run_id));
+  expect(run).toMatchObject({ kind: "dispatch", agents: 7, status: "running" });
   await expect(button).toHaveAttribute("aria-disabled", "false");
   await expect(panel.getByRole("alert")).toHaveCount(0);
   await expect(panel.getByText(/with 7 claim agents at once/)).toBeVisible();
 
   await button.click();
   await expect(panel.getByRole("alert")).toHaveText("A dispatch is running");
+  expect(await started(request)).toHaveLength(before + 1);
 });
 
 test("an evaluation started on the Scoreboard reaches the agent", async ({
@@ -48,10 +54,21 @@ test("an evaluation started on the Scoreboard reaches the agent", async ({
     .getByRole("combobox", { name: "Claim agents at once" })
     .selectOption("5");
   const button = form.getByRole("button", { name: "Start an evaluation" });
+  const before = (await started(request)).length;
   await button.click();
-  await expect
-    .poll(() => started(request))
-    .toContainEqual(expect.objectContaining({ operation: "work_run" }));
+  const payload = await nextStarted(request, before);
+  expect(payload).toEqual({
+    operation: "work_run",
+    run_id: expect.any(String),
+  });
+  const run = await getRun(request, String(payload.run_id));
+  expect(run).toMatchObject({
+    kind: "evaluation",
+    evaluation_set: "held_out",
+    tiny: true,
+    agents: 5,
+    status: "running",
+  });
   await expect(button).toHaveAttribute("aria-disabled", "false");
   await expect(form.getByRole("alert")).toHaveCount(0);
 });

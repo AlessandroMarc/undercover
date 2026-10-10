@@ -85,6 +85,7 @@ ALREADY_PAID = "Claim {claim_id} has already been paid"
 NOT_STARTED = "Claim {claim_id} has not been started"
 NOT_IN_PROGRESS = "Claim {claim_id} is not in progress"
 ALREADY_DECIDED = "Claim {claim_id} has already been decided"
+NOT_WAITING = "Claim {claim_id} is not waiting"
 NOT_WAITING_FOR_SIGN_OFF = "Claim {claim_id} is not waiting for sign-off"
 NOT_SENT_BACK = "Claim {claim_id} isn't sent back"
 A_COPY = "Claim {claim_id} is a copy in an evaluation and can't be {answered}"
@@ -182,15 +183,24 @@ def answer_held(
     db: Connection, claim_id: str, answer: Status, answered: str
 ) -> RowMapping:
     """Move a claim held for sign-off on with a handler's answer, and return its row
-    as it was held, or raise a 404, or a 409 for an evaluation's copy, which nobody
-    answers, or for a claim no longer waiting, as when another answer came
-    first."""
-    claim = find_claim(db, claim_id)
-    if claim["evaluation_id"] is not None:
+    as the move found it, with the decision that was held, or raise a 404, or a 409
+    for an evaluation's copy, which nobody answers, or for a claim no longer
+    waiting, as when another answer came first."""
+    if find_claim(db, claim_id)["evaluation_id"] is not None:
         raise HTTPException(409, A_COPY.format(claim_id=claim_id, answered=answered))
     if not move_claim(db, claim_id, Status.WAITING_FOR_SIGN_OFF, answer):
         raise HTTPException(409, NOT_WAITING_FOR_SIGN_OFF.format(claim_id=claim_id))
-    return claim
+    return find_claim(db, claim_id)
+
+
+def record_send_back(db: Connection, claim: RowMapping, note: str, by: str) -> None:
+    """Keep a held decision sent back with its note, clear it from the claim with
+    its calculation, so nothing can pay it, and record the note as a step."""
+    keep(db, claim, note, by)
+    db.execute(delete(decisions).where(decisions.c.claim_id == claim["claim_id"]))
+    clear_calculation(db, claim["claim_id"])
+    step = NewStep(kind="sent_back", content=f"Sent back by {by}: {note}", sources=[])
+    add_step(db, claim["claim_id"], claim["thread_id"], step)
 
 
 def ask_to_resume(claim_id: str) -> None:
@@ -308,22 +318,23 @@ def get_signed_in_handler(handler: SignedIn) -> Handler:
     "/api/claims/{claim_id}/start", operation_id="start_claim", dependencies=[AgentKey]
 )
 def start_claim(claim_id: str, request: StartRequest, db: Database) -> Claim:
-    """Start work on a waiting claim, which moves it to in progress."""
+    """Start work on a waiting claim, which moves it to in progress, only once."""
     claim = find_claim(db, claim_id)
     if claim["status"] != Status.WAITING:
-        raise HTTPException(409, f"Claim {claim_id} is not waiting")
+        raise HTTPException(409, NOT_WAITING.format(claim_id=claim_id))
     if claim["evaluation_id"]:
         refuse_a_round_that_cant_go_on(db, claim["evaluation_id"])
-    db.execute(
-        update(claims)
-        .where(claims.c.claim_id == claim_id)
-        .values(
-            status=Status.IN_PROGRESS,
-            thread_id=request.thread_id,
-            attempts=claims.c.attempts + 1,
-            resume_heard_at=None,
-        )
+    started = move_claim(
+        db,
+        claim_id,
+        Status.WAITING,
+        Status.IN_PROGRESS,
+        thread_id=request.thread_id,
+        attempts=claims.c.attempts + 1,
+        resume_heard_at=None,
     )
+    if not started:
+        raise HTTPException(409, NOT_WAITING.format(claim_id=claim_id))
     return claim_in_full(db, claim_id)
 
 
@@ -524,12 +535,7 @@ def send_back_claim(
 ) -> Claim:
     """Send a held decision back to the agent with a note, as the handler signed in."""
     claim = answer_held(db, claim_id, Status.SENT_BACK, "sent back")
-    keep(db, claim, request.note, handler.name)
-    db.execute(delete(decisions).where(decisions.c.claim_id == claim_id))
-    clear_calculation(db, claim_id)
-    content = f"Sent back by {handler.name}: {request.note}"
-    note = NewStep(kind="sent_back", content=content, sources=[])
-    add_step(db, claim_id, claim["thread_id"], note)
+    record_send_back(db, claim, request.note, handler.name)
     db.commit()
     ask_to_resume(claim_id)
     return claim_in_full(db, claim_id)

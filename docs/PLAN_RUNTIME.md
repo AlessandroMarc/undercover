@@ -99,7 +99,7 @@ START -> screen --(instructions found)--> refer -> END
 - `get_claim` gives the claim's `sent_back_decisions`, oldest first. `claim_as_read` leaves them out, so neither the check for hidden instructions nor the claim agent's `get_claim` reads a handler's note as part of the claim: the note reaches the model only as the handler's message.
 - The note message is code, in `handler_answer.py`, so a version of the instructions can't drop it. Its goals: it names who sent the decision back and gives the note; it says the earlier decision no longer stands and nothing has been paid; it asks the agent to treat the note as a senior handler's review, checked against the policy wording and the claims manual like everything else, and to record a new decision; and when the wording doesn't support what the note asks, to refer the claim to a handler, saying why.
 - A new decision goes through the same checks as any other: an approval needs its calculation on the same thread, a payout over the limit waits for sign-off and pauses again, and one within the limit is paid by `pay`. A claim can be sent back more than once.
-- The claim page shows the current decision as now, then each decision sent back with its chip, payout, section, reason, who made it, its note, and "Sent back by Dana Whitfield at 2:05 PM". While a claim is sent back the panel says "Sent back to the agent, which works on it again now or in the next dispatch." The step list shows the note with "Sent back" and an icon at the text's size.
+- The claim page shows the current decision as now, then each decision sent back with its chip, payout, section, reason, who made it, its note, and "Sent back by Dana Whitfield at 2:05 PM". While a claim is sent back the panel says "Sent back to the agent, which hasn't taken it up yet. The next dispatch works on it." The step list shows the note with "Sent back" and an icon at the text's size.
 
 ### Who works a sent-back claim
 
@@ -319,6 +319,16 @@ Then the live checks, after one reseed, with Lab 1's `agentcore dev` stopped:
 - [x] An evaluation of the evaluation set's five tiny claims on the Scoreboard finishes with its measures
 - [x] Supabase: no run is left running, every finished run has a `heard_at`, and `sent_back_decisions` holds the one decision sent back with its note
 - [x] What it cost: the backend's records for the dispatch, the resume and the evaluation, beside the rise in the OpenRouter key's usage over the same time, in `docs/STATUS.md`'s "Last live run"
+
+## After the branch review
+
+The review of the whole branch changed these, beyond the phases:
+
+- `wait_for_handler` resets the model calls with LangGraph's `Overwrite(0)`.
+- Stopping a round is a conditional update, on an open round and, for quiet work, one still quiet, so a round that finished or spoke meanwhile is left as it is. `start_claim` moves a waiting claim conditionally, and a handler's answer reads the claim after its move.
+- `agent/work.py` holds the run, round and resume work, which the entry point hands on. The entry point checks the key before it reads a payload, a resume that fails is logged, and the checkpoint pool waits up to 5 seconds for its first connection.
+- The e2e start tests check the one payload each start sends and the run or round it names, and the agent's stand-in needs the key.
+- A sent-back claim's panel says "Sent back to the agent, which hasn't taken it up yet. The next dispatch works on it.", and a handler who can't sign off over the limit is told they can't send it back either.
 
 ## Not in this plan
 

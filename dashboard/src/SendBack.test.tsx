@@ -61,7 +61,7 @@ it("lets a senior handler send a held payment back with a note", async () => {
   fireEvent.click(submit);
   expect(
     await panel.findByText(
-      "Sent back to the agent, which works on it again now or in the next dispatch.",
+      "Sent back to the agent, which hasn't taken it up yet. The next dispatch works on it.",
     ),
   ).toBeDefined();
   expect(sent(fetchMock, "POST /api/claims/CLM-1002/send-back")).toEqual([
@@ -76,7 +76,7 @@ it("tells a handler who can't send a payment back why", async () => {
   expect(
     await panel.findByText(
       wholeText(
-        "Only a handler who can sign off payouts over $1,000.00 can sign this off. Marcus Oyelaran can't.",
+        "Only a handler who can sign off payouts over $1,000.00 can sign this off or send it back. Marcus Oyelaran can't.",
       ),
     ),
   ).toBeDefined();

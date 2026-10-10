@@ -2,21 +2,22 @@ import { type APIRequestContext, expect } from "@playwright/test";
 import type {
   DecisionKind,
   EvaluationSet,
+  RoundStatus,
   Run,
   Source,
   StepKind,
 } from "../dashboard/src/api";
 import { HANDLERS, signedInAs } from "./handlers";
+import { roundPath, runPath } from "./paths";
 import { AGENT_KEY_HEADERS, AGENT_STAND_IN } from "./servers";
 
-// Stands in for the agent's service and its claim agents, with one function for
-// each backend operation the tests use, sent through the dashboard's proxy with
-// the agent's key.
+// Stands in for the agent and its claim agents, with one function for each
+// backend operation the tests use, sent through the dashboard's proxy with the
+// agent's key.
 type Request = APIRequestContext;
 
 const claimPath = (claimId: string) =>
   `/api/claims/${encodeURIComponent(claimId)}`;
-const runPath = (runId: string) => `/api/runs/${runId}`;
 
 // Sends a request as the agent's side does, with its key, and returns the
 // backend's answer, which may be a refusal.
@@ -165,13 +166,13 @@ export const recordWorkTime = (
     seconds,
   });
 
-// What a handler starts on the dashboard, which the app creates and asks the
-// agent to work: the newest payload the stand-in for the agent took.
-async function newestStarted(request: Request): Promise<Payload> {
-  const payloads = await started(request);
-  const newest = payloads.at(-1);
-  if (!newest) throw new Error("The stand-in for the agent took nothing");
-  return newest;
+// A run as the agent reads it.
+export async function getRun(request: Request, runId: string): Promise<Run> {
+  const response = await request.get(runPath(runId), {
+    headers: AGENT_KEY_HEADERS,
+  });
+  await expect(response).toBeOK();
+  return (await response.json()) as Run;
 }
 
 // Starts a run as a handler does, and returns it as the agent reads it.
@@ -180,17 +181,14 @@ async function startRun(
   path: string,
   data: object,
 ): Promise<Run> {
+  const before = (await started(request)).length;
   const response = await request.post(path, {
     data,
     headers: await signedInAs(request, HANDLERS.dana),
   });
   await expect(response).toBeOK();
-  const { run_id } = await newestStarted(request);
-  const run = await request.get(runPath(String(run_id)), {
-    headers: AGENT_KEY_HEADERS,
-  });
-  await expect(run).toBeOK();
-  return (await run.json()) as Run;
+  const { run_id } = await nextStarted(request, before);
+  return getRun(request, String(run_id));
 }
 
 export const startDispatch = (request: Request, agents: number) =>
@@ -219,15 +217,29 @@ export const finishRun = (request: Request, runId: string) =>
 
 // A round of the improver, started by Dana Whitfield and played out as the
 // agent would record it.
-const ROUNDS = "/api/rounds";
-const roundPath = (roundId: string) => `${ROUNDS}/${roundId}`;
-
 export async function startRound(request: Request): Promise<string> {
+  const before = (await started(request)).length;
   const response = await request.post("/api/improvement/rounds", {
     headers: await signedInAs(request, HANDLERS.dana),
   });
   await expect(response).toBeOK();
-  return String((await newestStarted(request)).round_id);
+  return String((await nextStarted(request, before)).round_id);
+}
+
+// A round as the agent reads it, as far as the tests need.
+export async function getRound(
+  request: Request,
+  roundId: string,
+): Promise<{ round_id: string; number: number; status: RoundStatus }> {
+  const response = await request.get(roundPath(roundId), {
+    headers: AGENT_KEY_HEADERS,
+  });
+  await expect(response).toBeOK();
+  return (await response.json()) as {
+    round_id: string;
+    number: number;
+    status: RoundStatus;
+  };
 }
 
 export async function recordChangeProposal(
@@ -263,7 +275,7 @@ export async function recordRecipeProposal(
 }
 
 // A proposal with its review, as the agent reads it.
-export async function proposalOf(
+export async function getProposal(
   request: Request,
   roundId: string,
   proposalId: string,
@@ -297,6 +309,24 @@ export async function started(request: Request): Promise<Payload[]> {
   const response = await request.get(`${AGENT_STAND_IN}/api/started`);
   await expect(response).toBeOK();
   return (await response.json()) as Payload[];
+}
+
+// Waits for the stand-in for the agent to take exactly one payload more than
+// the `before` it had, and returns that payload.
+export async function nextStarted(
+  request: Request,
+  before: number,
+): Promise<Payload> {
+  let payloads: Payload[] = [];
+  await expect
+    .poll(async () => {
+      payloads = await started(request);
+      return payloads.length;
+    })
+    .toBe(before + 1);
+  const next = payloads.at(before);
+  if (!next) throw new Error("The stand-in for the agent took nothing");
+  return next;
 }
 
 // The claims the backend has asked the agent to resume, oldest first.

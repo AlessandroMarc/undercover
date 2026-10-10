@@ -1,3 +1,6 @@
+// A claim as the backend gives it to the claim page, with its decision and
+// the agent's steps, for the page's tests.
+
 import type { Claim, Decision, Source, Step } from "./api";
 import {
   claim,
@@ -9,8 +12,6 @@ import {
   stubApi,
 } from "./testing";
 
-// A claim as the backend gives it to the claim page, with its decision and
-// the agent's steps, for the page's tests.
 export const decidedAt = "2026-09-27T17:06:16+00:00";
 
 // A step of the agent's work, from no context file unless it's a lookup.

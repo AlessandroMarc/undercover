@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from langchain_core.callbacks import BaseCallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import connection, dispatcher, entrypoint, harness, improver
+from agent import connection, dispatcher, entrypoint, harness, improver, work
 from agent.direct import CONTEXT_URL
 from agent.tests.gateway_stand_in import GatewayStandIn
 from agent.tests.invoking import HEALTH, Agent
@@ -103,7 +103,7 @@ def workers_from(monkeypatch):
                 agent_on, claim_model, saver, version, pauses=pauses_in(kind)
             )
 
-        workers = entrypoint.Workers(claim_agents, lambda round: improver_model, saver)
+        workers = work.Workers(claim_agents, lambda round: improver_model, saver)
         monkeypatch.setattr(entrypoint, "open_checkpoint_pool", object)
         monkeypatch.setattr(entrypoint, "workers_on", lambda pool: workers)
         monkeypatch.setattr(entrypoint, "ready", entrypoint.Ready())
@@ -156,14 +156,14 @@ def hold_runs(monkeypatch):
 
     def from_now():
         held = HeldRun()
-        work_run = entrypoint.work_run
+        work_run = work.work_run
 
         def hold(run, work):
             held.working.set()
             held.release.wait(5)
             return work_run(run, work)
 
-        monkeypatch.setattr(entrypoint, "work_run", hold)
+        monkeypatch.setattr(work, "work_run", hold)
         return held
 
     return from_now

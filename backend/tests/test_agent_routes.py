@@ -25,15 +25,11 @@ from backend import agent_service
 from backend.agent_service import NO_ANSWER, NOT_RUNNING
 from backend.tests.claim_requests import held, sign_off
 from backend.tests.rows import newest_run
-from backend.tests.sign_in import MARCUS, signed_in
+from backend.tests.run_requests import start_dispatch
 
 ARN = "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/undercover_agent-x"
 ENDPOINT = "https://bedrock-agentcore.us-east-1.amazonaws.com"
 REFUSAL = "A dispatch is running"
-
-
-def start_dispatch(client):
-    return client.post("/api/dispatches", json={"agents": 3}, headers=signed_in(MARCUS))
 
 
 class RuntimeStandIn:

@@ -8,7 +8,7 @@ import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from sqlalchemy import func, select
 
-from agent import entrypoint
+from agent import entrypoint, work
 from agent.improver import improver_model
 from agent.tests.dispatching import new_dispatch, the_app
 from agent.tests.invoking import ACCEPTED, HEALTH, carry_round_on, work_round
@@ -51,7 +51,8 @@ def room_to_run(client):
 def start_round(agent, wait=True):
     """Start a round as a handler does, which the app creates, and have the agent
     work it."""
-    round_id = create_round(the_app()).json()["round_id"]
+    with the_app() as caller:
+        round_id = create_round(caller).json()["round_id"]
     return agent.invoke(work_round(round_id), wait=wait)
 
 
@@ -59,7 +60,8 @@ def review(agent, round_, proposal_id, verdict="approved"):
     """Review a proposal as a handler does, which the app records, and have the
     agent carry the round on."""
     round_id = round_["round_id"]
-    reviewed = review_as_a_handler(the_app(), round_id, proposal_id, verdict)
+    with the_app() as caller:
+        reviewed = review_as_a_handler(caller, round_id, proposal_id, verdict)
     assert reviewed.status_code == 200, reviewed.text
     return agent.invoke(carry_round_on(round_id, proposal_id))
 
@@ -399,7 +401,7 @@ def test_a_round_whose_evaluation_fails_is_stopped_with_its_run(
     def broken(run, claim_agents):
         raise RuntimeError("The claim agents couldn't be built")
 
-    monkeypatch.setattr(entrypoint, "claim_work", broken)
+    monkeypatch.setattr(work, "claim_work", broken)
     model = whole_round()
     agent = serve_rounds(model, claim_agents_model())
     start_round(agent)

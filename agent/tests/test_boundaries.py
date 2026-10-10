@@ -99,3 +99,8 @@ def test_the_heartbeat_uses_nothing_else_in_the_agent():
 
 def test_identity_uses_nothing_else_in_the_agent():
     assert imports_of("identity") & agents_modules() == set()
+
+
+def test_the_entry_point_hands_the_work_on_and_drives_none_of_it():
+    assert {"dispatcher", "heartbeat"} & imports_of("entrypoint") == set()
+    assert "work" in imports_of("entrypoint")

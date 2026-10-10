@@ -297,8 +297,7 @@ def end_cut_short(db: Connection, row: RowMapping, because: str) -> None:
     round is stopped before its runs, as every stop does, so two stops at the
     same moment wait for each other rather than deadlock."""
     round_ = round_row(db, row["round_id"])
-    first = row["version"] == round_["starting_version"]
-    if round_["status"] == RoundStatus.OPEN and first:
+    if row["version"] == round_["starting_version"]:
         stop(db, round_, None, FIRST_EVALUATIONS_CUT_SHORT)
     stop_runs(db, because, runs.c.run_id == row["run_id"])
 

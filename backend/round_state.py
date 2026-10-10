@@ -3,7 +3,7 @@ runs router and the claim operations all need: finding a round, where it has got
 to, what it has spent against its limit, and stopping it."""
 
 from fastapi import HTTPException
-from sqlalchemy import Connection, RowMapping, select, update
+from sqlalchemy import ColumnElement, Connection, RowMapping, select, update
 
 from backend import spending
 from backend.database import now, proposals, rounds, runs, settings, versions
@@ -151,13 +151,24 @@ def roll_back(db: Connection, version: int, reason: str) -> None:
     )
 
 
-def stop(db: Connection, row: RowMapping, by: str | None, because: str) -> None:
-    """Stop an open round with its running evaluation, both with why, rolling back
-    a version it hadn't yet given a verdict. The current version stays as it
-    was."""
-    db.execute(
+def stop(
+    db: Connection,
+    row: RowMapping,
+    by: str | None,
+    because: str,
+    *also: ColumnElement[bool],
+) -> bool:
+    """Stop a round that is still open, and still matches `also`, with its running
+    evaluation, both with why, rolling back a version it hadn't yet given a
+    verdict, and say whether it stopped. A round finished or stopped since `row`
+    was read is left as it is. The current version stays as it was."""
+    stopped = db.execute(
         update(rounds)
-        .where(rounds.c.round_id == row["round_id"])
+        .where(
+            rounds.c.round_id == row["round_id"],
+            rounds.c.status == RoundStatus.OPEN,
+            *also,
+        )
         .values(
             status=RoundStatus.STOPPED,
             stopped_by=by,
@@ -165,7 +176,10 @@ def stop(db: Connection, row: RowMapping, by: str | None, because: str) -> None:
             finished_at=now(),
         )
     )
+    if stopped.rowcount == 0:
+        return False
     stop_runs(db, because, runs.c.round_id == row["round_id"])
     version = tried_version(db, row["round_id"])
     if version and version["verdict"] is None:
         roll_back(db, version["number"], STOPPED_BEFORE_VERDICT)
+    return True

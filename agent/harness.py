@@ -32,7 +32,7 @@ from langgraph.prebuilt import ToolNode
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.runtime import Runtime
 from langgraph.store.base import BaseStore
-from langgraph.types import Command, RetryPolicy, interrupt
+from langgraph.types import Command, Overwrite, RetryPolicy, interrupt
 from psycopg import Connection, sql
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import ConnectionPool
@@ -69,6 +69,9 @@ TRANSIENT = (ModelRateLimitError, ModelTimeoutError)
 SCHEMA = "undercover"
 CONNECTIONS = 4
 CONNECTION_WAIT = 120
+# How long the pool waits for its first connection as it opens, so an agent that
+# can't reach the database says so well inside the app's 10-second call.
+OPEN_WAIT = 5
 CLAIM_MODEL_CALLS = 30
 NO_DECISION = "The agent finished without recording a decision"
 WORK_CLAIM = "Work claim"
@@ -118,9 +121,10 @@ def model(named: dict[str, Any]) -> ChatOpenAI:
 
 def open_checkpoint_pool() -> Pool:
     """Open the process's pool of at most CONNECTIONS connections to DATABASE_URL,
-    where claim graphs save their progress in our own schema, set up once. A claim
-    agent waits up to CONNECTION_WAIT seconds for a connection. Prepared
-    statements are off, so it works through either of Supabase's poolers."""
+    where claim graphs save their progress in our own schema, set up once. It
+    waits up to OPEN_WAIT seconds for its first connection, and a claim agent up to
+    CONNECTION_WAIT seconds for one. Prepared statements are off, so it works
+    through either of Supabase's poolers."""
     settings = {
         "autocommit": True,
         "prepare_threshold": None,
@@ -136,6 +140,7 @@ def open_checkpoint_pool() -> Pool:
         open=True,
     )
     try:
+        pool.wait(timeout=OPEN_WAIT)
         with pool.connection() as connection:
             create = sql.SQL("CREATE SCHEMA IF NOT EXISTS {}")
             connection.execute(create.format(sql.Identifier(SCHEMA)))
@@ -327,8 +332,7 @@ def wait_for_handler(
     return {
         "decision": {},
         "status": "",
-        # The model calls add up, so this takes away the ones made so far.
-        "model_calls": -state["model_calls"],
+        "model_calls": Overwrite(0),
         "messages": [handler_answer.note_message(answer)],
     }
 

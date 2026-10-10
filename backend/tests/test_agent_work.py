@@ -14,16 +14,17 @@ from sqlalchemy import delete, event, select
 
 from backend import agent_work
 from backend.database import engine, locks, proposals, rounds, runs
-from backend.lookups import current_version_number, version_row
-from backend.models import RunKind
-from backend.runs import new_run
-from backend.tests.agent_answers import broken, slow, unreachable
+from backend.round_state import round_row, stop
+from backend.tests.agent_answers import broken, refusing_with, slow, unreachable
 from backend.tests.claim_requests import NOTE, held, send_back, sign_off
 from backend.tests.round_requests import (
+    approve,
     create_round,
     improvement,
     propose_change,
+    reject,
     round_evaluation,
+    start_round,
     stop_round,
 )
 from backend.tests.rows import (
@@ -34,37 +35,16 @@ from backend.tests.rows import (
     run_heard,
 )
 from backend.tests.run_requests import (
+    another_running_dispatch,
     create_dispatch,
     finish,
     latest_dispatch,
+    start_dispatch,
+    start_evaluation,
 )
-from backend.tests.sign_in import DANA, MARCUS, signed_in
 
 QUIET = timedelta(minutes=6)
 GONE_QUIET = "The agent stopped answering"
-ROUNDS = "/api/improvement/rounds"
-
-
-def start_dispatch(client, agents=3, email=MARCUS):
-    return client.post(
-        "/api/dispatches", json={"agents": agents}, headers=signed_in(email)
-    )
-
-
-def start_evaluation(client):
-    body = {"evaluation_set": "held_out", "tiny": True, "agents": 5}
-    return client.post("/api/evaluations", json=body, headers=signed_in(MARCUS))
-
-
-def start_round(client):
-    return client.post(ROUNDS, headers=signed_in(DANA))
-
-
-def approve(client, round_id, proposal_id):
-    return client.post(
-        f"{ROUNDS}/{round_id}/proposals/{proposal_id}/approval",
-        headers=signed_in(DANA),
-    )
 
 
 def run_of(client, run_id):
@@ -84,14 +64,6 @@ def as_seen(payload):
             .order_by(proposals.c.proposed_at.desc())
         ).scalars()
         return status, next(iter(reviews), None)
-
-
-def another_running_run():
-    """A dispatch made straight in the tables, as the app wouldn't while other work
-    goes on."""
-    with engine().begin() as db:
-        current = version_row(db, current_version_number(db))
-        return new_run(db, RunKind.DISPATCH, {"agents": 3}, current)["run_id"]
 
 
 def as_committed(run_id):
@@ -147,13 +119,7 @@ def test_a_round_is_created_and_a_review_recorded_before_the_agent_is_asked(
     round_id = started["round_id"]
     assert seen == [("open", None)]
     proposal_id = propose_change(client, round_id).json()["proposal_id"]
-    rejection = {"reason": "Keep each rule general"}
-    rejected = client.post(
-        f"{ROUNDS}/{round_id}/proposals/{proposal_id}/rejection",
-        json=rejection,
-        headers=signed_in(DANA),
-    )
-    assert rejected.status_code == 202
+    assert reject(client, round_id, proposal_id).status_code == 202
     assert asked[-1] == {
         "operation": "carry_round_on",
         "round_id": round_id,
@@ -261,6 +227,40 @@ def test_a_quiet_round_is_stopped_with_its_running_evaluation(client):
     assert (stopped["status"], stopped["stopped_because"]) == ("stopped", GONE_QUIET)
 
 
+def test_a_round_that_spoke_after_it_was_read_as_quiet_isnt_stopped(
+    client, monkeypatch
+):
+    round_id = create_round(client).json()["round_id"]
+    round_heard(round_id, QUIET)
+    with engine().connect() as db:
+        as_read = agent_work.working_rounds(db)
+    assert client.post(f"/api/rounds/{round_id}/heartbeat").status_code == 200
+    monkeypatch.setattr(agent_work, "working_rounds", lambda db: as_read)
+    refused = start_dispatch(client)
+    assert (refused.status_code, refused.json()["detail"]) == (
+        409,
+        "Round 1 is running",
+    )
+    [listed] = improvement(client)["rounds"]
+    assert (listed["status"], listed["stopped_because"]) == ("open", None)
+
+
+def test_a_round_ended_after_it_was_read_is_left_as_it_ended(client):
+    round_id = create_round(client).json()["round_id"]
+    with engine().connect() as db:
+        as_read = round_row(db, round_id)
+    stop_round(client, round_id)
+    with engine().begin() as db:
+        assert not stop(db, as_read, None, GONE_QUIET)
+    [listed] = improvement(client)["rounds"]
+    assert (listed["status"], listed["stopped_because"]) == (
+        "stopped",
+        "Stopped by Dana Whitfield",
+    )
+    again = stop_round(client, round_id)
+    assert (again.status_code, again.json()["detail"]) == (409, "Round 1 is stopped")
+
+
 def test_a_rounds_evaluation_is_never_stopped_on_its_own(client):
     round_id = create_round(client).json()["round_id"]
     evaluation = round_evaluation(client, round_id).json()["run_id"]
@@ -276,15 +276,11 @@ def test_a_rounds_evaluation_is_never_stopped_on_its_own(client):
 REFUSED = "A dispatch is running"
 
 
-def refusing(request):
-    return httpx.Response(200, json={"refused": REFUSED})
-
-
 @pytest.mark.parametrize(
     ("answer", "status", "because"),
     [
         (unreachable, 503, "The agent's service isn't running"),
-        (refusing, 409, REFUSED),
+        (refusing_with(REFUSED), 409, REFUSED),
         (
             broken,
             502,
@@ -317,7 +313,7 @@ def test_a_round_the_agent_didnt_take_is_stopped_with_why(client, agent_answers)
 def test_a_review_the_agent_didnt_take_is_cleared(client, agent_answers, agent_calls):
     round_id = create_round(client).json()["round_id"]
     proposal_id = propose_change(client, round_id).json()["proposal_id"]
-    agent_answers(refusing)
+    agent_answers(refusing_with(REFUSED))
     refused = approve(client, round_id, proposal_id)
     assert (refused.status_code, refused.json()["detail"]) == (409, REFUSED)
     proposal = client.get(f"/api/rounds/{round_id}/proposals/{proposal_id}").json()
@@ -457,7 +453,7 @@ def test_a_review_counts_as_hearing_of_the_round(client):
 def test_quiet_work_stays_stopped_when_the_start_is_refused(client):
     round_id = create_round(client).json()["round_id"]
     propose_change(client, round_id)
-    quiet = another_running_run()
+    quiet = another_running_dispatch()
     run_heard(quiet, QUIET)
     refused = start_round(client)
     assert (refused.status_code, refused.json()["detail"]) == (

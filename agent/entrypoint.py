@@ -1,24 +1,19 @@
 """The agent as an AgentCore app: one entrypoint takes the payload of each operation
-the app asks for, answers at once, and hands the work to the dispatcher, the harness
-or the improver on a thread of its own, which the AgentCore app's /ping reports as
+the app asks for, checks what it must, answers at once, and hands the work to
+agent/work.py on a thread of its own, which the AgentCore app's /ping reports as
 busy until it ends. npm run dev serves it on port 8080, and runtime/main.py runs it
 on AgentCore Runtime. Nothing happens as it's imported: it gets ready on its first
 request."""
 
-import logging
 import random
 import secrets
 import threading
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
-from dataclasses import dataclass
+from collections.abc import Callable
 from functools import partial
 from typing import Annotated, Any, Literal
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp, RequestContext
 from bedrock_agentcore.runtime.models import AUTHORIZATION_HEADER
-from langchain_core.language_models import BaseChatModel
-from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.postgres import PostgresSaver
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 from starlette.exceptions import HTTPException
@@ -26,19 +21,20 @@ from starlette.exceptions import HTTPException
 from agent import api, identity, improver, improver_api
 from agent.connection import Refused, api_key
 from agent.console import describe, show_reports
-from agent.dispatcher import WorkInRun, work_run
 from agent.handler_answer import SENT_BACK, answer_of
 from agent.harness import (
-    ClaimAgent,
-    NewAgent,
     Pool,
     claim_graphs,
     open_checkpoint_pool,
     paused,
-    resume,
-    work_in_run,
 )
-from agent.heartbeat import beating
+from agent.work import (
+    Workers,
+    carry_the_round_on,
+    resume_telling_the_app,
+    work_the_round,
+    work_the_run,
+)
 
 ACCEPTED = {"accepted": True}
 HEALTHY = {"healthy": True}
@@ -53,7 +49,6 @@ UNKNOWN_OPERATION = "Unknown operation: {operation}"
 NO_OPERATION = "The payload names no operation"
 NOT_AN_OBJECT = "The payload isn't a JSON object"
 
-log = logging.getLogger(__name__)
 
 app = BedrockAgentCoreApp()
 
@@ -95,20 +90,6 @@ Payload = Annotated[
     Field(discriminator="operation"),
 ]
 PAYLOADS: TypeAdapter[Payload] = TypeAdapter(Payload)
-
-# How to build the claim agents of a version of the claim agent for a kind of run,
-# or for no run, each with a saver of its own.
-ClaimAgents = Callable[[dict[str, Any], api.RunKind | None], NewAgent]
-
-
-@dataclass
-class Workers:
-    """What the agent's work needs: a version's claim agents, the improver's model
-    for a round, and the saver of the improver's progress."""
-
-    claim_agents: ClaimAgents
-    improver_model: Callable[[dict[str, Any]], BaseChatModel]
-    saver: BaseCheckpointSaver[Any]
 
 
 class Refusal(Exception):
@@ -185,6 +166,15 @@ def what_is_wrong(error: ValidationError) -> str:
     return "; ".join(problems)
 
 
+def is_the_health_check(payload: Any) -> bool:
+    """Say whether a payload is the health check, which needs no key."""
+    try:
+        Health.model_validate(payload)
+    except ValidationError:
+        return False
+    return True
+
+
 def check_key(context: RequestContext) -> None:
     """Off Runtime, refuse a request without the agent's key as its bearer token
     with a 401. On Runtime, AWS has already checked that the caller may invoke the
@@ -208,108 +198,6 @@ def in_background(name: str, work: Callable[[], object]) -> None:
             app.complete_async_task(task_id)
 
     threading.Thread(target=run, name=name, daemon=True).start()
-
-
-def claim_work(run: dict[str, Any], claim_agents: ClaimAgents) -> WorkInRun:
-    """How to work one of a run's claims, on the claim agents of the run's own
-    version, tagged with its round when it has one."""
-    new_agent = claim_agents(api.get_version(run["version"]), run["kind"])
-    tags = (run["round_id"],) if run["round_id"] else ()
-    return partial(work_in_run, new_agent=new_agent, tags=tags)
-
-
-def evaluate(run: dict[str, Any], claim_agents: ClaimAgents) -> None:
-    """Work one of a round's evaluations through the dispatcher."""
-    work_run(run, claim_work(run, claim_agents))
-
-
-def work_the_run(run: dict[str, Any], claim_agents: ClaimAgents) -> None:
-    """Work a run the app created, telling the app every minute. A run whose
-    dispatcher fails is stopped by its id, with the error."""
-    run_id = run["run_id"]
-    try:
-        with beating(partial(api.record_run_heartbeat, run_id)):
-            work_run(run, claim_work(run, claim_agents))
-    except ConnectionError as error:  # a route's server isn't answering
-        log.error("The run stopped: %s", error)
-        api.fail_run(run_id, describe(error))
-    except Exception as error:
-        log.exception("The run stopped")
-        api.fail_run(run_id, describe(error))
-
-
-def first_evaluations(round: dict[str, Any], workers: Workers) -> bool:
-    """Work the evaluations the round's starting version still needs, one at a time,
-    and say whether the round is still open after them: the spending limit or a
-    handler may have stopped it."""
-    for _ in round["first_evaluations"]:
-        run = improver_api.create_round_evaluation(round["round_id"])
-        evaluate(run, workers.claim_agents)
-        if not still_open(round):
-            return False
-    return True
-
-
-def still_open(round: dict[str, Any]) -> bool:
-    """Say whether the round is still open: a handler or the spending limit may
-    have stopped it."""
-    return improver_api.get_round(round["round_id"])["status"] == improver_api.OPEN
-
-
-def stretch(round: dict[str, Any], start: improver.Start, workers: Workers) -> None:
-    """Run the improver until it waits for a handler, then record its proposal, or
-    until it ends, then finish the round if it is still open. A proposal the
-    backend refuses, such as a second change, goes back to the improver as a
-    rejection with the backend's reason."""
-    while proposal := improver.work_stretch(
-        round,
-        start,
-        partial(evaluate, claim_agents=workers.claim_agents),
-        workers.saver,
-        workers.improver_model(round),
-    ):
-        try:
-            improver.record_proposal(round["round_id"], proposal)
-            return
-        except Refused as refusal:
-            start = improver.resume(improver_api.REJECTED, refusal.answer)
-    if still_open(round):
-        improver_api.finish_round(round["round_id"])
-
-
-@contextmanager
-def working_on(round: dict[str, Any]) -> Iterator[None]:
-    """Tell the app every minute while the round's work goes on, which covers the
-    evaluation it is working, and stop the round with that evaluation, giving the
-    error as the reason, when the work fails."""
-    try:
-        with beating(partial(improver_api.record_round_heartbeat, round["round_id"])):
-            yield
-    except Exception as error:  # the round stops, and nothing else
-        log.exception("The round stopped")
-        improver_api.fail_round(round["round_id"], describe(error))
-
-
-def work_the_round(round: dict[str, Any], workers: Workers) -> None:
-    """Work a round's first evaluations, then the improver's first stretch."""
-    with working_on(round):
-        if first_evaluations(round, workers):
-            stretch(round, improver.begin(), workers)
-
-
-def carry_the_round_on(
-    round: dict[str, Any], start: improver.Start, workers: Workers
-) -> None:
-    """Carry the improver on after a handler's review."""
-    with working_on(round):
-        stretch(round, start, workers)
-
-
-def resume_telling_the_app(claim_id: str, agent: ClaimAgent) -> None:
-    """Resume a paused claim, telling the app every minute that the resume is still
-    working on it."""
-    with beating(partial(api.record_claim_heartbeat, claim_id)):
-        resume(claim_id, agent)
 
 
 def open_round(round_id: str) -> dict[str, Any]:
@@ -380,12 +268,12 @@ def start(request: Payload, workers: Workers) -> dict[str, Any]:
 
 @app.entrypoint
 def invoke(payload: Any, context: RequestContext) -> dict[str, Any]:
-    """Take one operation's payload: get ready, read it, check the key unless it's
-    the health check, and start its work, or say why the agent won't."""
+    """Take one operation's payload: get ready, check the key unless it's the
+    health check, read it, and start its work, or say why the agent won't."""
     workers = ready.get()
-    request = read(payload)
-    if not isinstance(request, Health):
+    if not is_the_health_check(payload):
         check_key(context)
+    request = read(payload)
     try:
         return start(request, workers)
     except Refusal as refusal:

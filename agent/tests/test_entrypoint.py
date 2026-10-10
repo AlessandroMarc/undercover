@@ -15,12 +15,10 @@ from typing import cast
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import api, entrypoint, harness, heartbeat, identity, improver_api
+from agent import api, entrypoint, harness, heartbeat, identity, improver_api, work
 from agent.tests.dispatching import (
-    another_running_dispatch,
     new_dispatch,
     new_evaluation,
-    the_app,
 )
 from agent.tests.held import StopAtThePause, hold, resume_claim
 from agent.tests.invoking import (
@@ -35,8 +33,17 @@ from agent.tests.records import claim_of, model_calls_of, work_times_of
 from agent.tests.stubs import agent_on, approve, decide, stub, swarm
 from backend.tests.claim_requests import sign_off
 from backend.tests.dashboard_reads import evaluations
-from backend.tests.round_requests import create_round, propose_change, round_path
-from backend.tests.run_requests import latest_dispatch
+from backend.tests.round_requests import (
+    create_round,
+    fail_round,
+    propose_change,
+    round_path,
+)
+from backend.tests.run_requests import (
+    another_running_dispatch,
+    latest_dispatch,
+    run_path,
+)
 from backend.tests.versions import add_version
 
 # The settings the deployment gives the agent on Runtime, naming the providers of
@@ -80,6 +87,8 @@ def on_runtime(monkeypatch, agent_key):
     asked = []
     for setting, provider in CREDENTIALS.items():
         monkeypatch.setenv(f"AGENTCORE_CREDENTIAL_{setting}_NAME", provider)
+        # Identity's value lands in the setting, which is as it was after the test.
+        monkeypatch.setenv(setting, os.getenv(setting, ""))
 
     # The database's value is empty, which keeps the tests' backend, in the same
     # process, on SQLite.
@@ -182,6 +191,14 @@ def test_off_runtime_a_request_without_the_key_is_refused(client, serve, headers
     assert latest_dispatch(client)["claims"] == []
 
 
+def test_off_runtime_a_payload_it_cant_read_without_the_key_is_refused(serve):
+    refused = serve(stub()).invoke({"operation": "dance"}, headers={})
+    assert (refused.status_code, refused.json()) == (
+        401,
+        {"error": "This needs the agent's API key"},
+    )
+
+
 @pytest.mark.parametrize(
     ("payload", "error"),
     [
@@ -252,19 +269,27 @@ def test_ping_is_busy_while_work_goes_on_and_healthy_once_it_ends(
     assert latest_dispatch(client)["status"] == "finished"
 
 
-@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
-def test_ping_is_healthy_after_work_that_raised(client, serve, monkeypatch):
+@pytest.mark.filterwarnings("error::pytest.PytestUnhandledThreadExceptionWarning")
+def test_a_resume_that_raised_is_logged_and_its_task_completed(
+    client, serve, monkeypatch, caplog
+):
     saver = InMemorySaver()
     hold(saver=saver)
     sign_off(client, "CLM-1003")
+    raised = threading.Event()
 
     def broken(claim_id, agent):
+        raised.set()
         raise RuntimeError("The backend is unreachable")
 
-    monkeypatch.setattr(entrypoint, "resume", broken)
+    monkeypatch.setattr(work, "resume", broken)
     agent = serve(stub(), saver)
+    # Its answer waits until /ping says Healthy, once the task is completed.
     assert resume_claim(agent, "CLM-1003").json() == ACCEPTED
-    assert agent.ping() == "Healthy"
+    assert raised.is_set()
+    [logged] = [r for r in caplog.records if r.name == work.log.name]
+    assert logged.getMessage() == "The resume of CLM-1003 stopped"
+    assert "The backend is unreachable" in str(logged.exc_info[1])
 
 
 def test_the_agent_keeps_no_one_at_a_time_itself(client, serve, held_run):
@@ -293,8 +318,8 @@ def test_work_run_refuses_a_run_that_isnt_running(client, serve):
 
 def test_work_round_refuses_a_round_that_isnt_open(client, serve):
     agent = serve(stub())
-    round_id = create_round(the_app()).json()["round_id"]
-    client.post(f"{round_path(round_id)}/failure", json={"reason": "Broken"})
+    round_id = create_round(client).json()["round_id"]
+    fail_round(client, round_id, "Broken")
     refused = agent.invoke(work_round(round_id))
     assert refused.json() == {"refused": "Round 1 isn't open"}
     assert agent.invoke(carry_round_on(round_id, "p-1")).json() == {
@@ -302,10 +327,10 @@ def test_work_round_refuses_a_round_that_isnt_open(client, serve):
     }
 
 
-def test_carry_round_on_refuses_a_proposal_with_no_review(serve):
+def test_carry_round_on_refuses_a_proposal_with_no_review(client, serve):
     agent = serve(stub())
-    round_id = create_round(the_app()).json()["round_id"]
-    proposal = propose_change(the_app(), round_id).json()["proposal_id"]
+    round_id = create_round(client).json()["round_id"]
+    proposal = propose_change(client, round_id).json()["proposal_id"]
     refused = agent.invoke(carry_round_on(round_id, proposal))
     assert refused.json() == {"refused": f"Proposal {proposal} has no review"}
 
@@ -313,13 +338,13 @@ def test_carry_round_on_refuses_a_proposal_with_no_review(serve):
 def test_a_dispatch_whose_dispatcher_fails_is_stopped_by_its_id(
     client, serve, monkeypatch
 ):
-    round_id = create_round(the_app()).json()["round_id"]
-    propose_change(the_app(), round_id)
+    round_id = create_round(client).json()["round_id"]
+    propose_change(client, round_id)
 
     def broken(run, work):
         raise RuntimeError("The backend is unreachable")
 
-    monkeypatch.setattr(entrypoint, "work_run", broken)
+    monkeypatch.setattr(work, "work_run", broken)
     agent = serve(stub())
     failed = new_dispatch()["run_id"]
     beside = another_running_dispatch()
@@ -329,7 +354,7 @@ def test_a_dispatch_whose_dispatcher_fails_is_stopped_by_its_id(
         "stopped",
         "RuntimeError: The backend is unreachable",
     )
-    assert client.get(f"/api/runs/{beside}").json()["status"] == "running"
+    assert client.get(run_path(beside)).json()["status"] == "running"
     assert client.get(round_path(round_id)).json()["status"] == "open"
 
 
@@ -445,7 +470,7 @@ def test_the_app_hears_from_a_run_while_it_works(client, serve, held_run, heard)
 
 
 def test_the_app_hears_from_a_round_while_it_works(client, serve, held_run, heard):
-    round_id = create_round(the_app()).json()["round_id"]
+    round_id = create_round(client).json()["round_id"]
     agent = serve(stub())
     entrypoint.ready.get().improver_model = lambda round: stub("No change.")
     assert heard_while_working(agent, held_run, heard, work_round(round_id)) > 2
@@ -457,7 +482,7 @@ def test_the_app_hears_from_a_resume_while_it_works(client, serve, monkeypatch, 
     hold(saver=saver)
     sign_off(client, "CLM-1003")
     held = HeldWork()
-    monkeypatch.setattr(entrypoint, "resume", held.work)
+    monkeypatch.setattr(work, "resume", held.work)
     agent = serve(stub(), saver)
     payload = {"operation": "resume_claim", "claim_id": "CLM-1003"}
     assert heard_while_working(agent, held, heard, payload) > 2

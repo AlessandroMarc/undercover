@@ -8,6 +8,7 @@ import {
   label,
   modelCost,
   money,
+  stoppedBecause,
 } from "./format";
 
 it("takes a handler's initials from their first and last names", () => {
@@ -18,6 +19,15 @@ it("takes a handler's initials from their first and last names", () => {
 it("formats money in US dollars", () => {
   expect(money(1150)).toBe("$1,150.00");
   expect(money(0)).toBe("$0.00");
+});
+
+it("says why a run stopped in one sentence", () => {
+  expect(stoppedBecause("The agent stopped answering")).toBe(
+    "Stopped: The agent stopped answering.",
+  );
+  expect(stoppedBecause("RuntimeError: The connection was lost.")).toBe(
+    "Stopped: RuntimeError: The connection was lost.",
+  );
 });
 
 it("formats dates without shifting the day", () => {

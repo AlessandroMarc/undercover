@@ -23,6 +23,7 @@ from backend.tests.round_requests import create_round, into_round
 from backend.tests.run_requests import (
     create_dispatch,
     create_evaluation,
+    fail_run,
     finish,
     get_evaluation,
     latest_dispatch,
@@ -188,8 +189,7 @@ def test_a_versions_scores_average_the_whole_set_evaluations_its_rounds_ran(clie
     finished_evaluation(client, tiny=False)
     tiny = finished_evaluation(client, tiny=True)
     stopped = create_evaluation(client, tiny=False).json()
-    reason = {"reason": "RuntimeError: The dispatcher broke"}
-    client.post(f"/api/runs/{stopped['run_id']}/failure", json=reason)
+    fail_run(client, stopped["run_id"])
     in_a_round(client, first, second, tiny, stopped)
 
     accuracies = [

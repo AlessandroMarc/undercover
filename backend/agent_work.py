@@ -64,8 +64,7 @@ def stop_quiet_work(db: Connection) -> None:
     quiet_since = stamp(datetime.now(UTC) - QUIET)
     stop_runs(db, GONE_QUIET, runs.c.round_id.is_(None), runs.c.heard_at < quiet_since)
     for row in working_rounds(db):
-        if row["heard_at"] < quiet_since:
-            stop(db, row, None, GONE_QUIET)
+        stop(db, row, None, GONE_QUIET, rounds.c.heard_at < quiet_since)
 
 
 def refuse_while_work_goes_on(db: Connection) -> None:

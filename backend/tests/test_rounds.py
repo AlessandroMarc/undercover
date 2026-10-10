@@ -12,6 +12,7 @@ from backend.tests.round_requests import (
     approved_change,
     create_round,
     decide_copies,
+    fail_round,
     improvement,
     improver_call,
     play_out,
@@ -254,8 +255,7 @@ def test_a_failed_round_is_stopped_with_its_running_evaluation(client):
     round_id = create_round(client).json()["round_id"]
     finished = play_out(client, round_id)
     running = round_evaluation(client, round_id).json()
-    failure = {"reason": "RuntimeError: The improver broke"}
-    failed = client.post(f"{round_path(round_id)}/failure", json=failure)
+    failed = fail_round(client, round_id)
     assert (failed.status_code, failed.json()["status"]) == (200, "stopped")
     [listed] = improvement(client)["rounds"]
     assert listed["stopped_because"] == "RuntimeError: The improver broke"
@@ -265,7 +265,7 @@ def test_a_failed_round_is_stopped_with_its_running_evaluation(client):
         "RuntimeError: The improver broke",
     )
     assert get_evaluation(client, finished["run_id"])["status"] == "finished"
-    again = client.post(f"{round_path(round_id)}/failure", json={"reason": "Again"})
+    again = fail_round(client, round_id, "Again")
     assert (again.status_code, again.json()["status"]) == (200, "stopped")
     assert improvement(client)["rounds"][0]["stopped_because"] == (
         "RuntimeError: The improver broke"

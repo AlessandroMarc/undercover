@@ -316,7 +316,7 @@ it("tells a handler who can't sign off over the limit why", async () => {
   expect(
     await panel.findByText(
       wholeText(
-        "Only a handler who can sign off payouts over $1,000.00 can sign this off. Marcus Oyelaran can't.",
+        "Only a handler who can sign off payouts over $1,000.00 can sign this off or send it back. Marcus Oyelaran can't.",
       ),
     ),
   ).toBeDefined();

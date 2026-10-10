@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 import {
   createVersion,
-  proposalOf,
+  getProposal,
+  getRound,
+  nextStarted,
   recordChangeProposal,
   recordRecipeProposal,
   startRound,
@@ -26,10 +28,15 @@ test("a round started on the page reaches the agent", async ({
   request,
 }) => {
   await page.goto("/improvement");
+  const before = (await started(request)).length;
   await page.getByRole("button", { name: "Start a round" }).click();
-  await expect
-    .poll(() => started(request))
-    .toContainEqual(expect.objectContaining({ operation: "work_round" }));
+  const payload = await nextStarted(request, before);
+  expect(payload).toEqual({
+    operation: "work_round",
+    round_id: expect.any(String),
+  });
+  const round = await getRound(request, String(payload.round_id));
+  expect(round.status).toBe("open");
 });
 
 test("a change approved on the page reaches the agent, and the round moves on", async ({
@@ -59,7 +66,7 @@ test("a change approved on the page reaches the agent, and the round moves on", 
       round_id: round,
       proposal_id: proposal,
     });
-  expect((await proposalOf(request, round, proposal)).review).toBe("approved");
+  expect((await getProposal(request, round, proposal)).review).toBe("approved");
 
   await createVersion(request, round);
   await expect(
@@ -91,7 +98,7 @@ test("a recipe rejected on the page records its reason and reaches the agent", a
       round_id: round,
       proposal_id: proposal,
     });
-  expect(await proposalOf(request, round, proposal)).toMatchObject({
+  expect(await getProposal(request, round, proposal)).toMatchObject({
     review: "rejected",
     rejection_reason: "Keep the step that reads the wrong claims",
   });

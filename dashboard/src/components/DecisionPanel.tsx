@@ -18,7 +18,7 @@ function progress(claim: Claim): string {
   if (claim.status === "in_progress")
     return "The agent is working on this claim.";
   if (claim.status === "sent_back")
-    return "Sent back to the agent, which works on it again now or in the next dispatch.";
+    return "Sent back to the agent, which hasn't taken it up yet. The next dispatch works on it.";
   if (claim.status === "left_for_handler")
     return `The agent couldn't finish this claim in ${String(claim.attempts)} attempts, so it's left for a handler.`;
   if (claim.attempts > 0) return "Back in the queue after a failed attempt.";
@@ -106,7 +106,7 @@ function HeldPayment({
           <SendBackForm claimId={claim.claim_id} onSentBack={onAnswered} />
         </div>
       ) : (
-        <NotAllowed action="sign this off" />
+        <NotAllowed action="sign this off or send it back" />
       )}
     </div>
   );

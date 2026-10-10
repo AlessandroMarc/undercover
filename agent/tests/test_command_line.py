@@ -1,9 +1,11 @@
 """The command line, and the model and the checkpoint pool it builds."""
 
+import time
 from contextlib import nullcontext
 
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
+from psycopg_pool import PoolTimeout
 
 from agent import __main__ as cli
 from agent import harness
@@ -24,7 +26,11 @@ class FakePool:
 
     def __init__(self, conninfo, **settings):
         self.conninfo, self.settings, self.statements = conninfo, settings, []
+        self.waited = None
         self.opened.append(self)
+
+    def wait(self, timeout):
+        self.waited = timeout
 
     def __enter__(self):
         return self
@@ -67,7 +73,7 @@ def test_the_checkpoint_pool_settings(fakes):
         [pool] = FakePool.opened
         assert pool.conninfo == "postgresql://u:p@pooler.example.com/db"
         assert (pool.settings["min_size"], pool.settings["max_size"]) == (1, 4)
-        assert pool.settings["timeout"] == 120
+        assert (pool.settings["timeout"], pool.waited) == (120, 5)
         kwargs = pool.settings["kwargs"]
         assert (kwargs["autocommit"], kwargs["prepare_threshold"]) == (True, None)
         assert pool.settings["open"] is True
@@ -76,6 +82,15 @@ def test_the_checkpoint_pool_settings(fakes):
         assert "undercover" in repr(pool.statements[0])
         [saver] = FakeSaver.made
         assert (saver.pool, saver.set_up) == (pool, True)
+
+
+def test_a_pool_that_cant_reach_the_database_gives_up_as_it_opens(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@127.0.0.1:1/db")
+    monkeypatch.setattr(harness, "OPEN_WAIT", 0.5)
+    began = time.monotonic()
+    with pytest.raises(PoolTimeout):
+        harness.open_checkpoint_pool()
+    assert time.monotonic() - began < 3
 
 
 VERSION = {

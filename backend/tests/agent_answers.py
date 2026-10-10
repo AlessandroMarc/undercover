@@ -17,9 +17,12 @@ def slow(request):
     raise httpx.ReadTimeout("Timed out")
 
 
-def refusing(request):
-    refusal = "Claim CLM-1002 isn't paused for a handler"
-    return httpx.Response(200, json={"refused": refusal})
+def refusing_with(reason):
+    """Refuse the work with a reason."""
+    return lambda request: httpx.Response(200, json={"refused": reason})
+
+
+refusing = refusing_with("Claim CLM-1002 isn't paused for a handler")
 
 
 def broken(request):

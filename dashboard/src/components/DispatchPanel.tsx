@@ -7,6 +7,7 @@ import {
   duration,
   modelCost,
   money,
+  stoppedBecause,
   time,
 } from "../format";
 import { REFRESH_MS, useLoad } from "../useLoad";
@@ -60,9 +61,9 @@ function DispatchDetails({ dispatch }: Readonly<{ dispatch: Run }>) {
       {dispatch.status === "stopped" && (
         <p className="stopped">
           {dispatch.stopped_because
-            ? `Stopped: ${dispatch.stopped_because}`
-            : "It stopped before it finished"}
-          . The next dispatch carries on its claims.
+            ? stoppedBecause(dispatch.stopped_because)
+            : "It stopped before it finished."}{" "}
+          The next dispatch carries on its claims.
         </p>
       )}
       {dispatch.claims.length > 0 ? (

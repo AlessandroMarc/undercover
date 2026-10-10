@@ -1,9 +1,10 @@
 import pytest
 
+from backend import main
 from backend.database import payments
 from backend.tests.claim_requests import decide, pay, record_step, sign_off, start
 from backend.tests.dashboard_reads import read, steps_of
-from backend.tests.rows import count
+from backend.tests.rows import committed_claim, count
 from backend.tests.settings_requests import change_settings
 from backend.tests.sign_in import MARCUS
 
@@ -14,6 +15,19 @@ def test_start_claim(client):
     assert response.json()["status"] == "in_progress"
     assert response.json()["thread_id"] == "t-1"
     assert start(client, "CLM-1001").status_code == 409
+
+
+def test_a_claim_two_starts_both_read_as_waiting_is_started_once(client, monkeypatch):
+    as_read = committed_claim("CLM-1001")
+    assert start(client, "CLM-1001").status_code == 200
+    monkeypatch.setattr(main, "find_claim", lambda db, claim_id: as_read)
+    second = client.post("/api/claims/CLM-1001/start", json={"thread_id": "t-2"})
+    assert (second.status_code, second.json()["detail"]) == (
+        409,
+        "Claim CLM-1001 is not waiting",
+    )
+    started = committed_claim("CLM-1001")
+    assert (started["thread_id"], started["attempts"]) == ("t-1", 1)
 
 
 def test_start_needs_a_thread_id(client):

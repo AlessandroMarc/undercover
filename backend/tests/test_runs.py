@@ -14,6 +14,7 @@ from backend.tests.dashboard_reads import read
 from backend.tests.run_requests import (
     create_dispatch,
     dispatch_of,
+    fail_run,
     finish,
     latest_dispatch,
     record_claims,
@@ -152,10 +153,6 @@ def test_finish_needs_a_known_run(client):
     unknown = finish(client, "run-9")
     assert unknown.status_code == 404
     assert unknown.json()["detail"] == "Run run-9 not found"
-
-
-def fail_run(client, run_id, reason="RuntimeError: The dispatcher broke"):
-    return client.post(f"/api/runs/{run_id}/failure", json={"reason": reason})
 
 
 def test_a_run_whose_work_failed_is_stopped_with_why(client):

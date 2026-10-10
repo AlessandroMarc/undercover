@@ -663,9 +663,7 @@ def fail_round(
     round_id: str, request: FailureRequest, db: Database
 ) -> RoundForTheAgent:
     """Stop a round whose work failed, with its running evaluation, if it's open."""
-    row = round_row(db, round_id)
-    if row["status"] == RoundStatus.OPEN:
-        stop(db, row, None, request.reason)
+    stop(db, round_row(db, round_id), None, request.reason)
     return for_the_agent(db, round_row(db, round_id))
 
 
@@ -953,7 +951,9 @@ def start_round(handler: StartsRounds, db: Database) -> Accepted:
 def stop_round(round_id: str, handler: StopsRounds, db: Database) -> RoundSummary:
     """Stop an open round; a version it hadn't given a verdict is rolled back."""
     row = open_round(db, round_id)
-    stop(db, row, handler.name, f"Stopped by {handler.name}")
+    if not stop(db, row, handler.name, f"Stopped by {handler.name}"):
+        # It finished or stopped since it was read, so it says how it ended.
+        open_round(db, round_id)
     return summary_of(db, round_row(db, round_id))
 
 
