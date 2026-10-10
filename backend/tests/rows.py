@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import Table, func, select, update
 
 from backend.calculation import keep_calculation
-from backend.database import claim_view, claims, engine, stamp
+from backend.database import claim_view, claims, engine, rounds, runs, stamp
 from backend.models import CalculationStep, Payout
 
 
@@ -26,15 +26,24 @@ def calculated(claim_id: str, payout: float) -> None:
         keep_calculation(db, claim_id, thread_id, worked_out)
 
 
-def resume_heard(claim_id: str, ago: timedelta) -> None:
-    """Set when the agent last said a resume was working on a claim."""
+def heard(table: Table, key: str, value: str, ago: timedelta, column="heard_at"):
+    """Set when the app last heard of a piece of the agent's work."""
     moment = stamp(datetime.now(UTC) - ago)
     with engine().begin() as db:
-        db.execute(
-            update(claims)
-            .where(claims.c.claim_id == claim_id)
-            .values(resume_heard_at=moment)
-        )
+        db.execute(update(table).where(table.c[key] == value).values({column: moment}))
+
+
+def resume_heard(claim_id: str, ago: timedelta) -> None:
+    """Set when the agent last said a resume was working on a claim."""
+    heard(claims, "claim_id", claim_id, ago, "resume_heard_at")
+
+
+def run_heard(run_id: str, ago: timedelta) -> None:
+    heard(runs, "run_id", run_id, ago)
+
+
+def round_heard(round_id: str, ago: timedelta) -> None:
+    heard(rounds, "round_id", round_id, ago)
 
 
 def committed_claim(claim_id: str):
@@ -42,3 +51,18 @@ def committed_claim(claim_id: str):
     with engine().connect() as db:
         query = claim_view.where(claims.c.claim_id == claim_id)
         return db.execute(query).mappings().one()
+
+
+def newest(table: Table, key: str) -> str:
+    """The id of the newest run or round, which the app created as a handler asked."""
+    with engine().connect() as db:
+        query = select(table.c[key]).order_by(table.c.number.desc()).limit(1)
+        return db.execute(query).scalar_one()
+
+
+def newest_run() -> str:
+    return newest(runs, "run_id")
+
+
+def newest_round() -> str:
+    return newest(rounds, "round_id")

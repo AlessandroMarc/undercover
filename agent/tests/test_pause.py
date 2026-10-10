@@ -5,8 +5,9 @@ it."""
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import api, harness
+from agent import harness
 from agent.gateway import Gateway
+from agent.tests.dispatching import new_evaluation
 from agent.tests.gateway_stand_in import DENIED
 from agent.tests.held import StopAtThePause, hold, state_of
 from agent.tests.memory_stand_in import MemoryStandIn
@@ -43,7 +44,7 @@ def test_a_payment_the_gateway_refuses_pauses_the_claim_graph(client, gateway):
 
 
 def test_an_evaluations_copy_held_for_sign_off_doesnt_pause(client):
-    run = api.create_evaluation("evaluation", True, 5)
+    run = new_evaluation("evaluation")
     agent = agent_on(stub(*approve("CLM-1020", 1240.0)), pauses=False)
     report = harness.work_in_run("CLM-1020-E1", run["run_id"], lambda: agent)
     assert report == "CLM-1020-E1  approve  $1,240.00, waiting for sign-off"

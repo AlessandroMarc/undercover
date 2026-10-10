@@ -261,6 +261,9 @@ rounds = Table(
     Column("stopped_because", Text),
     Column("held_out_before", JSON),
     Column("held_out_after", JSON),
+    # When the app last heard of the round's work: as it started the round or
+    # recorded a review, or from the agent's heartbeat.
+    Column("heard_at", Text),
 )
 recipes = Table(
     "recipes",
@@ -333,7 +336,20 @@ runs = Table(
     Column("started_at", Text, nullable=False),
     Column("finished_at", Text),
     Column("summary", JSON),
+    Column("stopped_because", Text),
+    # When the app last heard of the run's work: as it created the run, or from
+    # the agent's heartbeat.
+    Column("heard_at", Text),
 )
+# One row, which a start of the agent's work updates first in its transaction, so
+# two starts at the same moment take turns.
+locks = Table(
+    "locks",
+    metadata,
+    Column("name", Text, primary_key=True),
+    Column("taken_at", Text),
+)
+AGENTS_WORK = "the agent's work"
 # The judge's grade of each copy in an evaluation, empty when it couldn't grade it.
 grades = Table(
     "grades",
@@ -565,6 +581,7 @@ def seed(db: Engine) -> dict[str, int]:
         connection.execute(insert(claims), [waiting_claim(c) for c in claim_rows])
         seed_first_version(connection)
         connection.execute(insert(recipes).values(**FIRST_RECIPE, created_at=now()))
+        connection.execute(insert(locks).values(name=AGENTS_WORK))
         labeled = seed_evaluations(connection)
     return {
         "claims": len(claim_rows),

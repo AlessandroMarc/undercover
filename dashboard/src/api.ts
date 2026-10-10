@@ -217,6 +217,8 @@ export interface RunDetails {
   model: string;
   reasoning_effort: string;
   status: RunStatus;
+  // Why it stopped, for a run that stopped.
+  stopped_because: string | null;
   started_at: string;
   finished_at: string | null;
   seconds: number | null;

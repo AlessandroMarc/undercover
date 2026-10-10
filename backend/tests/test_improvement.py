@@ -24,6 +24,7 @@ from backend.tests.round_requests import (
     round_path,
     stop_round,
 )
+from backend.tests.rows import newest_round
 from backend.tests.settings_requests import change_settings
 from backend.tests.sign_in import MARCUS, signed_in
 
@@ -59,17 +60,23 @@ def test_with_no_rounds_the_page_has_version_1_and_the_first_recipe(client):
 def test_start_a_round(client, agent_calls):
     response = act(client, ROUNDS)
     assert response.status_code == 202
-    assert agent_calls == [{"operation": "start_round", "handler_id": "HND-01"}]
+    round_id = newest_round()
+    assert agent_calls == [{"operation": "work_round", "round_id": round_id}]
+    round_ = client.get(f"/api/rounds/{round_id}").json()
+    assert (round_["number"], round_["status"]) == (1, "open")
+    assert improvement(client)["round"]["started_by"] == "Dana Whitfield"
 
 
 def test_a_round_starts_only_when_none_is_open(client, agent_calls):
-    create_round(client)
+    round_id = create_round(client).json()["round_id"]
+    propose_change(client, round_id)
+    asked = list(agent_calls)
     refused = act(client, ROUNDS)
     assert (refused.status_code, refused.json()["detail"]) == (
         409,
         "Round 1 is open. Finish or stop it first.",
     )
-    assert agent_calls == []
+    assert agent_calls == asked
 
 
 @pytest.mark.parametrize(
@@ -98,6 +105,7 @@ def test_an_approval_names_the_proposal_waiting(client, agent_calls):
     first = propose_change(client, round_id).json()["proposal_id"]
     review(client, round_id, first, "rejected")
     second = propose_change(client, round_id).json()["proposal_id"]
+    agent_calls.clear()
 
     for path in (approval(round_id, first), rejection(round_id, first)):
         refused = act(client, path, reason="Too broad")
@@ -113,15 +121,13 @@ def test_an_approval_names_the_proposal_waiting(client, agent_calls):
     approved = act(client, approval(round_id, second))
     assert approved.status_code == 202
     assert agent_calls == [
-        {
-            "operation": "review_proposal",
-            "round_id": round_id,
-            "proposal_id": second,
-            "review": "approved",
-            "handler_id": "HND-01",
-            "reason": "",
-        }
+        {"operation": "carry_round_on", "round_id": round_id, "proposal_id": second}
     ]
+    approved = client.get(f"/api/rounds/{round_id}/proposals/{second}").json()
+    assert (approved["review"], approved["reviewed_by"]) == (
+        "approved",
+        "Dana Whitfield",
+    )
 
 
 def test_a_rejection_passes_its_reason_on(client, agent_calls):
@@ -132,13 +138,15 @@ def test_a_rejection_passes_its_reason_on(client, agent_calls):
     assert act(client, path, reason="  ").status_code == 422
     assert act(client, path, reason=" Keep each rule general ").status_code == 202
     assert agent_calls[-1] == {
-        "operation": "review_proposal",
+        "operation": "carry_round_on",
         "round_id": round_id,
         "proposal_id": proposal,
-        "review": "rejected",
-        "handler_id": "HND-01",
-        "reason": "Keep each rule general",
     }
+    rejected = client.get(f"/api/rounds/{round_id}/proposals/{proposal}").json()
+    assert (rejected["review"], rejected["rejection_reason"]) == (
+        "rejected",
+        "Keep each rule general",
+    )
 
 
 def test_a_proposal_of_another_round_isnt_found(client):
@@ -146,6 +154,7 @@ def test_a_proposal_of_another_round_isnt_found(client):
     proposal = propose_change(client, first_round).json()["proposal_id"]
     stop_round(client, first_round)
     second_round = create_round(client).json()["round_id"]
+    propose_change(client, second_round)
     refused = act(client, approval(second_round, proposal))
     assert (refused.status_code, refused.json()["detail"]) == (
         404,
@@ -154,9 +163,9 @@ def test_a_proposal_of_another_round_isnt_found(client):
 
 
 def test_an_approval_with_the_agents_service_down(client, agent_answers):
-    agent_answers(unreachable)
     round_id = create_round(client).json()["round_id"]
     proposal = propose_change(client, round_id).json()["proposal_id"]
+    agent_answers(unreachable)
     refused = act(client, approval(round_id, proposal))
     assert (refused.status_code, refused.json()["detail"]) == (
         503,

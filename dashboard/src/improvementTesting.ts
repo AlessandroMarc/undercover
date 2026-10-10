@@ -40,6 +40,7 @@ export const evaluation: Evaluation = {
   model: "openai/gpt-6-luna",
   reasoning_effort: "low",
   status: "finished",
+  stopped_because: null,
   started_at: "2026-10-04T09:00:00+00:00",
   finished_at: "2026-10-04T09:02:00+00:00",
   seconds: 120,

@@ -9,14 +9,14 @@ from langchain_core.messages import HumanMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import api, harness
-from agent.tests.dispatching import dispatch
+from agent.tests.dispatching import dispatch, new_dispatch
 from agent.tests.held import StopAtThePause, hold, resume_claim, state_of
 from agent.tests.invoking import ACCEPTED
 from agent.tests.queue_setup import leave_waiting
 from agent.tests.records import claim_of, model_calls_of, payments_of
 from agent.tests.stubs import agent_on, approve, calculate, call, record, stub
 from agent.tools import claim_as_read
-from backend.tests.agent_answers import unreachable
+from backend.tests.agent_answers import accepting, unreachable
 from backend.tests.claim_requests import NOTE, send_back
 from backend.tests.dashboard_reads import steps_of
 from backend.tests.rows import resume_heard
@@ -221,7 +221,7 @@ def test_a_dispatch_reports_a_claim_a_resume_took_after_it_was_listed(
 def test_a_resume_is_refused_a_claim_a_dispatch_took(client, serve):
     saver = InMemorySaver()
     sent_back(client, saver)
-    api.take_claim("CLM-1003", api.create_dispatch(3)["run_id"])
+    api.take_claim("CLM-1003", new_dispatch()["run_id"])
     refused = resume_claim(serve(stub(), saver), "CLM-1003")
     assert refused.json() == {"refused": "Claim CLM-1003 isn't sent back"}
 
@@ -246,6 +246,7 @@ def test_a_send_back_the_agent_never_got_is_worked_by_the_next_dispatch(
     saver = InMemorySaver()
     sent_back(client, saver)
     assert claim_of(client, "CLM-1003")["status"] == "sent_back"
+    agent_answers(accepting)
 
     model = decides_again()
     assert dispatch(model, saver) == [NEW_DECISION]

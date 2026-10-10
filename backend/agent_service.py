@@ -159,41 +159,23 @@ def ask(payload: Payload) -> None:
         post_to_the_laptop(payload)
 
 
-def start_dispatch(agents: int) -> None:
-    """Ask the agent to start a dispatch with up to N claim agents."""
-    ask({"operation": "start_dispatch", "agents": agents})
+def work_run(run_id: str) -> None:
+    """Ask the agent to work a dispatch or an evaluation the app created."""
+    ask({"operation": "work_run", "run_id": run_id})
 
 
-def start_evaluation(evaluation_set: str, tiny: bool, agents: int) -> None:
-    """Ask the agent to start an evaluation with up to N claim agents."""
+def work_round(round_id: str) -> None:
+    """Ask the agent to work a round of the improver the app created."""
+    ask({"operation": "work_round", "round_id": round_id})
+
+
+def carry_round_on(round_id: str, proposal_id: str) -> None:
+    """Ask the agent to carry a round on after the review the app recorded."""
     ask(
         {
-            "operation": "start_evaluation",
-            "evaluation_set": evaluation_set,
-            "tiny": tiny,
-            "agents": agents,
-        }
-    )
-
-
-def start_round(handler_id: str) -> None:
-    """Ask the agent to start a round of the improver."""
-    ask({"operation": "start_round", "handler_id": handler_id})
-
-
-def review_proposal(
-    round_id: str, proposal_id: str, review: str, handler_id: str, reason: str
-) -> None:
-    """Pass a handler's review of a proposal to the agent, which records it and
-    carries the improver on."""
-    ask(
-        {
-            "operation": "review_proposal",
+            "operation": "carry_round_on",
             "round_id": round_id,
             "proposal_id": proposal_id,
-            "review": review,
-            "handler_id": handler_id,
-            "reason": reason,
         }
     )
 

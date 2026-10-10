@@ -1,13 +1,20 @@
 """Requests the backend's tests send to play out a round of the improver, as the
-agent's service and the dashboard do."""
+agent and the dashboard do."""
 
 from sqlalchemy import select, update
 
 from backend.database import engine, handler_decisions, runs
 from backend.tests.claim_requests import decide
 from backend.tests.dashboard_reads import read
+from backend.tests.rows import newest_round
 from backend.tests.run_requests import get_evaluation
 from backend.tests.sign_in import DANA, signed_in
+
+# Who each handler signs in as, by their id.
+EMAILS = {
+    "HND-01": DANA,
+    "HND-02": "marcus.oyelaran@undercover.example",
+}
 
 CHANGE = {
     "instructions": "# Working a claim\n\nA rule for stolen phones.\n",
@@ -23,7 +30,14 @@ RECIPE = {
 
 
 def create_round(client, handler_id="HND-01"):
-    return client.post("/api/rounds", json={"handler_id": handler_id})
+    """Start a round as a handler does, which the app creates, and return it as
+    the agent reads it, or the start's refusal."""
+    started = client.post(
+        "/api/improvement/rounds", headers=signed_in(EMAILS[handler_id])
+    )
+    if started.status_code != 202:
+        return started
+    return client.get(round_path(newest_round()))
 
 
 def round_path(round_id):
@@ -39,11 +53,18 @@ def propose_recipe(client, round_id):
 
 
 def review(client, round_id, proposal_id, verdict="approved", handler_id="HND-01"):
-    reason = "Keep each rule general" if verdict == "rejected" else ""
-    return client.post(
-        f"{round_path(round_id)}/proposals/{proposal_id}/review",
-        json={"review": verdict, "handler_id": handler_id, "reason": reason},
-    )
+    """Approve or reject a proposal as a handler does on the Improvement page, and
+    return it with its review as the agent reads it, or the refusal."""
+    path = f"/api/improvement/rounds/{round_id}/proposals/{proposal_id}"
+    headers = signed_in(EMAILS[handler_id])
+    if verdict == "approved":
+        reviewed = client.post(f"{path}/approval", headers=headers)
+    else:
+        body = {"reason": "Keep each rule general"}
+        reviewed = client.post(f"{path}/rejection", json=body, headers=headers)
+    if reviewed.status_code != 202:
+        return reviewed
+    return client.get(f"{round_path(round_id)}/proposals/{proposal_id}")
 
 
 def approved_change(client, round_id, **change):

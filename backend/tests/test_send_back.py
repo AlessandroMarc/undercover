@@ -140,7 +140,7 @@ def test_the_send_backs_refusals(client, dashboard, agent_calls):
         "Claim CLM-1112-E1 is a copy in an evaluation and can't be sent back",
     )
     assert summary_of(client, "CLM-1008")["status"] == "waiting_for_sign_off"
-    assert agent_calls == []
+    assert [c for c in agent_calls if c["operation"] == "resume_claim"] == []
 
 
 @pytest.mark.parametrize("answer", [unreachable, slow])

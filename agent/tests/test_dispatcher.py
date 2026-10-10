@@ -2,6 +2,7 @@
 
 import operator
 import time
+from datetime import timedelta
 from typing import Annotated, Any, TypedDict, cast
 
 import pytest
@@ -19,6 +20,7 @@ from agent.tests.records import claim_of, work_times_of
 from agent.tests.stubs import agent_on, approve, call, decide, record, stub, swarm
 from backend.tests.claim_requests import sign_off
 from backend.tests.dashboard_reads import steps_of
+from backend.tests.rows import run_heard
 from backend.tests.run_requests import latest_dispatch
 
 
@@ -230,9 +232,15 @@ def test_a_dispatch_stopped_partway_is_finished_by_the_next(client):
     stopped = {i: claim_of(client, i) for i in ("CLM-1001", "CLM-1003")}
     assert {c["status"] for c in stopped.values()} == {"in_progress"}
     sign_off(client, "CLM-1002")
+    # The agent stopped answering, so the next start marks the dispatch stopped.
+    first = latest_dispatch(client)["run_id"]
+    run_heard(first, timedelta(minutes=6))
 
     # The sign-off paid CLM-1002, so the next dispatch leaves it alone.
     reports = dispatch(model, saver, agents=2)
+    assert client.get(f"/api/runs/{first}").json()["stopped_because"] == (
+        "The agent stopped answering"
+    )
     assert sorted(reports) == ["CLM-1001  refer  $0.00", "CLM-1003  decline  $0.00"]
     for claim_id, before in stopped.items():
         claim = claim_of(client, claim_id)

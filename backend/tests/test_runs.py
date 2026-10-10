@@ -154,18 +154,54 @@ def test_finish_needs_a_known_run(client):
     assert unknown.json()["detail"] == "Run run-9 not found"
 
 
-def test_stop_every_running_run(client):
+def fail_run(client, run_id, reason="RuntimeError: The dispatcher broke"):
+    return client.post(f"/api/runs/{run_id}/failure", json={"reason": reason})
+
+
+def test_a_run_whose_work_failed_is_stopped_with_why(client):
     finished = create_dispatch(client).json()["run_id"]
     finish(client, finished)
-    running = [create_dispatch(client).json()["run_id"] for _ in range(2)]
-    response = client.post("/api/runs/stop")
-    assert response.status_code == 200
-    assert response.json() == running
-    stopped = latest_dispatch(client)
-    assert (stopped["run_id"], stopped["status"]) == (running[1], "stopped")
-    assert (stopped["finished_at"], stopped["seconds"]) == (None, None)
-    assert finish(client, running[0]).status_code == 409
-    assert client.post("/api/runs/stop").json() == []
+    running = create_dispatch(client).json()["run_id"]
+    failed = fail_run(client, running)
+    assert failed.status_code == 200
+    assert (failed.json()["status"], failed.json()["stopped_because"]) == (
+        "stopped",
+        "RuntimeError: The dispatcher broke",
+    )
+    assert (failed.json()["finished_at"], failed.json()["seconds"]) == (None, None)
+    assert latest_dispatch(client)["stopped_because"] == (
+        "RuntimeError: The dispatcher broke"
+    )
+    for run_id, status in ((running, "stopped"), (finished, "finished")):
+        again = fail_run(client, run_id, "RuntimeError: Again")
+        assert (again.status_code, again.json()["status"]) == (200, status)
+    assert client.get(f"/api/runs/{running}").json()["stopped_because"] == (
+        "RuntimeError: The dispatcher broke"
+    )
+    assert fail_run(client, "run-9").status_code == 404
+
+
+def test_finishing_a_stopped_run_answers_with_it_still_stopped(client):
+    run_id = create_dispatch(client).json()["run_id"]
+    fail_run(client, run_id)
+    finished = finish(client, run_id)
+    assert finished.status_code == 200
+    assert finished.json()["status"] == "stopped"
+    assert finished.json()["summary"] is None
+
+
+def test_the_agent_reads_a_run_and_tells_the_app_it_is_working(client, dashboard):
+    run_id = create_dispatch(client).json()["run_id"]
+    run = client.get(f"/api/runs/{run_id}").json()
+    assert (run["run_id"], run["status"], run["kind"]) == (
+        run_id,
+        "running",
+        "dispatch",
+    )
+    assert client.post(f"/api/runs/{run_id}/heartbeat").status_code == 200
+    assert client.get("/api/runs/run-9").status_code == 404
+    assert client.post("/api/runs/run-9/heartbeat").status_code == 404
+    assert dashboard.get(f"/api/runs/{run_id}").status_code == 401
 
 
 def test_runs_started_in_the_same_second_keep_their_order(client, monkeypatch):

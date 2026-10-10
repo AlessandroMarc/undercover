@@ -1,15 +1,18 @@
-"""The backend's operations on runs: the dispatches and evaluations the agent's
-service works. Only the service writes them, under /api/runs; the dashboard reads
-them under /api/dispatches and /api/evaluations."""
+"""The backend's operations on runs: the dispatches and evaluations the agent works.
+A handler starts one under /api/dispatches or /api/evaluations, which the app
+creates and asks the agent to work; the agent records its work under /api/runs,
+and the dashboard reads the runs."""
 
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import Connection, RowMapping, delete, func, insert, select, update
 
 from backend import agent_service, judge, spending
+from backend.agent_work import ask_the_agent, clear_the_way
 from backend.database import (
     LABELED_SETS,
     claims,
@@ -39,6 +42,7 @@ from backend.models import (
     DispatchSummary,
     Evaluation,
     EvaluationSet,
+    FailureRequest,
     HeldPayout,
     Letter,
     RoundStatus,
@@ -71,6 +75,7 @@ from backend.scoreboard import (
     seconds_between,
     to_run_claim,
 )
+from backend.stops import stop_runs
 
 # A copy's id is its original's with the evaluation's number, such as CLM-1104-E7.
 COPY_ID = "{claim_id}-E{number}"
@@ -85,6 +90,7 @@ NOT_GRADED = {
     "cost": 0,
 }
 FIRST_EVALUATIONS_CUT_SHORT = "The spending limit cut short its first evaluations"
+NOT_RUNNING = "Run {run_id} is not running"
 # Claims a dispatch left that the next one picks up.
 UNFINISHED = {Status.IN_PROGRESS, Status.WAITING, Status.SENT_BACK}
 
@@ -107,7 +113,7 @@ def running_run(db: Connection, run_id: str) -> RowMapping:
     """Return a run's row if it is still running, or raise a 404 or a 409."""
     row = run_row(db, run_id)
     if row["status"] != RunStatus.RUNNING:
-        raise HTTPException(409, f"Run {run_id} is not running")
+        raise HTTPException(409, NOT_RUNNING.format(run_id=run_id))
     return row
 
 
@@ -150,6 +156,7 @@ def new_run(
             reasoning_effort=version["reasoning_effort"],
             status=RunStatus.RUNNING,
             started_at=now(),
+            heard_at=now(),
         )
     )
     return run_row(db, run_id)
@@ -270,27 +277,43 @@ def refuse_what_the_round_cant_afford(
         )
 
 
-def cut_short(db: Connection, row: RowMapping) -> bool:
-    """Say whether a round's evaluation was cut short: its round was stopped, or
-    spent its limit before every copy started."""
+def why_cut_short(db: Connection, row: RowMapping) -> str | None:
+    """Say why a round's evaluation was cut short, if it was: its round was
+    stopped, or spent its limit before every copy started."""
     if row["round_id"] is None:
-        return False
+        return None
     round_ = round_row(db, row["round_id"])
-    if why_no_claim_starts(db, round_) is None:
-        return False
+    why = why_no_claim_starts(db, round_)
     unstarted = any(
         claim["status"] == Status.WAITING for claim in claims_of(db, row["run_id"])
     )
-    return round_["status"] != RoundStatus.OPEN or unstarted
+    cut = round_["status"] != RoundStatus.OPEN or unstarted
+    return why if why and cut else None
 
 
-def stop_a_round_in_its_first_evaluations(db: Connection, row: RowMapping) -> None:
-    """Stop an open round whose first evaluation the limit cut short, before its
-    improver runs."""
+def end_cut_short(db: Connection, row: RowMapping, because: str) -> None:
+    """Stop an evaluation its round cut short, with why, and the round with it
+    when the limit cut short its first evaluations, before its improver runs. The
+    round is stopped before its runs, as every stop does, so two stops at the
+    same moment wait for each other rather than deadlock."""
     round_ = round_row(db, row["round_id"])
     first = row["version"] == round_["starting_version"]
     if round_["status"] == RoundStatus.OPEN and first:
         stop(db, round_, None, FIRST_EVALUATIONS_CUT_SHORT)
+    stop_runs(db, because, runs.c.run_id == row["run_id"])
+
+
+def mark_finished(db: Connection, run_id: str, summary: dict[str, Any] | None) -> None:
+    """Mark a running run finished, with a dispatch's summary. A run stopped
+    meanwhile, such as while its copies were graded, stays stopped, and nothing
+    done to finish it is kept."""
+    done = db.execute(
+        update(runs)
+        .where(runs.c.run_id == run_id, runs.c.status == RunStatus.RUNNING)
+        .values(status=RunStatus.FINISHED, finished_at=now(), summary=summary)
+    )
+    if done.rowcount == 0:
+        db.rollback()
 
 
 def evaluation_row(db: Connection, run_id: str) -> RowMapping:
@@ -350,25 +373,6 @@ def grade_copies(db: Connection, row: RowMapping) -> None:
 
 
 @router.post(
-    "/api/runs/dispatches", operation_id="create_dispatch", dependencies=[AgentKey]
-)
-def create_dispatch(request: StartDispatchRequest, db: Database) -> Run:
-    """Record a new dispatch on the current version, with its claims to come."""
-    current = version_row(db, current_version_number(db))
-    row = new_run(db, RunKind.DISPATCH, request.model_dump(), current)
-    return find_run(db, row["run_id"])
-
-
-@router.post(
-    "/api/runs/evaluations", operation_id="create_evaluation", dependencies=[AgentKey]
-)
-def create_evaluation(request: StartEvaluationRequest, db: Database) -> Run:
-    """Record a new evaluation on the current version, with a copy of each claim."""
-    current = version_row(db, current_version_number(db))
-    return evaluation_of(db, request.model_dump(), current)
-
-
-@router.post(
     "/api/runs/rounds/{round_id}/evaluations",
     operation_id="create_round_evaluation",
     dependencies=[AgentKey],
@@ -410,36 +414,57 @@ def record_run_claims(run_id: str, request: RunClaimsRequest, db: Database) -> R
 )
 def finish_run(run_id: str, db: Database) -> Run:
     """Finish a run: a dispatch gets its summary, an evaluation its grades or a stop."""
-    row = running_run(db, run_id)
-    status, summary = RunStatus.FINISHED, None
+    row = run_row(db, run_id)
+    if row["status"] == RunStatus.STOPPED:
+        return find_run(db, run_id)
+    if row["status"] != RunStatus.RUNNING:
+        raise HTTPException(409, NOT_RUNNING.format(run_id=run_id))
     if row["kind"] == RunKind.DISPATCH:
-        summary = summarize(claims_of(db, run_id)).model_dump()
-    elif cut_short(db, row):
-        status = RunStatus.STOPPED
-        stop_a_round_in_its_first_evaluations(db, row)
+        mark_finished(db, run_id, summarize(claims_of(db, run_id)).model_dump())
+    elif because := why_cut_short(db, row):
+        end_cut_short(db, row, because)
     else:
         grade_copies(db, row)
-    # A run stopped while its copies were graded stays stopped.
-    finished = db.execute(
-        update(runs)
-        .where(runs.c.run_id == run_id, runs.c.status == RunStatus.RUNNING)
-        .values(status=status, finished_at=now(), summary=summary)
-    )
-    if finished.rowcount == 0:
-        raise HTTPException(409, f"Run {run_id} is not running")
+        mark_finished(db, run_id, None)
     return find_run(db, run_id)
 
 
-@router.post("/api/runs/stop", operation_id="stop_runs", dependencies=[AgentKey])
-def stop_runs(db: Database) -> list[str]:
-    """Mark every running run stopped, as the agent's service does when it starts."""
-    query = (
-        update(runs)
-        .where(runs.c.status == RunStatus.RUNNING)
-        .values(status=RunStatus.STOPPED)
-        .returning(runs.c.run_id)
+@router.get("/api/runs/{run_id}", operation_id="get_run", dependencies=[AgentKey])
+def get_run(run_id: str, db: Database) -> Run:
+    """Get a run with its claims, for the agent to work it."""
+    return find_run(db, run_id)
+
+
+@router.post(
+    "/api/runs/{run_id}/heartbeat",
+    operation_id="record_run_heartbeat",
+    dependencies=[AgentKey],
+)
+def record_run_heartbeat(run_id: str, db: Database) -> Run:
+    """Record that the agent is still working a run."""
+    run_row(db, run_id)
+    db.execute(update(runs).where(runs.c.run_id == run_id).values(heard_at=now()))
+    return find_run(db, run_id)
+
+
+@router.post(
+    "/api/runs/{run_id}/failure", operation_id="fail_run", dependencies=[AgentKey]
+)
+def fail_run(run_id: str, request: FailureRequest, db: Database) -> Run:
+    """Stop a run whose work failed, with what went wrong, if it's still running."""
+    run_row(db, run_id)
+    stop_runs(db, request.reason, runs.c.run_id == run_id)
+    return find_run(db, run_id)
+
+
+def ask_to_work(db: Connection, run_id: str) -> None:
+    """Ask the agent to work a run the app created, which is stopped with the
+    reason when the agent didn't take it."""
+    ask_the_agent(
+        db,
+        partial(agent_service.work_run, run_id),
+        lambda reason: stop_runs(db, reason, runs.c.run_id == run_id),
     )
-    return list(db.execute(query).scalars())
 
 
 @router.get(
@@ -465,9 +490,12 @@ def get_latest_dispatch(db: Database) -> Run | None:
     status_code=202,
     dependencies=[SignedInHandler],
 )
-def start_dispatch(request: StartDispatchRequest) -> Accepted:
-    """Ask the agent's service to start a dispatch with up to N claim agents at once."""
-    agent_service.start_dispatch(request.agents)
+def start_dispatch(request: StartDispatchRequest, db: Database) -> Accepted:
+    """Start a dispatch with up to N claim agents at once, which the agent works."""
+    clear_the_way(db)
+    current = version_row(db, current_version_number(db))
+    row = new_run(db, RunKind.DISPATCH, request.model_dump(), current)
+    ask_to_work(db, row["run_id"])
     return Accepted()
 
 
@@ -504,7 +532,10 @@ def get_evaluation(run_id: str, db: Database) -> ScoredEvaluation:
     status_code=202,
     dependencies=[SignedInHandler],
 )
-def start_evaluation(request: StartEvaluationRequest) -> Accepted:
-    """Ask the agent's service to start an evaluation with up to N claim agents."""
-    agent_service.start_evaluation(request.evaluation_set, request.tiny, request.agents)
+def start_evaluation(request: StartEvaluationRequest, db: Database) -> Accepted:
+    """Start an evaluation with up to N claim agents at once, which the agent works."""
+    clear_the_way(db)
+    current = version_row(db, current_version_number(db))
+    run = evaluation_of(db, request.model_dump(), current)
+    ask_to_work(db, run.run_id)
     return Accepted()

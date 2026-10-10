@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 import {
-  createDispatch,
   failClaim,
   finishRun,
   payClaim,
@@ -10,12 +9,18 @@ import {
   recordStep,
   recordWorkTime,
   startClaim,
+  startDispatch,
+  stopTheWork,
 } from "./api";
 
-// These tests stand in for the agent's service and its claim agents by calling
-// the API through the dashboard's proxy, and watch the pages update without a
-// reload. Only this file records dispatches, and it uses claims no other test
-// touches.
+// These tests start a dispatch as Dana Whitfield, which the app creates, then
+// stand in for the agent and its claim agents by calling the API through the
+// dashboard's proxy, and watch the pages update without a reload. They use
+// claims no other test touches.
+
+test.afterEach(async ({ request }) => {
+  await stopTheWork(request);
+});
 
 test("the dispatch panel follows a dispatch as it works", async ({
   page,
@@ -25,7 +30,7 @@ test("the dispatch panel follows a dispatch as it works", async ({
   const panel = page.getByRole("region", { name: "Dispatch" });
   await expect(panel).toBeVisible();
 
-  const { run_id } = await createDispatch(request, 2);
+  const { run_id } = await startDispatch(request, 2);
   await recordRunClaims(request, run_id, ["CLM-1013", "CLM-1014"]);
   const rows = panel.getByRole("row");
   await expect(panel.getByText("Running", { exact: true })).toBeVisible();

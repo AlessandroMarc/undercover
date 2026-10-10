@@ -17,6 +17,7 @@ from backend.models import (
     Verdict,
 )
 from backend.money import dollars
+from backend.stops import stop_runs
 from backend.verdict import STOPPED_BEFORE_VERDICT
 
 ROUND_NOT_FOUND = "Round {round_id} not found"
@@ -151,8 +152,9 @@ def roll_back(db: Connection, version: int, reason: str) -> None:
 
 
 def stop(db: Connection, row: RowMapping, by: str | None, because: str) -> None:
-    """Stop an open round, rolling back a version it hadn't yet given a verdict.
-    The current version stays as it was."""
+    """Stop an open round with its running evaluation, both with why, rolling back
+    a version it hadn't yet given a verdict. The current version stays as it
+    was."""
     db.execute(
         update(rounds)
         .where(rounds.c.round_id == row["round_id"])
@@ -163,6 +165,7 @@ def stop(db: Connection, row: RowMapping, by: str | None, because: str) -> None:
             finished_at=now(),
         )
     )
+    stop_runs(db, because, runs.c.round_id == row["round_id"])
     version = tried_version(db, row["round_id"])
     if version and version["verdict"] is None:
         roll_back(db, version["number"], STOPPED_BEFORE_VERDICT)

@@ -237,6 +237,7 @@ it("shows a stopped evaluation as stopped, with no run time", async () => {
     "GET /api/evaluations/run-9": {
       ...scored,
       status: "stopped",
+      stopped_because: "Stopped by Dana Whitfield",
       measures: running.measures,
     },
   });
@@ -256,6 +257,7 @@ it("shows a stopped evaluation as stopped, with no run time", async () => {
   expect(measures.getByText("Run time").nextSibling?.textContent).toBe(
     "Not finished",
   );
+  expect(measures.getByText("Stopped by Dana Whitfield")).toBeDefined();
 });
 
 it("says the judge found a check from even odds", () => {

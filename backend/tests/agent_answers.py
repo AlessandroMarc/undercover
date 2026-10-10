@@ -1,8 +1,12 @@
-"""How the tests' stand-in for the agent on the laptop answers when it doesn't take
-the work: it can't be reached, it times out, it refuses, or it gives an error
+"""How the tests' stand-in for the agent on the laptop answers: it takes the work, or
+it doesn't, since it can't be reached, times out, refuses or gives an error
 answer."""
 
 import httpx
+
+
+def accepting(request):
+    return httpx.Response(200, json={"accepted": True})
 
 
 def unreachable(request):

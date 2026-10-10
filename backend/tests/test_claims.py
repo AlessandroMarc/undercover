@@ -2,7 +2,7 @@ from sqlalchemy import select
 
 from backend import seed
 from backend.database import engine, handler_decisions
-from backend.tests.run_requests import create_evaluation, queue
+from backend.tests.run_requests import create_evaluation, finish, queue
 
 
 def test_list_claims(client):
@@ -96,3 +96,4 @@ def test_the_security_teams_claim_is_in_neither_evaluation_set(client):
             copied = [claim["claim_id"] for claim in run["claims"]]
             assert copied
             assert not [c for c in copied if c.startswith("CLM-1901")]
+            finish(client, run["run_id"])

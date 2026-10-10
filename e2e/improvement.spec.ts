@@ -1,28 +1,27 @@
 import { expect, test } from "@playwright/test";
 import {
-  createRound,
   createVersion,
-  finishOpenRound,
+  proposalOf,
   recordChangeProposal,
   recordRecipeProposal,
-  recordReview,
+  startRound,
   started,
+  stopTheWork,
 } from "./api";
 import { HANDLERS } from "./handlers";
 
-// Rounds of the improver played out through the API as the agent's service
-// would record them, with each review on the page reaching the stand-in for the
-// agent's service.
+// Rounds of the improver started as Dana Whitfield and played out through the
+// API as the agent would record them, with each review on the page recorded by
+// the app and reaching the stand-in for the agent.
 
 const RULE = "A stolen phone needs a police report.";
-const DANA = HANDLERS.dana.handler_id;
 const INSTRUCTIONS = `# Working a claim\n\n${RULE}\n`;
 
 test.afterEach(async ({ request }) => {
-  await finishOpenRound(request);
+  await stopTheWork(request);
 });
 
-test("a round started on the page reaches the agent's service", async ({
+test("a round started on the page reaches the agent", async ({
   page,
   request,
 }) => {
@@ -30,14 +29,14 @@ test("a round started on the page reaches the agent's service", async ({
   await page.getByRole("button", { name: "Start a round" }).click();
   await expect
     .poll(() => started(request))
-    .toContainEqual({ operation: "start_round", handler_id: DANA });
+    .toContainEqual(expect.objectContaining({ operation: "work_round" }));
 });
 
-test("a change approved on the page reaches the agent's service, and the round moves on", async ({
+test("a change approved on the page reaches the agent, and the round moves on", async ({
   page,
   request,
 }) => {
-  const round = await createRound(request);
+  const round = await startRound(request);
   const proposal = await recordChangeProposal(request, round, INSTRUCTIONS);
   await page.goto("/");
   await page
@@ -56,15 +55,12 @@ test("a change approved on the page reaches the agent's service, and the round m
   await expect
     .poll(() => started(request))
     .toContainEqual({
-      operation: "review_proposal",
+      operation: "carry_round_on",
       round_id: round,
       proposal_id: proposal,
-      review: "approved",
-      handler_id: DANA,
-      reason: "",
     });
+  expect((await proposalOf(request, round, proposal)).review).toBe("approved");
 
-  await recordReview(request, round, proposal, "approved");
   await createVersion(request, round);
   await expect(
     page
@@ -73,11 +69,11 @@ test("a change approved on the page reaches the agent's service, and the round m
   ).toHaveText("Evaluations, 0 of 3");
 });
 
-test("a recipe rejected on the page sends its reason to the agent's service", async ({
+test("a recipe rejected on the page records its reason and reaches the agent", async ({
   page,
   request,
 }) => {
-  const round = await createRound(request);
+  const round = await startRound(request);
   const proposal = await recordRecipeProposal(request, round);
   await page.goto("/improvement");
   const waiting = page.getByRole("region", {
@@ -91,20 +87,21 @@ test("a recipe rejected on the page sends its reason to the agent's service", as
   await expect
     .poll(() => started(request))
     .toContainEqual({
-      operation: "review_proposal",
+      operation: "carry_round_on",
       round_id: round,
       proposal_id: proposal,
-      review: "rejected",
-      handler_id: DANA,
-      reason: "Keep the step that reads the wrong claims",
     });
+  expect(await proposalOf(request, round, proposal)).toMatchObject({
+    review: "rejected",
+    rejection_reason: "Keep the step that reads the wrong claims",
+  });
 });
 
 test.describe("signed in as Marcus Oyelaran", () => {
   test.use({ storageState: HANDLERS.marcus.storage });
 
   test("a proposal waiting shows no buttons", async ({ page, request }) => {
-    const round = await createRound(request);
+    const round = await startRound(request);
     await recordChangeProposal(request, round, INSTRUCTIONS);
     await page.goto("/improvement");
     const waiting = page.getByRole("region", {

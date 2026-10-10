@@ -2,7 +2,6 @@ import { type APIRequestContext, expect } from "@playwright/test";
 import type {
   DecisionKind,
   EvaluationSet,
-  Improvement,
   Run,
   Source,
   StepKind,
@@ -166,29 +165,48 @@ export const recordWorkTime = (
     seconds,
   });
 
-export async function createDispatch(
-  request: Request,
-  agents: number,
-): Promise<Run> {
-  const response = await send(request, "POST", "/api/runs/dispatches", {
-    agents,
-  });
-  return (await response.json()) as Run;
+// What a handler starts on the dashboard, which the app creates and asks the
+// agent to work: the newest payload the stand-in for the agent took.
+async function newestStarted(request: Request): Promise<Payload> {
+  const payloads = await started(request);
+  const newest = payloads.at(-1);
+  if (!newest) throw new Error("The stand-in for the agent took nothing");
+  return newest;
 }
 
-export async function createEvaluation(
+// Starts a run as a handler does, and returns it as the agent reads it.
+async function startRun(
+  request: Request,
+  path: string,
+  data: object,
+): Promise<Run> {
+  const response = await request.post(path, {
+    data,
+    headers: await signedInAs(request, HANDLERS.dana),
+  });
+  await expect(response).toBeOK();
+  const { run_id } = await newestStarted(request);
+  const run = await request.get(runPath(String(run_id)), {
+    headers: AGENT_KEY_HEADERS,
+  });
+  await expect(run).toBeOK();
+  return (await run.json()) as Run;
+}
+
+export const startDispatch = (request: Request, agents: number) =>
+  startRun(request, "/api/dispatches", { agents });
+
+export const startEvaluation = (
   request: Request,
   evaluationSet: EvaluationSet,
   tiny: boolean,
   agents: number,
-): Promise<Run> {
-  const response = await send(request, "POST", "/api/runs/evaluations", {
+) =>
+  startRun(request, "/api/evaluations", {
     evaluation_set: evaluationSet,
     tiny,
     agents,
   });
-  return (await response.json()) as Run;
-}
 
 export const recordRunClaims = (
   request: Request,
@@ -199,15 +217,17 @@ export const recordRunClaims = (
 export const finishRun = (request: Request, runId: string) =>
   send(request, "POST", `${runPath(runId)}/finish`);
 
-// A round of the improver, played out as the agent's service would record it,
-// for Dana Whitfield.
+// A round of the improver, started by Dana Whitfield and played out as the
+// agent would record it.
 const ROUNDS = "/api/rounds";
 const roundPath = (roundId: string) => `${ROUNDS}/${roundId}`;
-const DANA = HANDLERS.dana.handler_id;
 
-export async function createRound(request: Request): Promise<string> {
-  const response = await send(request, "POST", ROUNDS, { handler_id: DANA });
-  return ((await response.json()) as { round_id: string }).round_id;
+export async function startRound(request: Request): Promise<string> {
+  const response = await request.post("/api/improvement/rounds", {
+    headers: await signedInAs(request, HANDLERS.dana),
+  });
+  await expect(response).toBeOK();
+  return String((await newestStarted(request)).round_id);
 }
 
 export async function recordChangeProposal(
@@ -242,45 +262,31 @@ export async function recordRecipeProposal(
   return ((await response.json()) as { proposal_id: string }).proposal_id;
 }
 
-export const recordReview = (
+// A proposal with its review, as the agent reads it.
+export async function proposalOf(
   request: Request,
   roundId: string,
   proposalId: string,
-  review: "approved" | "rejected",
-  reason = "",
-) =>
-  send(
-    request,
-    "POST",
-    `${roundPath(roundId)}/proposals/${proposalId}/review`,
-    { review, handler_id: DANA, reason },
+): Promise<{ review: string | null; rejection_reason: string | null }> {
+  const response = await request.get(
+    `${roundPath(roundId)}/proposals/${proposalId}`,
+    { headers: AGENT_KEY_HEADERS },
   );
+  await expect(response).toBeOK();
+  return (await response.json()) as {
+    review: string | null;
+    rejection_reason: string | null;
+  };
+}
 
 export const createVersion = (request: Request, roundId: string) =>
   send(request, "POST", `${roundPath(roundId)}/version`);
 
-export const finishRound = (request: Request, roundId: string) =>
-  send(request, "POST", `${roundPath(roundId)}/finish`);
-
-// Finishes the open round, if any, rejecting a proposal it's waiting on first,
-// so the next test can start one. It reads the round as Dana, as the dashboard
-// does.
-export async function finishOpenRound(request: Request) {
-  const response = await request.get("/api/improvement", {
-    headers: await signedInAs(request, HANDLERS.dana),
-  });
+// Stops the runs and rounds the tests started that are still going, through
+// the stand-in for the agent, so the next test can start its own.
+export async function stopTheWork(request: Request) {
+  const response = await request.post(`${AGENT_STAND_IN}/api/stop`);
   await expect(response).toBeOK();
-  const { round } = (await response.json()) as Improvement;
-  if (round?.status !== "open") return;
-  if (round.waiting)
-    await recordReview(
-      request,
-      round.round_id,
-      round.waiting.proposal_id,
-      "rejected",
-      "The test is over",
-    );
-  await finishRound(request, round.round_id);
 }
 
 // A payload the backend sent the agent, naming its operation.

@@ -120,16 +120,16 @@ def test_with_no_key_set_handlers_still_work_and_the_agents_routes_refuse(
 
 def test_an_empty_key_set_doesnt_match_an_empty_header(dashboard, monkeypatch):
     monkeypatch.setenv("UNDERCOVER_API_KEY", "")
-    refused = dashboard.post("/api/runs/stop", headers={API_KEY_HEADER: ""})
+    refused = dashboard.get("/api/runs/run-1", headers={API_KEY_HEADER: ""})
     assert refused.status_code == 401
 
 
 def test_a_key_outside_ascii_is_refused_rather_than_raising(dashboard):
     headers = {API_KEY_HEADER: "clé-de-l-agent".encode()}
-    assert dashboard.post("/api/runs/stop", headers=headers).status_code == 401
+    assert dashboard.get("/api/runs/run-1", headers=headers).status_code == 401
 
 
-def test_the_service_records_a_round_and_a_review_for_a_handler_with_the_key(client):
+def test_the_agent_reads_a_review_a_handler_gave(client):
     round_id = create_round(client).json()["round_id"]
     proposal_id = propose_change(client, round_id).json()["proposal_id"]
     reviewed = review(client, round_id, proposal_id)

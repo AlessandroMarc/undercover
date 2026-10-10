@@ -59,8 +59,10 @@ function DispatchDetails({ dispatch }: Readonly<{ dispatch: Run }>) {
       </p>
       {dispatch.status === "stopped" && (
         <p className="stopped">
-          It stopped before it finished. The next dispatch carries on its
-          claims.
+          {dispatch.stopped_because
+            ? `Stopped: ${dispatch.stopped_because}`
+            : "It stopped before it finished"}
+          . The next dispatch carries on its claims.
         </p>
       )}
       {dispatch.claims.length > 0 ? (

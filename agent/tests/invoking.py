@@ -13,8 +13,20 @@ HEALTH = {"operation": "health"}
 ACCEPTED = {"accepted": True}
 
 
-def start_dispatch(agents: int) -> dict[str, Any]:
-    return {"operation": "start_dispatch", "agents": agents}
+def work_run(run_id: str) -> dict[str, Any]:
+    return {"operation": "work_run", "run_id": run_id}
+
+
+def work_round(round_id: str) -> dict[str, Any]:
+    return {"operation": "work_round", "round_id": round_id}
+
+
+def carry_round_on(round_id: str, proposal_id: str) -> dict[str, Any]:
+    return {
+        "operation": "carry_round_on",
+        "round_id": round_id,
+        "proposal_id": proposal_id,
+    }
 
 
 def resume_claim(claim_id: str) -> dict[str, Any]:

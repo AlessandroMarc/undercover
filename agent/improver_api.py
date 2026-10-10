@@ -1,4 +1,4 @@
-"""The UnderCover backend's API for the improver and for the service's work on a
+"""The UnderCover backend's API for the improver and for the entry point's work on a
 round: one function for each operation under /api/rounds, and the round's
 evaluations. The claim agent's tools never use it."""
 
@@ -11,10 +11,6 @@ OPEN: RoundStatus = "open"
 Review = Literal["approved", "rejected"]
 APPROVED: Review = "approved"
 REJECTED: Review = "rejected"
-
-
-def create_round(handler_id: str) -> dict[str, Any]:
-    return call("POST", "/rounds", json={"handler_id": handler_id})
 
 
 def get_round(round_id: str) -> dict[str, Any]:
@@ -42,11 +38,8 @@ def record_recipe_proposal(round_id: str, recipe: str, reason: str) -> dict[str,
     return call("POST", f"/rounds/{round_id}/proposals/recipe", json=body)
 
 
-def record_review(
-    round_id: str, proposal_id: str, review: Review, handler_id: str, reason: str
-) -> dict[str, Any]:
-    body = {"review": review, "handler_id": handler_id, "reason": reason}
-    return call("POST", f"/rounds/{round_id}/proposals/{proposal_id}/review", json=body)
+def get_proposal(round_id: str, proposal_id: str) -> dict[str, Any]:
+    return call("GET", f"/rounds/{round_id}/proposals/{proposal_id}")
 
 
 def create_version(round_id: str) -> dict[str, Any]:
@@ -76,5 +69,9 @@ def finish_round(round_id: str) -> dict[str, Any]:
     return call("POST", f"/rounds/{round_id}/finish")
 
 
-def stop_rounds(reason: str) -> list[str]:
-    return call("POST", "/rounds/stop", json={"reason": reason})
+def record_round_heartbeat(round_id: str) -> dict[str, Any]:
+    return call("POST", f"/rounds/{round_id}/heartbeat")
+
+
+def fail_round(round_id: str, reason: str) -> dict[str, Any]:
+    return call("POST", f"/rounds/{round_id}/failure", json={"reason": reason})

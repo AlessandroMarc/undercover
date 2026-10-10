@@ -24,6 +24,7 @@ from botocore.exceptions import (
 from backend import agent_service
 from backend.agent_service import NO_ANSWER, NOT_RUNNING
 from backend.tests.claim_requests import held, sign_off
+from backend.tests.rows import newest_run
 from backend.tests.sign_in import MARCUS, signed_in
 
 ARN = "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/undercover_agent-x"
@@ -85,7 +86,10 @@ def test_the_laptop_route_posts_the_payload_to_invocations_with_the_key(
     [request] = sent
     assert str(request.url) == "http://127.0.0.1:8080/invocations"
     assert request.headers["Authorization"] == f"Bearer {agent_key}"
-    assert json.loads(request.content) == {"operation": "start_dispatch", "agents": 3}
+    assert json.loads(request.content) == {
+        "operation": "work_run",
+        "run_id": newest_run(),
+    }
     assert set(request.extensions["timeout"].values()) == {10}
 
 
@@ -106,10 +110,13 @@ def test_the_runtime_route_sends_the_payload_to_the_runtime_with_no_key(
     client, runtime, agent_calls
 ):
     assert start_dispatch(client).status_code == 202
-    assert start_dispatch(client).status_code == 202
+    agent_service.resume_claim("CLM-1001")
     first, second = runtime.calls
     assert first["agentRuntimeArn"] == ARN
-    assert json.loads(first["payload"]) == {"operation": "start_dispatch", "agents": 3}
+    assert json.loads(first["payload"]) == {
+        "operation": "work_run",
+        "run_id": newest_run(),
+    }
     assert set(first) == {"agentRuntimeArn", "runtimeSessionId", "payload"}
     assert len(first["runtimeSessionId"]) >= 33
     assert first["runtimeSessionId"] != second["runtimeSessionId"]

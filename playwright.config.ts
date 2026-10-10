@@ -55,7 +55,11 @@ export default defineConfig({
     {
       command: "node e2e/agent_stand_in.ts",
       url: `${AGENT_STAND_IN}/ping`,
-      env: { PORT: new URL(AGENT_STAND_IN).port },
+      env: {
+        PORT: new URL(AGENT_STAND_IN).port,
+        UNDERCOVER_API: BACKEND,
+        UNDERCOVER_API_KEY: AGENT_KEY,
+      },
     },
     {
       command: "node e2e/auth_stand_in.ts",

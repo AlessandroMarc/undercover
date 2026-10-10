@@ -72,6 +72,9 @@ function MeasuresPanel({
         judge cost{" "}
         <span className="mono">{modelCost(evaluation.judge_cost)}</span>.
       </p>
+      {evaluation.stopped_because && (
+        <p className="stopped">{evaluation.stopped_because}</p>
+      )}
       <dl className="facts measures">
         {MEASURES.map(({ label, show }) => (
           <div key={label}>

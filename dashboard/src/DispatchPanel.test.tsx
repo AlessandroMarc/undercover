@@ -130,6 +130,20 @@ it("shows a stopped dispatch", async () => {
   ).toBeDefined();
 });
 
+it("says why a dispatch stopped", async () => {
+  showQueue({
+    ...running,
+    status: "stopped",
+    stopped_because: "The agent stopped answering",
+  });
+  const panel = await dispatchPanel();
+  expect(
+    await panel.findByText(
+      "Stopped: The agent stopped answering. The next dispatch carries on its claims.",
+    ),
+  ).toBeDefined();
+});
+
 it("follows a dispatch as it works", async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   const routes = showQueue(null);

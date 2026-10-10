@@ -10,8 +10,8 @@ from sqlalchemy import func, select
 
 from agent import entrypoint
 from agent.improver import improver_model
-from agent.tests.invoking import ACCEPTED, HEALTH, start_dispatch
-from agent.tests.queue_setup import leave_waiting
+from agent.tests.dispatching import new_dispatch, the_app
+from agent.tests.invoking import ACCEPTED, HEALTH, carry_round_on, work_round
 from agent.tests.rounds import (
     RULE,
     VERSION_1,
@@ -25,6 +25,7 @@ from agent.tests.stubs import StubModel, call
 from backend.database import engine, grades, improver_calls, model_calls, runs
 from backend.tests.dashboard_reads import configuration, version_details
 from backend.tests.round_requests import create_round, improvement, stop_round
+from backend.tests.round_requests import review as review_as_a_handler
 from backend.tests.run_requests import get_evaluation
 from backend.tests.settings_requests import STARTING, change_settings
 
@@ -47,25 +48,20 @@ def room_to_run(client):
     change_settings(client, agents=AGENTS, **ROOM)
 
 
-START_ROUND = {"operation": "start_round", "handler_id": "HND-01"}
-
-
 def start_round(agent, wait=True):
-    return agent.invoke(START_ROUND, wait=wait)
+    """Start a round as a handler does, which the app creates, and have the agent
+    work it."""
+    round_id = create_round(the_app()).json()["round_id"]
+    return agent.invoke(work_round(round_id), wait=wait)
 
 
 def review(agent, round_, proposal_id, verdict="approved"):
-    reason = "Keep each rule general" if verdict == "rejected" else ""
-    return agent.invoke(
-        {
-            "operation": "review_proposal",
-            "round_id": round_["round_id"],
-            "proposal_id": proposal_id,
-            "review": verdict,
-            "handler_id": "HND-01",
-            "reason": reason,
-        }
-    )
+    """Review a proposal as a handler does, which the app records, and have the
+    agent carry the round on."""
+    round_id = round_["round_id"]
+    reviewed = review_as_a_handler(the_app(), round_id, proposal_id, verdict)
+    assert reviewed.status_code == 200, reviewed.text
+    return agent.invoke(carry_round_on(round_id, proposal_id))
 
 
 def the_round(client):
@@ -104,8 +100,8 @@ def test_a_round_runs_its_first_evaluations_then_waits_for_a_change(
     read = model.prompts[1][-1]
     assert read.name == "read_results"
     assert '"wrong"' in read.content
-    # The lock is free: a dispatch can run while the round waits.
-    assert agent.invoke(start_dispatch(3)).json() == ACCEPTED
+    # The round waits for a handler, so a dispatch can start.
+    assert new_dispatch()["status"] == "running"
 
 
 def test_a_whole_round_with_a_rejection(client, serve_rounds):
@@ -217,38 +213,6 @@ def test_the_rounds_work_is_traced_in_its_own_session(client, serve_rounds, trac
     assert RULE not in VERSION_1
 
 
-def test_one_thing_at_a_time_and_the_refusal_names_it(client, serve_rounds, hold_runs):
-    agent = serve_rounds(whole_round(), claim_agents_model())
-    start_round(agent)
-    round_ = the_round(client)
-    waiting = round_["waiting"]["proposal_id"]
-    leave_waiting("CLM-1001")
-
-    held = hold_runs()
-    assert agent.invoke(start_dispatch(3), wait=False).json() == ACCEPTED
-    assert held.working.wait(5)
-    refused = review(agent, round_, waiting)
-    assert refused.json() == {"refused": "A dispatch is running"}
-    assert the_round(client)["waiting"]["proposal_id"] == waiting
-    held.release.set()
-    agent.settle()
-
-    held = hold_runs()
-    evaluation = {
-        "operation": "start_evaluation",
-        "evaluation_set": "held_out",
-        "tiny": True,
-        "agents": 5,
-    }
-    assert agent.invoke(evaluation, wait=False).json() == ACCEPTED
-    assert held.working.wait(5)
-    refused = start_round(agent, wait=False)
-    assert refused.json() == {"refused": "An evaluation is running"}
-    held.release.set()
-    agent.settle()
-    assert review(agent, round_, waiting).json() == ACCEPTED
-
-
 def restart(monkeypatch, fresh_agent):
     """Get the agent ready again, as after a restart."""
     monkeypatch.setattr(entrypoint, "ready", entrypoint.Ready())
@@ -270,18 +234,14 @@ def test_a_round_waiting_for_a_handler_survives_a_restart(
     assert the_round(client)["stage"] == "change_waiting"
 
 
-def test_a_round_in_its_first_evaluations_is_stopped_by_a_restart(
+def test_a_round_in_its_first_evaluations_is_left_open_by_a_restart(
     client, workers_from, monkeypatch, fresh_agent
 ):
     stubs = StubModel(messages=iter(()))
     workers_from(stubs, InMemorySaver(), stubs)
     create_round(client)
     restart(monkeypatch, fresh_agent)
-    round_ = the_round(client)
-    assert (round_["status"], round_["stopped_because"]) == (
-        "stopped",
-        "The agent restarted",
-    )
+    assert the_round(client)["status"] == "open"
 
 
 class StoppingModel(RuleFollowingModel):
@@ -321,7 +281,7 @@ def test_stopping_a_round_during_its_evaluations(client, serve_rounds):
         3 * 0.0042
     )
     assert version_details(client, 2)["status"] == ("rolled_back")
-    assert agent.invoke(start_dispatch(3)).json() == ACCEPTED
+    assert new_dispatch()["status"] == "running"
 
 
 def test_the_improver_stops_after_20_model_calls_in_a_round(client, serve_rounds):
@@ -357,7 +317,7 @@ def test_the_spending_limit_cuts_a_round_short_in_its_first_evaluations(
     )
     assert [e["status"] for e in round_["evaluations"]] == ["stopped"]
     assert model.prompts == []
-    assert agent.invoke(start_dispatch(3)).json() == ACCEPTED
+    assert new_dispatch()["status"] == "running"
 
 
 def test_a_proposal_the_backend_refuses_goes_back_to_the_improver(client, serve_rounds):
@@ -433,19 +393,6 @@ def test_the_improver_asks_for_one_tool_call_at_a_time(client, serve_rounds):
     assert all(bound["parallel_tool_calls"] is False for bound in model.bound_with)
 
 
-def test_a_round_in_its_first_evaluations_names_itself_in_a_refusal(
-    client, serve_rounds, hold_runs
-):
-    agent = serve_rounds(whole_round(), claim_agents_model())
-    held = hold_runs()
-    assert start_round(agent, wait=False).json() == ACCEPTED
-    assert held.working.wait(5)
-    refused = agent.invoke(start_dispatch(3), wait=False)
-    assert refused.json() == {"refused": "Round 1 is running"}
-    held.release.set()
-    agent.settle()
-
-
 def test_a_round_whose_evaluation_fails_is_stopped_with_its_run(
     client, serve_rounds, monkeypatch
 ):
@@ -458,8 +405,12 @@ def test_a_round_whose_evaluation_fails_is_stopped_with_its_run(
     start_round(agent)
 
     round_ = the_round(client)
-    assert round_["status"] == "stopped"
-    assert "The claim agents couldn't be built" in round_["stopped_because"]
-    assert [e["status"] for e in round_["evaluations"]] == ["stopped"]
+    because = "RuntimeError: The claim agents couldn't be built"
+    assert (round_["status"], round_["stopped_because"]) == ("stopped", because)
+    [evaluation] = round_["evaluations"]
+    assert (evaluation["status"], evaluation["stopped_because"]) == (
+        "stopped",
+        because,
+    )
     assert model.prompts == []
-    assert agent.invoke(start_dispatch(3)).json() == ACCEPTED
+    assert new_dispatch()["status"] == "running"

@@ -24,6 +24,7 @@ from backend.tests.round_requests import (
 )
 from backend.tests.run_requests import create_evaluation, finish, get_evaluation
 from backend.tests.settings_requests import change_settings
+from backend.tests.sign_in import DANA, signed_in
 
 RECIPE_MD = (INSTRUCTIONS / "recipe.md").read_text(encoding="utf-8")
 IMPROVER_MD = (INSTRUCTIONS / "improver.md").read_text(encoding="utf-8")
@@ -60,9 +61,15 @@ def test_a_student_on_a_free_model_has_it_for_the_improver(client, monkeypatch):
 
 
 def test_one_round_is_open_at_a_time(client):
-    create_round(client)
-    refused = create_round(client)
-    assert (refused.status_code, refused.json()["detail"]) == (
+    round_id = create_round(client).json()["round_id"]
+    working = create_round(client)
+    assert (working.status_code, working.json()["detail"]) == (
+        409,
+        "Round 1 is running",
+    )
+    propose_change(client, round_id)
+    waiting = create_round(client)
+    assert (waiting.status_code, waiting.json()["detail"]) == (
         409,
         "Round 1 is open. Finish or stop it first.",
     )
@@ -142,8 +149,10 @@ def test_one_proposal_waits_at_a_time_and_a_rejection_needs_a_reason(client):
     proposal = propose_change(client, round_id).json()
     assert propose_change(client, round_id).status_code == 409
     no_reason = client.post(
-        f"{round_path(round_id)}/proposals/{proposal['proposal_id']}/review",
-        json={"review": "rejected", "handler_id": "HND-01", "reason": " "},
+        f"/api/improvement/rounds/{round_id}/proposals/{proposal['proposal_id']}"
+        "/rejection",
+        json={"reason": " "},
+        headers=signed_in(DANA),
     )
     assert no_reason.status_code == 422
     rejected = review(client, round_id, proposal["proposal_id"], "rejected").json()
@@ -241,17 +250,34 @@ def test_a_version_the_improver_never_evaluated_is_rolled_back(client):
     )
 
 
-def test_stopping_rounds_leaves_one_waiting_for_a_handler(client):
+def test_a_failed_round_is_stopped_with_its_running_evaluation(client):
     round_id = create_round(client).json()["round_id"]
-    proposal = propose_change(client, round_id).json()
-    assert client.post("/api/rounds/stop", json={"reason": "Restarted"}).json() == []
-    assert client.get(round_path(round_id)).json()["status"] == "open"
-
-    review(client, round_id, proposal["proposal_id"], "rejected")
-    stopped = client.post("/api/rounds/stop", json={"reason": "Restarted"}).json()
-    assert stopped == [round_id]
+    finished = play_out(client, round_id)
+    running = round_evaluation(client, round_id).json()
+    failure = {"reason": "RuntimeError: The improver broke"}
+    failed = client.post(f"{round_path(round_id)}/failure", json=failure)
+    assert (failed.status_code, failed.json()["status"]) == (200, "stopped")
     [listed] = improvement(client)["rounds"]
-    assert (listed["status"], listed["stopped_because"]) == ("stopped", "Restarted")
+    assert listed["stopped_because"] == "RuntimeError: The improver broke"
+    stopped = get_evaluation(client, running["run_id"])
+    assert (stopped["status"], stopped["stopped_because"]) == (
+        "stopped",
+        "RuntimeError: The improver broke",
+    )
+    assert get_evaluation(client, finished["run_id"])["status"] == "finished"
+    again = client.post(f"{round_path(round_id)}/failure", json={"reason": "Again"})
+    assert (again.status_code, again.json()["status"]) == (200, "stopped")
+    assert improvement(client)["rounds"][0]["stopped_because"] == (
+        "RuntimeError: The improver broke"
+    )
+
+
+def test_the_agent_reads_a_round_and_tells_the_app_it_is_working(client, dashboard):
+    round_id = create_round(client).json()["round_id"]
+    beat = client.post(f"{round_path(round_id)}/heartbeat")
+    assert (beat.status_code, beat.json()["round_id"]) == (200, round_id)
+    assert client.post(f"{round_path('round-9')}/heartbeat").status_code == 404
+    assert dashboard.post(f"{round_path(round_id)}/heartbeat").status_code == 401
 
 
 def test_a_versions_held_out_scores_average_only_its_rounds_finished_evaluations(

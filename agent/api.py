@@ -1,4 +1,4 @@
-"""The UnderCover backend's API for the claim agent and the agent's service: one
+"""The UnderCover backend's API for the claim agent and the agent's entry point: one
 function for each operation they use. It has no way to the scores, the settings,
 the rounds or the handlers' decisions."""
 
@@ -24,8 +24,8 @@ StepKind = Literal[
 ]
 # The context files a lookup came from, each with its system, owner and review date.
 Sources = list[dict[str, str]]
-EvaluationSet = Literal["evaluation", "held_out"]
 RunKind = Literal["dispatch", "evaluation"]
+RUNNING = "running"
 DISPATCH: RunKind = "dispatch"
 EVALUATION: RunKind = "evaluation"
 Benefit = Literal[
@@ -193,15 +193,16 @@ def record_work_time(
     return call("POST", f"/claims/{claim_id}/work-times", json=body)
 
 
-def create_dispatch(agents: int) -> dict[str, Any]:
-    return call("POST", "/runs/dispatches", json={"agents": agents})
+def get_run(run_id: str) -> dict[str, Any]:
+    return call("GET", f"/runs/{run_id}")
 
 
-def create_evaluation(
-    evaluation_set: EvaluationSet, tiny: bool, agents: int
-) -> dict[str, Any]:
-    body = {"evaluation_set": evaluation_set, "tiny": tiny, "agents": agents}
-    return call("POST", "/runs/evaluations", json=body)
+def record_run_heartbeat(run_id: str) -> dict[str, Any]:
+    return call("POST", f"/runs/{run_id}/heartbeat")
+
+
+def fail_run(run_id: str, reason: str) -> dict[str, Any]:
+    return call("POST", f"/runs/{run_id}/failure", json={"reason": reason})
 
 
 def record_run_claims(run_id: str, claim_ids: list[str]) -> dict[str, Any]:
@@ -210,7 +211,3 @@ def record_run_claims(run_id: str, claim_ids: list[str]) -> dict[str, Any]:
 
 def finish_run(run_id: str) -> dict[str, Any]:
     return call("POST", f"/runs/{run_id}/finish")
-
-
-def stop_runs() -> list[str]:
-    return call("POST", "/runs/stop")

@@ -142,8 +142,10 @@ def test_a_student_on_a_free_model_has_no_judge(client, judged, monkeypatch):
 def test_a_stopped_evaluation_isnt_graded(client, judged):
     evaluation = create_evaluation(client).json()
     decide_all_but_one(client, evaluation)
-    client.post("/api/runs/stop")
-    assert finish(client, evaluation["run_id"]).status_code == 409
+    failure = {"reason": "RuntimeError: The dispatcher broke"}
+    client.post(f"/api/runs/{evaluation['run_id']}/failure", json=failure)
+    finished = finish(client, evaluation["run_id"])
+    assert (finished.status_code, finished.json()["status"]) == (200, "stopped")
     assert (judged, count_grades()) == ([], 0)
 
 
@@ -157,6 +159,7 @@ def test_an_evaluation_stopped_while_it_is_graded_stays_stopped(client, judge_an
         return httpx.Response(200, json=answer())
 
     judge_answers(stopped_meanwhile)
-    assert finish(client, evaluation["run_id"]).status_code == 409
+    finished = finish(client, evaluation["run_id"])
+    assert (finished.status_code, finished.json()["status"]) == (200, "stopped")
     assert get_evaluation(client, evaluation["run_id"])["status"] == "stopped"
     assert count_grades() == 0

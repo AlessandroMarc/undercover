@@ -48,7 +48,7 @@ TRACE_NAME = "Improver"
 APPROVE_OR_REJECT: list[DecisionType] = ["approve", "reject"]
 
 # Works one of the round's evaluations through the dispatcher, given the run the
-# backend created for it: the service binds it to the claim agents.
+# backend created for it: the entry point binds it to the claim agents.
 Evaluate = Callable[[dict[str, Any]], None]
 Start = dict[str, Any] | Command
 

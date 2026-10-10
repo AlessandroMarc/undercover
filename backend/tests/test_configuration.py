@@ -116,6 +116,7 @@ def test_a_versions_details_hold_its_diff(client):
 def test_runs_record_the_current_version(client):
     add_version("New instructions", verdict="kept")
     dispatch = create_dispatch(client).json()
+    finish(client, dispatch["run_id"])
     evaluation = create_evaluation(client).json()
     for run in (dispatch, evaluation):
         assert (run["version"], run["round_id"]) == (2, None)
@@ -147,6 +148,22 @@ def test_a_version_after_one_rolled_back_changes_the_current_one(client):
     assert [line["kind"] for line in hunk] == ["context", "context", "added"]
 
 
+def finished_evaluation(client, tiny):
+    """Start an evaluation of the held-out set and finish it at once."""
+    evaluation = create_evaluation(client, tiny=tiny).json()
+    finish(client, evaluation["run_id"])
+    return evaluation
+
+
+def referred_evaluation(client):
+    """Start an evaluation of the held-out set's tiny claims, and refer each copy."""
+    evaluation = create_evaluation(client).json()
+    for copy in evaluation["claims"]:
+        start(client, copy["claim_id"])
+        decide(client, copy["claim_id"], "refer", 0)
+    return evaluation
+
+
 def in_a_round(client, *evaluations):
     """Make evaluations a new round's, as if it had run them."""
     into_round(create_round(client).json()["round_id"], *evaluations)
@@ -162,17 +179,18 @@ def a_held_out_decline():
 
 
 def test_a_versions_scores_average_the_whole_set_evaluations_its_rounds_ran(client):
-    first, second, scoreboard, tiny, stopped = [
-        create_evaluation(client, tiny=size).json()
-        for size in (False, False, False, True, False)
-    ]
+    first = finished_evaluation(client, tiny=False)
+    second = create_evaluation(client, tiny=False).json()
     copy = f"{a_held_out_decline()}-E{second['number']}"
     start(client, copy)
     decide(client, copy, "decline", 0)
+    finish(client, second["run_id"])
+    finished_evaluation(client, tiny=False)
+    tiny = finished_evaluation(client, tiny=True)
+    stopped = create_evaluation(client, tiny=False).json()
+    reason = {"reason": "RuntimeError: The dispatcher broke"}
+    client.post(f"/api/runs/{stopped['run_id']}/failure", json=reason)
     in_a_round(client, first, second, tiny, stopped)
-    for evaluation in (first, second, scoreboard, tiny):
-        finish(client, evaluation["run_id"])
-    client.post("/api/runs/stop")
 
     accuracies = [
         get_evaluation(client, e["run_id"])["measures"]["accuracy"]
@@ -187,18 +205,15 @@ def test_a_versions_scores_average_the_whole_set_evaluations_its_rounds_ran(clie
 def test_a_run_with_nothing_graded_leaves_the_grade_to_the_others(
     client, judge_answers
 ):
-    graded, ungraded = (create_evaluation(client).json() for _ in range(2))
-    for evaluation in (graded, ungraded):
-        for copy in evaluation["claims"]:
-            start(client, copy["claim_id"])
-            decide(client, copy["claim_id"], "refer", 0)
+    graded = referred_evaluation(client)
+    finish(client, graded["run_id"])
+    judge_answers(lambda request: httpx.Response(500, json={"error": "Down"}))
+    ungraded = referred_evaluation(client)
+    finish(client, ungraded["run_id"])
     in_a_round(client, graded, ungraded)
     # Count the five tiny claims as a whole set, to keep the test short.
     with engine().begin() as db:
         db.execute(update(runs).values(tiny=False))
-    finish(client, graded["run_id"])
-    judge_answers(lambda request: httpx.Response(500, json={"error": "Down"}))
-    finish(client, ungraded["run_id"])
 
     assert get_evaluation(client, ungraded["run_id"])["measures"]["grade"] is None
     held_out = configuration(client)["versions"][0]["scores"]["held_out"]

@@ -9,7 +9,8 @@ import logging
 import random
 import secrets
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial
 from typing import Annotated, Any, Literal
@@ -41,13 +42,9 @@ from agent.heartbeat import beating
 
 ACCEPTED = {"accepted": True}
 HEALTHY = {"healthy": True}
-# The most claim agents at once, as the backend and the dashboard also allow.
-MOST_AGENTS = 25
-A_DISPATCH = "A dispatch is running"
-AN_EVALUATION = "An evaluation is running"
-A_ROUND = "Round {number} is running"
-A_ROUND_STARTING = "A round is starting"
-RESTARTED = "The agent restarted"
+RUN_NOT_RUNNING = "Run {run_id} isn't running"
+ROUND_NOT_OPEN = "Round {number} isn't open"
+NO_REVIEW = "Proposal {proposal_id} has no review"
 NOT_PAUSED = "Claim {claim_id} isn't paused for a handler"
 NO_ANSWER = "Claim {claim_id} has no answer from a handler yet"
 NOT_READY = "The agent couldn't get ready: {error}"
@@ -59,8 +56,6 @@ NOT_AN_OBJECT = "The payload isn't a JSON object"
 log = logging.getLogger(__name__)
 
 app = BedrockAgentCoreApp()
-
-Agents = Annotated[int, Field(ge=1, le=MOST_AGENTS)]
 
 
 class Operation(BaseModel):
@@ -74,30 +69,20 @@ class Health(Operation):
     operation: Literal["health"]
 
 
-class StartDispatch(Operation):
-    operation: Literal["start_dispatch"]
-    agents: Agents
+class WorkRun(Operation):
+    operation: Literal["work_run"]
+    run_id: str
 
 
-class StartEvaluation(Operation):
-    operation: Literal["start_evaluation"]
-    agents: Agents
-    evaluation_set: api.EvaluationSet
-    tiny: bool
+class WorkRound(Operation):
+    operation: Literal["work_round"]
+    round_id: str
 
 
-class StartRound(Operation):
-    operation: Literal["start_round"]
-    handler_id: str
-
-
-class ReviewProposal(Operation):
-    operation: Literal["review_proposal"]
+class CarryRoundOn(Operation):
+    operation: Literal["carry_round_on"]
     round_id: str
     proposal_id: str
-    review: improver_api.Review
-    handler_id: str
-    reason: str
 
 
 class ResumeClaim(Operation):
@@ -106,12 +91,7 @@ class ResumeClaim(Operation):
 
 
 Payload = Annotated[
-    Health
-    | StartDispatch
-    | StartEvaluation
-    | StartRound
-    | ReviewProposal
-    | ResumeClaim,
+    Health | WorkRun | WorkRound | CarryRoundOn | ResumeClaim,
     Field(discriminator="operation"),
 ]
 PAYLOADS: TypeAdapter[Payload] = TypeAdapter(Payload)
@@ -147,17 +127,15 @@ def workers_on(pool: Pool) -> Workers:
 def get_ready() -> Workers:
     """Get ready to work. On Runtime, reseed the random numbers, which every session
     starts with from one snapshot, and fetch the credentials. Then set up the report
-    lines, check the agent's key is set, mark stopped the runs and rounds an earlier
-    process left running, and open the checkpoint pool. Raise a 503 that says what
-    went wrong, so the next request tries again."""
+    lines, check the agent's key is set, and open the checkpoint pool. It stops no
+    work: the app keeps track of that. Raise a 503 that says what went wrong, so
+    the next request tries again."""
     try:
         if identity.on_runtime():
             random.seed()
             identity.fetch_credentials()
         show_reports()
         api_key()
-        api.stop_runs()
-        improver_api.stop_rounds(RESTARTED)
         return workers_on(open_checkpoint_pool())
     except Exception as error:  # any failure leaves the agent to get ready again
         raise HTTPException(503, NOT_READY.format(error=describe(error))) from error
@@ -218,35 +196,6 @@ def check_key(context: RequestContext) -> None:
         raise HTTPException(401, NEEDS_THE_KEY)
 
 
-class OneAtATime:
-    """The one dispatch, evaluation or stretch of a round the agent works at a time,
-    and what it is, which a refusal names."""
-
-    def __init__(self) -> None:
-        self.guard = threading.Lock()
-        self.what: str | None = None
-
-    def take(self, what: str) -> None:
-        """Take the one thing at a time for some work, or refuse, naming what is
-        running."""
-        with self.guard:
-            if self.what is not None:
-                raise Refusal(self.what)
-            self.what = what
-
-    def rename(self, what: str) -> None:
-        """Say better what is running, once it is known."""
-        with self.guard:
-            self.what = what
-
-    def release(self) -> None:
-        with self.guard:
-            self.what = None
-
-
-one_at_a_time = OneAtATime()
-
-
 def in_background(name: str, work: Callable[[], object]) -> None:
     """Register the work with the AgentCore app, so its /ping says HealthyBusy
     until the work ends, however it ends, and run it on a thread of its own."""
@@ -274,22 +223,19 @@ def evaluate(run: dict[str, Any], claim_agents: ClaimAgents) -> None:
     work_run(run, claim_work(run, claim_agents))
 
 
-def work_in_background(
-    create: Callable[[], dict[str, Any]], claim_agents: ClaimAgents
-) -> None:
-    """Create a run and work it, then let the next work start. A run whose
-    dispatcher fails is marked stopped."""
+def work_the_run(run: dict[str, Any], claim_agents: ClaimAgents) -> None:
+    """Work a run the app created, telling the app every minute. A run whose
+    dispatcher fails is stopped by its id, with the error."""
+    run_id = run["run_id"]
     try:
-        run = create()
-        work_run(run, claim_work(run, claim_agents))
+        with beating(partial(api.record_run_heartbeat, run_id)):
+            work_run(run, claim_work(run, claim_agents))
     except ConnectionError as error:  # a route's server isn't answering
         log.error("The run stopped: %s", error)
-        api.stop_runs()
-    except Exception:
+        api.fail_run(run_id, describe(error))
+    except Exception as error:
         log.exception("The run stopped")
-        api.stop_runs()
-    finally:
-        one_at_a_time.release()
+        api.fail_run(run_id, describe(error))
 
 
 def first_evaluations(round: dict[str, Any], workers: Workers) -> bool:
@@ -331,43 +277,32 @@ def stretch(round: dict[str, Any], start: improver.Start, workers: Workers) -> N
         improver_api.finish_round(round["round_id"])
 
 
-def stop_the_round(error: Exception) -> None:
-    """Stop a round whose work failed, giving the error as the reason, and an
-    evaluation it left running."""
-    log.exception("The round stopped")
-    api.stop_runs()
-    improver_api.stop_rounds(describe(error))
+@contextmanager
+def working_on(round: dict[str, Any]) -> Iterator[None]:
+    """Tell the app every minute while the round's work goes on, which covers the
+    evaluation it is working, and stop the round with that evaluation, giving the
+    error as the reason, when the work fails."""
+    try:
+        with beating(partial(improver_api.record_round_heartbeat, round["round_id"])):
+            yield
+    except Exception as error:  # the round stops, and nothing else
+        log.exception("The round stopped")
+        improver_api.fail_round(round["round_id"], describe(error))
 
 
-def work_round(handler_id: str, workers: Workers) -> None:
-    """Create a round, work its first evaluations, then the improver's first
-    stretch, and let the next work start."""
-    try:
-        round = improver_api.create_round(handler_id)
-    except Exception:  # no round to stop, so the next work may start
-        log.exception("The round didn't start")
-        one_at_a_time.release()
-        return
-    one_at_a_time.rename(A_ROUND.format(number=round["number"]))
-    try:
+def work_the_round(round: dict[str, Any], workers: Workers) -> None:
+    """Work a round's first evaluations, then the improver's first stretch."""
+    with working_on(round):
         if first_evaluations(round, workers):
             stretch(round, improver.begin(), workers)
-    except Exception as error:
-        stop_the_round(error)
-    finally:
-        one_at_a_time.release()
 
 
 def carry_the_round_on(
     round: dict[str, Any], start: improver.Start, workers: Workers
 ) -> None:
-    """Carry the improver on after a handler's review, and let the next work start."""
-    try:
+    """Carry the improver on after a handler's review."""
+    with working_on(round):
         stretch(round, start, workers)
-    except Exception as error:
-        stop_the_round(error)
-    finally:
-        one_at_a_time.release()
 
 
 def resume_telling_the_app(claim_id: str, agent: ClaimAgent) -> None:
@@ -377,47 +312,37 @@ def resume_telling_the_app(claim_id: str, agent: ClaimAgent) -> None:
         resume(claim_id, agent)
 
 
-def start_dispatch(request: StartDispatch, workers: Workers) -> None:
-    """Start a dispatch with up to N claim agents at once."""
-    one_at_a_time.take(A_DISPATCH)
-    create = partial(api.create_dispatch, request.agents)
-    in_background("dispatch", partial(work_in_background, create, workers.claim_agents))
+def open_round(round_id: str) -> dict[str, Any]:
+    """Read a round the app made, or refuse one that isn't open."""
+    round = improver_api.get_round(round_id)
+    if round["status"] != improver_api.OPEN:
+        raise Refusal(ROUND_NOT_OPEN.format(number=round["number"]))
+    return round
 
 
-def start_evaluation(request: StartEvaluation, workers: Workers) -> None:
-    """Start an evaluation with up to N claim agents at once."""
-    one_at_a_time.take(AN_EVALUATION)
-    create = partial(
-        api.create_evaluation, request.evaluation_set, request.tiny, request.agents
-    )
-    in_background(
-        "evaluation", partial(work_in_background, create, workers.claim_agents)
-    )
+def take_run(request: WorkRun, workers: Workers) -> None:
+    """Work a dispatch or an evaluation the app created, refusing one that isn't
+    running."""
+    run = api.get_run(request.run_id)
+    if run["status"] != api.RUNNING:
+        raise Refusal(RUN_NOT_RUNNING.format(run_id=request.run_id))
+    in_background("run", partial(work_the_run, run, workers.claim_agents))
 
 
-def start_round(request: StartRound, workers: Workers) -> None:
-    """Start a round of the improver for the handler who asked."""
-    one_at_a_time.take(A_ROUND_STARTING)
-    in_background("round", partial(work_round, request.handler_id, workers))
+def take_round(request: WorkRound, workers: Workers) -> None:
+    """Work a round the app created: its first evaluations, then the improver
+    until it waits for a handler or ends."""
+    round = open_round(request.round_id)
+    in_background("round", partial(work_the_round, round, workers))
 
 
-def review_proposal(request: ReviewProposal, workers: Workers) -> None:
-    """Record a handler's review of a proposal, then carry the improver on."""
-    one_at_a_time.take(A_ROUND_STARTING)
-    try:
-        round = improver_api.get_round(request.round_id)
-        one_at_a_time.rename(A_ROUND.format(number=round["number"]))
-        improver_api.record_review(
-            request.round_id,
-            request.proposal_id,
-            request.review,
-            request.handler_id,
-            request.reason,
-        )
-    except Exception:  # nothing to carry on, so the next work may start
-        one_at_a_time.release()
-        raise
-    start = improver.resume(request.review, request.reason)
+def carry_round_on(request: CarryRoundOn, workers: Workers) -> None:
+    """Carry a round on with the improver after the review the app recorded."""
+    round = open_round(request.round_id)
+    proposal = improver_api.get_proposal(request.round_id, request.proposal_id)
+    if proposal["review"] is None:
+        raise Refusal(NO_REVIEW.format(proposal_id=request.proposal_id))
+    start = improver.resume(proposal["review"], proposal["rejection_reason"] or "")
     in_background("round", partial(carry_the_round_on, round, start, workers))
 
 
@@ -442,14 +367,12 @@ def start(request: Payload, workers: Workers) -> dict[str, Any]:
     match request:
         case Health():
             return HEALTHY
-        case StartDispatch():
-            start_dispatch(request, workers)
-        case StartEvaluation():
-            start_evaluation(request, workers)
-        case StartRound():
-            start_round(request, workers)
-        case ReviewProposal():
-            review_proposal(request, workers)
+        case WorkRun():
+            take_run(request, workers)
+        case WorkRound():
+            take_round(request, workers)
+        case CarryRoundOn():
+            carry_round_on(request, workers)
         case ResumeClaim():
             resume_claim(request, workers)
     return ACCEPTED
