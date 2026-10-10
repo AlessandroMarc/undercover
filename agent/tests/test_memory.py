@@ -9,7 +9,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import api, harness, memory
+from agent import agentcore_memory, api, checkpoints, harness, memory
 from agent.memory import MEMORY_ID
 from agent.tests.dispatching import new_dispatch
 from agent.tests.failures import fail_once
@@ -150,7 +150,7 @@ def test_with_no_memory_or_in_an_evaluation_there_is_nothing_to_remember(
     monkeypatch.setattr(harness, "PostgresSaver", lambda pool: InMemorySaver())
     monkeypatch.setattr(memory, "memory_store", MemoryStandIn)
     version = api.get_current_version()
-    no_pool = cast(harness.Pool, None)
+    no_pool = cast(checkpoints.Pool, None)
     evaluation = harness.claim_graphs(version, api.EVALUATION, no_pool)()
     assert harness.REMEMBER not in evaluation.graph.nodes
     assert "search_memory" not in tools_of(evaluation)
@@ -182,12 +182,12 @@ def test_the_memory_is_read_when_the_claim_agents_are_built(monkeypatch):
         made.append(settings)
         return MemoryStandIn()
 
-    monkeypatch.setattr(memory, "AgentCoreMemoryStore", recorder)
+    monkeypatch.setattr(agentcore_memory, "AgentCoreMemoryStore", recorder)
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("AWS_DEFAULT_REGION", "eu-west-2")
     monkeypatch.setattr(harness, "PostgresSaver", lambda pool: InMemorySaver())
     version = api.get_current_version()
-    no_pool = cast(harness.Pool, None)
+    no_pool = cast(checkpoints.Pool, None)
     without = harness.claim_graphs(version, None, no_pool)()
     assert harness.REMEMBER not in without.graph.nodes
     monkeypatch.setenv(MEMORY_ID, "undercover_memory-abc")

@@ -8,7 +8,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from psycopg_pool import PoolTimeout
 
 from agent import __main__ as cli
-from agent import harness
+from agent import checkpoints, harness
 from agent.connection import Refused
 from agent.tests.records import claim_of
 from agent.tests.stubs import agent_on, approve, passes, stub
@@ -64,12 +64,13 @@ def fakes(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@pooler.example.com/db")
     monkeypatch.setattr(FakePool, "opened", [])
     monkeypatch.setattr(FakeSaver, "made", [])
-    monkeypatch.setattr(harness, "ConnectionPool", FakePool)
+    monkeypatch.setattr(checkpoints, "ConnectionPool", FakePool)
+    monkeypatch.setattr(checkpoints, "PostgresSaver", FakeSaver)
     monkeypatch.setattr(harness, "PostgresSaver", FakeSaver)
 
 
 def test_the_checkpoint_pool_settings(fakes):
-    with harness.checkpoint_pool():
+    with checkpoints.checkpoint_pool():
         [pool] = FakePool.opened
         assert pool.conninfo == "postgresql://u:p@pooler.example.com/db"
         assert (pool.settings["min_size"], pool.settings["max_size"]) == (1, 4)
@@ -77,7 +78,7 @@ def test_the_checkpoint_pool_settings(fakes):
         kwargs = pool.settings["kwargs"]
         assert (kwargs["autocommit"], kwargs["prepare_threshold"]) == (True, None)
         assert pool.settings["open"] is True
-        assert kwargs["row_factory"] is harness.dict_row
+        assert kwargs["row_factory"] is checkpoints.dict_row
         assert kwargs["options"] == "-c search_path=undercover"
         assert "undercover" in repr(pool.statements[0])
         [saver] = FakeSaver.made
@@ -86,10 +87,10 @@ def test_the_checkpoint_pool_settings(fakes):
 
 def test_a_pool_that_cant_reach_the_database_gives_up_as_it_opens(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@127.0.0.1:1/db")
-    monkeypatch.setattr(harness, "OPEN_WAIT", 0.5)
+    monkeypatch.setattr(checkpoints, "OPEN_WAIT", 0.5)
     began = time.monotonic()
     with pytest.raises(PoolTimeout):
-        harness.open_checkpoint_pool()
+        checkpoints.open_checkpoint_pool()
     assert time.monotonic() - began < 3
 
 
@@ -109,7 +110,7 @@ def test_each_claim_graph_has_a_saver_of_its_own(fakes, monkeypatch):
         built.append((llm, screener, saver, instructions, traits.pauses))
 
     monkeypatch.setattr(harness, "claim_graph", claim_graph)
-    with harness.checkpoint_pool() as pool:
+    with checkpoints.checkpoint_pool() as pool:
         new_agent = harness.claim_graphs(VERSION, None, pool)
         new_agent()
         new_agent()
@@ -166,7 +167,7 @@ def test_only_an_evaluations_claim_graphs_dont_pause(fakes, monkeypatch, kind, p
     monkeypatch.setattr(
         harness, "claim_graph", lambda *args: built.append(args[4].pauses)
     )
-    with harness.checkpoint_pool() as pool:
+    with checkpoints.checkpoint_pool() as pool:
         harness.claim_graphs(VERSION, kind, pool)()
     assert built == [pauses]
 

@@ -10,7 +10,9 @@ from langchain_core.callbacks import BaseCallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import connection, dispatcher, entrypoint, harness, improver, work
+from agent.copilot import turns
 from agent.direct import CONTEXT_URL
+from agent.tests.copilot_driver import Copilot
 from agent.tests.gateway_stand_in import GatewayStandIn
 from agent.tests.invoking import HEALTH, Agent
 from agent.tests.local_server import serving
@@ -190,3 +192,12 @@ def gateway(gateway_server):
     """The stand-in Gateway, with nothing called or refused yet in this test."""
     gateway_server.reset()
     return gateway_server
+
+
+@pytest.fixture
+def copilot(dashboard, copilot_calls, monkeypatch):
+    """The Copilot as the tests drive it, through the app, on the model each test
+    gives it, saving its state in memory."""
+    driver = Copilot(dashboard, copilot_calls)
+    monkeypatch.setattr(turns, "copilot_model", driver.model_for)
+    return driver

@@ -1,27 +1,22 @@
-"""The claim agent's tools, the app's operations and the context layer's tools it
-calls on its route and the search of its memory, and the context and state they
-read."""
+"""The claim agent's tools, the app's operations it calls on its route, the context
+layer's lookups both agents have, and the search of its memory, and the context and
+state they read."""
 
 import operator
 from dataclasses import dataclass
-from typing import Annotated, Any, Literal, TypedDict, cast
+from typing import Annotated, Any, TypedDict, cast
 
 from langchain.tools import BaseTool, ToolException, ToolRuntime, tool
 from langchain_core.messages import AnyMessage, ToolMessage
 from langgraph.graph.message import add_messages
 from langgraph.store.base import BaseStore
 from langgraph.types import Command
-from pydantic import StringConstraints
 
 from agent import api, memory
+from agent.agentcore_memory import UNREACHABLE
+from agent.context_tools import CONTEXT_TOOLS, Query
 from agent.json_text import as_json
 from agent.routes import Route, Target
-
-# A search needs a word or phrase to look for.
-Query = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-DocumentName = Literal["policy_wording", "claims_manual"]
-RecordName = Literal["claim", "policy", "previous_claim"]
-PlanName = Literal["economy", "premium", "first"]
 
 
 @dataclass
@@ -72,22 +67,9 @@ def on_app(runtime: ToolRuntime[ClaimContext], operation: str, **inputs: Any) ->
     return runtime.context.route.call(Target.APP, operation, inputs)
 
 
-def on_context(
-    runtime: ToolRuntime[ClaimContext], operation: str, **inputs: Any
-) -> Any:
-    """Call one of the context layer's tools on the claim agent's route."""
-    return runtime.context.route.call(Target.CONTEXT, operation, inputs)
-
-
 # A step a tool gives as its artifact, which the harness records on the claim: its
 # kind, its content and the context files it came from.
 Step = tuple[api.StepKind, str, api.Sources]
-
-
-def looked_up(answer: dict[str, Any], what: str) -> tuple[str, Step]:
-    """A context layer's answer for the model, and a lookup step that says what
-    was looked up and the files the answer came from."""
-    return as_json(answer), ("lookup", what, answer["sources"])
 
 
 @tool
@@ -113,62 +95,6 @@ def get_claim_history(runtime: ToolRuntime[ClaimContext]) -> str:
 
 
 @tool(response_format="content_and_artifact")
-def lookup_term(term: str, runtime: ToolRuntime[ClaimContext]) -> tuple[str, Step]:
-    """Look up a term the policy wording defines: its definition and sections."""
-    answer = on_context(runtime, "lookup_term", term=term)
-    return looked_up(answer, f'Term "{term}"')
-
-
-@tool(response_format="content_and_artifact")
-def describe_fields(
-    record: RecordName, runtime: ToolRuntime[ClaimContext]
-) -> tuple[str, Step]:
-    """Describe a record you read and the meaning of each of its fields."""
-    answer = on_context(runtime, "describe_fields", record=record)
-    return looked_up(answer, f"Fields of a {record.replace('_', ' ')}")
-
-
-@tool(response_format="content_and_artifact")
-def get_plan(plan: PlanName, runtime: ToolRuntime[ClaimContext]) -> tuple[str, Step]:
-    """Get a plan's limits, waiting periods, deductible and the add-ons."""
-    return looked_up(on_context(runtime, "get_plan", plan=plan), f"Plan: {plan}")
-
-
-@tool(response_format="content_and_artifact")
-def get_claim_rules(runtime: ToolRuntime[ClaimContext]) -> tuple[str, Step]:
-    """Get the rules claims operations applies to every claim."""
-    return looked_up(on_context(runtime, "get_claim_rules"), "The claim rules")
-
-
-@tool(response_format="content_and_artifact")
-def search_reference_data(
-    query: Query, runtime: ToolRuntime[ClaimContext]
-) -> tuple[str, Step]:
-    """Find outside facts, such as storms, strikes and prices, with every word."""
-    answer = on_context(runtime, "search_reference_data", query=query)
-    return looked_up(answer, f'Reference data: "{query}"')
-
-
-@tool(response_format="content_and_artifact")
-def search_documents(
-    query: Query, runtime: ToolRuntime[ClaimContext]
-) -> tuple[str, Step]:
-    """Find the sections of the wording and the manual containing one word or phrase."""
-    answer = on_context(runtime, "search_documents", query=query)
-    return looked_up(answer, f'Documents: "{query}"')
-
-
-@tool(response_format="content_and_artifact")
-def read_section(
-    document: DocumentName, number: int, runtime: ToolRuntime[ClaimContext]
-) -> tuple[str, Step]:
-    """Read one section of the policy wording or the claims manual in full."""
-    section = on_context(runtime, "read_section", document=document, number=number)
-    read = f"{section['document_title']}, section {number}: {section['title']}"
-    return looked_up(section, read)
-
-
-@tool(response_format="content_and_artifact")
 def search_memory(query: Query, runtime: ToolRuntime[ClaimContext]) -> tuple[str, Step]:
     """Search what we remember about this claim's customer from their earlier claims."""
     context = runtime.context
@@ -179,7 +105,7 @@ def search_memory(query: Query, runtime: ToolRuntime[ClaimContext]) -> tuple[str
             context.claim_id,
             query,
         )
-    except memory.UNREACHABLE as error:
+    except UNREACHABLE as error:
         raise ToolException(f"The memory can't be reached. {error}") from error
     return as_json(found), ("memory_search", what_was_found(query, found), [])
 
@@ -250,15 +176,6 @@ APP_TOOLS = [
     get_claim_history,
     calculate_payout,
     record_decision,
-]
-CONTEXT_TOOLS = [
-    lookup_term,
-    describe_fields,
-    get_plan,
-    get_claim_rules,
-    search_reference_data,
-    search_documents,
-    read_section,
 ]
 CLAIM_TOOLS = APP_TOOLS + CONTEXT_TOOLS
 

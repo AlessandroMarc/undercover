@@ -5,11 +5,10 @@ and a search of one customer's memories."""
 import os
 from typing import Any
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.store.base import BaseStore
-from langgraph_checkpoint_aws import AgentCoreMemoryStore
+
+from agent.agentcore_memory import store_at
 
 MEMORY_ID = "UNDERCOVER_MEMORY_ID"
 # Every memory of a customer is under /customers/<customer>, and the summary of
@@ -17,18 +16,13 @@ MEMORY_ID = "UNDERCOVER_MEMORY_ID"
 CUSTOMERS = "customers"
 CLAIM_SUMMARY = f"/{CUSTOMERS}/{{customer_id}}/claims/{{claim_id}}/"
 MOST_FOUND = 5
-# What AgentCore Memory raises when it can't be reached or refuses a call.
-UNREACHABLE = (BotoCoreError, ClientError)
 
 
 def memory_store() -> BaseStore | None:
     """AgentCore Memory at UNDERCOVER_MEMORY_ID, read now, in the AWS CLI's region,
     or None when it isn't set."""
     memory_id = os.getenv(MEMORY_ID)
-    if not memory_id:
-        return None
-    region = boto3.Session().region_name
-    return AgentCoreMemoryStore(memory_id=memory_id, region_name=region)
+    return store_at(memory_id) if memory_id else None
 
 
 def what_was_claimed(claim: dict[str, Any]) -> str:

@@ -6,9 +6,10 @@ import sys
 from dotenv import load_dotenv
 
 from agent import api
+from agent.checkpoints import checkpoint_pool
 from agent.connection import Refused
 from agent.console import show_reports
-from agent.harness import checkpoint_pool, claim_graphs, work_claim
+from agent.harness import claim_graphs, work_claim
 
 
 def main(args: list[str]) -> None:

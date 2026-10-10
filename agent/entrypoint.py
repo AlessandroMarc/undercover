@@ -19,15 +19,11 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 from starlette.exceptions import HTTPException
 
 from agent import api, identity, improver, improver_api
+from agent.checkpoints import Pool, open_checkpoint_pool
 from agent.connection import Refused, api_key
 from agent.console import describe, show_reports
 from agent.handler_answer import SENT_BACK, answer_of
-from agent.harness import (
-    Pool,
-    claim_graphs,
-    open_checkpoint_pool,
-    paused,
-)
+from agent.harness import claim_graphs, paused
 from agent.work import (
     Workers,
     carry_the_round_on,

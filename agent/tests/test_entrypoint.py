@@ -15,7 +15,16 @@ from typing import cast
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import api, entrypoint, harness, heartbeat, identity, improver_api, work
+from agent import (
+    api,
+    checkpoints,
+    entrypoint,
+    harness,
+    heartbeat,
+    identity,
+    improver_api,
+    work,
+)
 from agent.tests.dispatching import (
     new_dispatch,
     new_evaluation,
@@ -412,7 +421,7 @@ def test_a_run_keeps_its_version_when_another_is_kept_meanwhile(client, serve):
 
 
 def test_the_workers_are_built_on_the_processs_pool(monkeypatch):
-    pool = cast(harness.Pool, object())
+    pool = cast(checkpoints.Pool, object())
     monkeypatch.setattr(
         entrypoint, "claim_graphs", lambda version, kind, pool: (version, kind, pool)
     )
