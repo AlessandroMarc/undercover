@@ -5,6 +5,7 @@ import {
   Inbox,
   type LucideIcon,
   Signature,
+  Undo2,
 } from "lucide-react";
 import { api, type Status, statuses } from "../api";
 import { DecisionChip, StatusChip } from "../components/Chips";
@@ -20,6 +21,7 @@ const STATUS_ICONS: Record<Status, LucideIcon> = {
   waiting: Inbox,
   in_progress: Bot,
   waiting_for_sign_off: Signature,
+  sent_back: Undo2,
   decided: CircleCheck,
   left_for_handler: Flag,
 };

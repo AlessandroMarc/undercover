@@ -5,6 +5,7 @@ import logging
 import operator
 from collections.abc import Callable
 from dataclasses import dataclass
+from http import HTTPStatus
 from typing import Annotated, Any, TypedDict, cast
 
 from langchain_core.runnables import RunnableConfig
@@ -14,6 +15,7 @@ from langgraph.runtime import ExecutionInfo, Runtime
 from langgraph.types import RetryPolicy, Send
 
 from agent import api, harness
+from agent.connection import Refused
 from agent.console import describe
 from agent.root_run import as_root_run
 
@@ -22,7 +24,8 @@ log = logging.getLogger(__name__)
 LIST_CLAIMS = "list_claims"
 WORK_CLAIM = "work_claim"
 FINISH_RUN = "finish_run"
-TO_WORK = (api.Status.IN_PROGRESS, api.Status.WAITING)
+TO_WORK = (api.Status.IN_PROGRESS, api.Status.WAITING, api.Status.SENT_BACK)
+TAKEN_BY_A_RESUME = "{claim_id}  taken by a resume"
 
 # A rate limit or a timeout waits about 10 seconds, then about 20, on top of the
 # model client's own retries, and carries the claim on from its last saved step.
@@ -64,15 +67,38 @@ Dispatcher = CompiledStateGraph[Dispatch, DispatchContext, Any, Any]
 
 def list_claims(state: Dispatch, runtime: Runtime[DispatchContext]) -> dict[str, Any]:
     """Choose the claims to work: an evaluation's copies, which the backend made, or
-    the queue's claims in progress and waiting, oldest submitted first, which the
-    dispatch records."""
+    the queue's claims in progress, waiting and sent back, oldest submitted first,
+    which the dispatch records. It leaves out a claim a resume is working on, and
+    takes each sent-back claim as it lists it, so a resume can't take it
+    afterwards; one a resume took first is reported and left out."""
     run = runtime.context.run
     if run["kind"] == api.EVALUATION:
         return {"claims": [claim["claim_id"] for claim in run["claims"]]}
     queue = sorted(api.list_claims(), key=lambda c: (c["submitted_on"], c["claim_id"]))
-    claims = [c["claim_id"] for c in queue if c["status"] in TO_WORK]
+    claims, reports = [], []
+    for claim in queue:
+        if claim["status"] not in TO_WORK or claim["resuming"]:
+            continue
+        claim_id = claim["claim_id"]
+        if claim["status"] == api.Status.SENT_BACK and not took(claim_id, run):
+            reports.append(TAKEN_BY_A_RESUME.format(claim_id=claim_id))
+        else:
+            claims.append(claim_id)
     api.record_run_claims(run["run_id"], claims)
-    return {"claims": claims}
+    return {"claims": claims, "reports": reports}
+
+
+def took(claim_id: str, run: dict[str, Any]) -> bool:
+    """Take a sent-back claim for the run, and say whether the run got it rather
+    than a resume."""
+    try:
+        api.take_claim(claim_id, run["run_id"])
+    except Refused as refusal:
+        if refusal.status_code != HTTPStatus.CONFLICT:
+            raise
+        log.info(TAKEN_BY_A_RESUME.format(claim_id=claim_id))
+        return False
+    return True
 
 
 def fan_out(state: Dispatch) -> list[Send] | str:

@@ -134,6 +134,14 @@ export async function payClaim(
 export const failClaim = (request: Request, claimId: string, reason: string) =>
   send(request, "POST", `${claimPath(claimId)}/failure`, { reason });
 
+// Takes a sent-back claim back into work, for a dispatch's run or, with none,
+// for a resume.
+export const takeClaim = (
+  request: Request,
+  claimId: string,
+  runId: string | null,
+) => send(request, "POST", `${claimPath(claimId)}/take`, { run_id: runId });
+
 export const recordModelCall = (
   request: Request,
   claimId: string,

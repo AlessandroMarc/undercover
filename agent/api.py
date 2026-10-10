@@ -45,6 +45,7 @@ class Status(StrEnum):
     WAITING = "waiting"
     IN_PROGRESS = "in_progress"
     WAITING_FOR_SIGN_OFF = "waiting_for_sign_off"
+    SENT_BACK = "sent_back"
     DECIDED = "decided"
     LEFT_FOR_HANDLER = "left_for_handler"
 
@@ -159,6 +160,14 @@ def hold_payment(claim_id: str, reason: str) -> dict[str, Any]:
 
 def fail_claim(claim_id: str, reason: str) -> dict[str, Any]:
     return call("POST", f"/claims/{claim_id}/failure", json={"reason": reason})
+
+
+def take_claim(claim_id: str, run_id: str | None) -> dict[str, Any]:
+    return call("POST", f"/claims/{claim_id}/take", json={"run_id": run_id})
+
+
+def record_claim_heartbeat(claim_id: str) -> dict[str, Any]:
+    return call("POST", f"/claims/{claim_id}/heartbeat")
 
 
 def record_model_call(

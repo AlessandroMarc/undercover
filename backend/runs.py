@@ -86,7 +86,7 @@ NOT_GRADED = {
 }
 FIRST_EVALUATIONS_CUT_SHORT = "The spending limit cut short its first evaluations"
 # Claims a dispatch left that the next one picks up.
-UNFINISHED = {Status.IN_PROGRESS, Status.WAITING}
+UNFINISHED = {Status.IN_PROGRESS, Status.WAITING, Status.SENT_BACK}
 
 router = APIRouter()
 

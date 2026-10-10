@@ -56,10 +56,15 @@ class ClaimState(TypedDict):
     status: Annotated[str, keep_last]
 
 
+# What the claim agent never reads of a claim: the decisions handlers sent back,
+# whose notes reach its model only as a handler's message.
+UNREAD = "sent_back_decisions"
+
+
 def claim_as_read(claim: dict[str, Any]) -> str:
     """A claim in full, as the claim agent reads it, which is also what the check for
     hidden instructions reads."""
-    return as_json(claim)
+    return as_json({field: value for field, value in claim.items() if field != UNREAD})
 
 
 def on_app(runtime: ToolRuntime[ClaimContext], operation: str, **inputs: Any) -> Any:
@@ -230,7 +235,7 @@ def record_decision(
         reason=reason,
         decided_by=runtime.context.decided_by,
     )
-    message = ToolMessage(as_json(claim), tool_call_id=runtime.tool_call_id)
+    message = ToolMessage(claim_as_read(claim), tool_call_id=runtime.tool_call_id)
     update = {
         "messages": [message],
         "decision": claim["decision"],

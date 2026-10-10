@@ -301,11 +301,29 @@ def after_pay(state: ClaimState) -> str:
     return HELD if state["status"] == api.Status.WAITING_FOR_SIGN_OFF else END
 
 
-def wait_for_handler(state: ClaimState, runtime: Runtime[ClaimContext]) -> None:
+def wait_for_handler(
+    state: ClaimState, runtime: Runtime[ClaimContext]
+) -> dict[str, Any]:
     """Pause the claim's work until a handler answers its held approval. A resume
     runs this node again from the top, so nothing goes before the interrupt. A
-    sign-off has already paid the claim, so the work then ends."""
-    interrupt({"claim_id": runtime.context.claim_id})
+    sign-off has already paid the claim, so the work then ends. A send back forgets
+    the decision, so nothing can pay it, gives the claim agent its full allowance
+    of model calls again and hands the model the note."""
+    answer = interrupt({"claim_id": runtime.context.claim_id})
+    if answer["answer"] != handler_answer.SENT_BACK:
+        return {}
+    return {
+        "decision": {},
+        "status": "",
+        # The model calls add up, so this takes away the ones made so far.
+        "model_calls": -state["model_calls"],
+        "messages": [handler_answer.note_message(answer)],
+    }
+
+
+def after_handler(state: ClaimState) -> str:
+    """Hand a decision sent back to the model, or end the work after a sign-off."""
+    return END if state["decision"] else AGENT
 
 
 def remember(state: ClaimState, runtime: Runtime[ClaimContext]) -> None:
@@ -382,7 +400,9 @@ def claim_graph(
     builder.add_conditional_edges(PAY, after_pay, {HELD: held, END: decided})
     if traits.pauses:
         builder.add_node(WAIT_FOR_HANDLER, wait_for_handler)
-        builder.add_edge(WAIT_FOR_HANDLER, decided)
+        builder.add_conditional_edges(
+            WAIT_FOR_HANDLER, after_handler, {AGENT: AGENT, END: decided}
+        )
     if remembers:
         builder.add_node(REMEMBER, remember)
         builder.add_edge(REMEMBER, END)
@@ -563,13 +583,19 @@ def carry_on(
     claim_id: str, run_id: str | None, agent: ClaimAgent, tags: Tags = ()
 ) -> str:
     """Carry a claim in progress on from its saved progress, as the same attempt, and
-    report how it ended. One with nothing saved, stopped before its first step,
-    starts on its own thread; any other carries on, finishing a step whose writes
-    were saved. A claim whose work has ended has nothing left to run."""
+    report how it ended. One whose next step is the pause resumes with its
+    handler's answer, whether the pause has run or not: LangGraph keeps an answer
+    given before the pause for the pause to return at once. One with nothing
+    saved, stopped before its first step, starts on its own thread; any other
+    carries on, finishing a step whose writes were saved. A claim whose work has
+    ended has nothing left to run."""
     claim = api.get_claim(claim_id)
     saved = agent.graph.get_state(thread_of(claim))
+    answer = handler_answer.answer_of(claim)
     start: Start = None
-    if saved.created_at is None and claim["decision"] is None:
+    if saved.next == (WAIT_FOR_HANDLER,) and answer:
+        start = Command(resume=answer)
+    elif saved.created_at is None and claim["decision"] is None:
         start = begin(claim_id)
     config = claim_config(claim, CARRY_ON, run_id, tags)
     return work_on(claim, start, config, run_id, agent)
@@ -596,8 +622,9 @@ def work_in_run(
     claim_id: str, run_id: str, new_agent: NewAgent, tags: Tags = ()
 ) -> str:
     """Work one claim in a run with a claim agent of its own, carrying it on if it
-    is in progress or starting it if it is waiting, and report how it ended, with
-    any tags for its trace beside the run's."""
+    is in progress, as a sent-back claim the run took is, or starting it if it is
+    waiting, and report how it ended, with any tags for its trace beside the
+    run's."""
     agent = new_agent()
     if api.get_claim(claim_id)["status"] == api.Status.IN_PROGRESS:
         return carry_on(claim_id, run_id, agent, tags)

@@ -1,4 +1,4 @@
-import { ApiError } from "../api";
+import { ApiError } from "../refusals";
 
 export const TRY_AGAIN = "Reload the page to try again.";
 

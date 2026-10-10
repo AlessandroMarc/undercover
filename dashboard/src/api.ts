@@ -1,9 +1,11 @@
 import { accessToken } from "./auth";
+import { ApiError, reasonFor } from "./refusals";
 
 export const statuses = [
   "waiting",
   "in_progress",
   "waiting_for_sign_off",
+  "sent_back",
   "decided",
   "left_for_handler",
 ] as const;
@@ -18,7 +20,9 @@ export type StepKind =
   | "memory_search"
   | "memory_save"
   | "refusal"
-  | "error";
+  | "error"
+  // A handler's note on a decision sent back, which only the app records.
+  | "sent_back";
 
 // A context file a lookup came from, with that file's source.
 export interface Source {
@@ -38,6 +42,8 @@ export interface ClaimSummary {
   status: Status;
   decision: DecisionKind | null;
   payout: number | null;
+  // A resume is working on the claim, so a dispatch leaves it alone.
+  resuming: boolean;
 }
 
 export interface Item {
@@ -63,7 +69,8 @@ export interface Calculation {
   payout: number;
 }
 
-export interface Decision {
+// A decision as claims manual section 14 records it.
+export interface DecisionRecord {
   decision: DecisionKind;
   payout: number;
   // None for a decline or a referral.
@@ -74,10 +81,13 @@ export interface Decision {
   decided_at: string;
   // The claims manual's version in force when the decision was made.
   manual_version: string;
-  signed_off_by: string | null;
-  signed_off_at: string | null;
   // Why the Gateway refused to pay the approval, which then waits for sign-off.
   gateway_refusal: string | null;
+}
+
+export interface Decision extends DecisionRecord {
+  signed_off_by: string | null;
+  signed_off_at: string | null;
 }
 
 export interface Payment {
@@ -85,6 +95,16 @@ export interface Payment {
   paid_at: string;
   signed_off_by: string | null;
   signed_off_at: string | null;
+}
+
+// The longest note a handler can send a decision back with.
+export const NOTE_LENGTH = 1000;
+
+// A decision a senior handler sent back to the agent, with their note.
+export interface SentBackDecision extends DecisionRecord {
+  note: string;
+  sent_back_by: string;
+  sent_back_at: string;
 }
 
 export interface Claim {
@@ -109,6 +129,8 @@ export interface Claim {
   copy_of: string | null;
   decision: Decision | null;
   payment: Payment | null;
+  // Oldest first.
+  sent_back_decisions: SentBackDecision[];
 }
 
 export interface Policy {
@@ -453,46 +475,6 @@ export interface Improvement {
   recipes: RecipeSummary[];
 }
 
-export const REQUEST_FAILED = "The request failed";
-
-// How FastAPI refuses a request it can't accept, one entry for each input.
-interface InputError {
-  loc: (string | number)[];
-  msg: string;
-}
-
-function isInputErrors(detail: unknown): detail is InputError[] {
-  return (
-    Array.isArray(detail) &&
-    detail.every(
-      (error: unknown) =>
-        typeof error === "object" &&
-        error !== null &&
-        "loc" in error &&
-        "msg" in error,
-    )
-  );
-}
-
-// The backend's reason for refusing, as a sentence a handler can act on.
-function reasonFor(detail: unknown): string {
-  if (typeof detail === "string") return detail;
-  if (isInputErrors(detail))
-    return detail
-      .map((error) => `${error.loc.slice(1).join(".")}: ${error.msg}`)
-      .join("; ");
-  return REQUEST_FAILED;
-}
-
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
 // Sends a request with the signed-in handler's access token, if any.
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await accessToken();
@@ -569,6 +551,8 @@ export const api = {
       agents,
     }),
   signOff: (claimId: string) => post<Claim>(`${claimPath(claimId)}/sign-off`),
+  sendBack: (claimId: string, note: string) =>
+    post<Claim>(`${claimPath(claimId)}/send-back`, { note }),
   getImprovement: () => request<Improvement>(IMPROVEMENT),
   getRecipe: (number: string) =>
     request<RecipeDetails>(

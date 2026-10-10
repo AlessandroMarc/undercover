@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, REQUEST_FAILED } from "./api";
+import { ApiError, REQUEST_FAILED } from "./refusals";
 
 export const REFRESH_MS = 2000;
 

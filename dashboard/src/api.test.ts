@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { ApiError, api } from "./api";
+import { api } from "./api";
+import { ApiError } from "./refusals";
 import { TOKEN, endSession } from "./fakeAuth";
 import { Refusal, claim, stubApi } from "./testing";
 

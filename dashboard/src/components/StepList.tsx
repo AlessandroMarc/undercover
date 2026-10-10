@@ -4,6 +4,7 @@ import {
   History,
   NotebookPen,
   Shield,
+  Undo2,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -113,6 +114,12 @@ function StepBody({ step }: Readonly<{ step: Step }>) {
   if (step.kind === "memory_save")
     return (
       <Marked icon={NotebookPen} label="Saved to memory">
+        <span className="step-text">{step.content}</span>
+      </Marked>
+    );
+  if (step.kind === "sent_back")
+    return (
+      <Marked icon={Undo2} label="Handler's note">
         <span className="step-text">{step.content}</span>
       </Marked>
     );

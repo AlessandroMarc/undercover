@@ -58,6 +58,13 @@ def decide(client, claim_id, decision, payout, section="Section 3, Trip Delay"):
     )
 
 
+def held(client, claim_id, payout):
+    """Start a claim and approve it over the limit, which holds it for sign-off,
+    and return it."""
+    start(client, claim_id)
+    return decide(client, claim_id, "approve", payout).json()
+
+
 def pay(client, claim_id, amount):
     return client.post(f"/api/claims/{claim_id}/payment", json={"amount": amount})
 
@@ -90,3 +97,25 @@ GATEWAY_REFUSAL = "Tool Execution Denied: the Policy forbids it"
 
 def hold(client, claim_id, reason=GATEWAY_REFUSAL):
     return client.post(f"/api/claims/{claim_id}/hold", json={"reason": reason})
+
+
+# A senior handler's note on a decision they send back, in the tests.
+NOTE = "Meridian Air has already paid $350 for the lost bag; take it off the payout."
+
+
+def send_back(client, claim_id, note=NOTE, email=DANA):
+    return client.post(
+        f"/api/claims/{claim_id}/send-back",
+        json={"note": note},
+        headers=signed_in(email),
+    )
+
+
+def take(client, claim_id, run_id=None):
+    """Take a sent-back claim, as a dispatch does with its run or a resume with
+    none."""
+    return client.post(f"/api/claims/{claim_id}/take", json={"run_id": run_id})
+
+
+def record_heartbeat(client, claim_id):
+    return client.post(f"/api/claims/{claim_id}/heartbeat")

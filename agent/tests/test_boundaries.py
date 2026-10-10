@@ -91,3 +91,7 @@ def test_the_memory_uses_nothing_else_in_the_agent_and_the_claim_agent_uses_it()
 def test_a_handlers_answer_uses_nothing_else_in_the_agent_and_the_harness_uses_it():
     assert imports_of("handler_answer") & agents_modules() == set()
     assert "handler_answer" in imports_of("harness")
+
+
+def test_the_heartbeat_uses_nothing_else_in_the_agent():
+    assert imports_of("heartbeat") & agents_modules() == set()

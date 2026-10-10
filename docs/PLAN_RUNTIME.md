@@ -230,28 +230,28 @@ Add `wait_for_handler`, `after_pay`, `paused()`, `resume()` and `handler_answer.
 
 Add the `sent_back` state and step, `sent_back_decisions`, `resume_heard_at`, `send_back_claim`, `take_claim` and `record_claim_heartbeat`, `sent_back.py` and `agent_work.py`'s `QUIET`. Give `wait_for_handler` its send-back branch and `handler_answer.py` the note message, add `heartbeat.py`, and teach `resume_claim`, `carry_on`, `work_in_run` and the dispatcher about sent-back claims. Build the dashboard's Send back, the sent-back decisions and the new tile. Update `claim.md`'s one line and `SPEC.md`. The live check for this step is at the end of phase 4.
 
-- [ ] pytest (backend): `send_back_claim` refuses Marcus Oyelaran with a 403 naming "send this back", an evaluation's copy and a claim not waiting for sign-off with a 409, a blank note and a 1,001-character note with a 422, an unknown claim with a 404, and a request with no sign-in with a 401; a 1,000-character note is accepted
-- [ ] pytest (backend): a send back of CLM-1008 keeps its decision of $2,240.00 with its calculation, the note, "Dana Whitfield" and the time; clears its decision and its calculation; records a `sent_back` step with the note; leaves the claim sent back; and makes one call to the agent, naming only the claim, after the commit
-- [ ] pytest (backend): the send back answers with the claim when the call fails or times out, logging a warning
-- [ ] pytest (backend): a sign-off and a send back released together: exactly one succeeds and the other gets a 409, and the claim is either paid with no sent-back decision or sent back with no payment
-- [ ] pytest (backend): `take_claim` moves a sent-back claim to in progress on the same thread and attempt for the first caller only; a second call, or a claim that isn't sent back, gets a 409; without the key, a 401. Taken with no run, the claim's summary says `resuming`, and six minutes after its last heartbeat it doesn't; taken by a run, it never does
-- [ ] pytest (backend): the queue lists a sent-back claim as `sent_back`, and a dispatch's summary counts it as unfinished
-- [ ] Stub test: a held claim sent back with a note is taken by `resume_claim` and resumed: the model's next input ends with the note message, naming Dana Whitfield; the graph's decision is empty and its model calls start again from zero; a new approval of $890.00, within the limit, is recorded with its own calculation and paid once, and the claim ends decided, with the first decision among its sent-back decisions
-- [ ] Stub test: a new decision over the limit waits for sign-off and pauses again; a second send back is taken and resumed the same way, leaving two sent-back decisions
-- [ ] Stub test: a thread that made 29 model calls before its send back can make 30 more before the limit stops it
-- [ ] Stub test: on a version whose instructions say only "Decide the claim.", the model still gets the note message with the words about a senior handler's review, the policy wording and the claims manual, and a referral when the wording doesn't support the note
-- [ ] pytest: `claim_as_read` leaves out the sent-back decisions, so the check's input and the claim agent's `get_claim` hold no note
-- [ ] pytest: `resume_claim` and a dispatch asking for the same sent-back claim at once: one takes it, the dispatch's line says "taken by a resume" when it lost, and the claim gets one new decision
-- [ ] pytest: a dispatch started while a resume is working on its claim leaves the claim alone; once the resume has been quiet for six minutes, the next dispatch carries it on
-- [ ] pytest: a send back the agent never got, because the call failed, leaves the claim sent back; the next dispatch takes it, resumes the paused thread with the note, and records a new decision
-- [ ] pytest: a claim whose process stopped after its decision was saved and before the pause ran, then sent back, is taken by the next dispatch and resumed with the note
-- [ ] pytest: `heartbeat.beating` calls its function each interval while its block runs and never after, and a failing call is logged without stopping the block
-- [ ] vitest: a handler who can sign off over the limit sees Sign off and Send back; Send back needs a note and allows 1,000 characters; Marcus Oyelaran sees why he can't; the queue has a Sent back tile; a sent-back claim says it's with the agent; each sent-back decision shows its note, who sent it back and when; a `sent_back` step shows the note
-- [ ] e2e: Dana sends a held claim back with a note on its page; the page shows Sent back, the sent-back decision with the note and "Sent back by Dana Whitfield", and the note among the steps, and the stand-in received the resume. Then the test, as the agent, takes the claim, works out and records an approval of $900.00 and pays it, and without a reload the page shows the new decision above the sent-back one
-- [ ] `git diff main -- backend/instructions/claim.md` changes only the sentence that said a decision can't be changed
-- [ ] The boundaries test: `heartbeat` uses nothing else in the agent
-- [ ] `docs/SPEC.md` describes the sign-off or the send back, and the claim's states
-- [ ] `npm run check` passes with `.env` moved out of the way
+- [x] pytest (backend): `send_back_claim` refuses Marcus Oyelaran with a 403 naming "send this back", an evaluation's copy and a claim not waiting for sign-off with a 409, a blank note and a 1,001-character note with a 422, an unknown claim with a 404, and a request with no sign-in with a 401; a 1,000-character note is accepted
+- [x] pytest (backend): a send back of CLM-1008 keeps its decision of $2,240.00 with its calculation, the note, "Dana Whitfield" and the time; clears its decision and its calculation; records a `sent_back` step with the note; leaves the claim sent back; and makes one call to the agent, naming only the claim, after the commit
+- [x] pytest (backend): the send back answers with the claim when the call fails or times out, logging a warning
+- [x] pytest (backend): a sign-off and a send back released together: exactly one succeeds and the other gets a 409, and the claim is either paid with no sent-back decision or sent back with no payment
+- [x] pytest (backend): `take_claim` moves a sent-back claim to in progress on the same thread and attempt for the first caller only; a second call, or a claim that isn't sent back, gets a 409; without the key, a 401. Taken with no run, the claim's summary says `resuming`, and six minutes after its last heartbeat it doesn't; taken by a run, it never does
+- [x] pytest (backend): the queue lists a sent-back claim as `sent_back`, and a dispatch's summary counts it as unfinished
+- [x] Stub test: a held claim sent back with a note is taken by `resume_claim` and resumed: the model's next input ends with the note message, naming Dana Whitfield; the graph's decision is empty and its model calls start again from zero; a new approval of $890.00, within the limit, is recorded with its own calculation and paid once, and the claim ends decided, with the first decision among its sent-back decisions
+- [x] Stub test: a new decision over the limit waits for sign-off and pauses again; a second send back is taken and resumed the same way, leaving two sent-back decisions
+- [x] Stub test: a thread that made 29 model calls before its send back can make 30 more before the limit stops it
+- [x] Stub test: on a version whose instructions say only "Decide the claim.", the model still gets the note message with the words about a senior handler's review, the policy wording and the claims manual, and a referral when the wording doesn't support the note
+- [x] pytest: `claim_as_read` leaves out the sent-back decisions, so the check's input and the claim agent's `get_claim` hold no note
+- [x] pytest: `resume_claim` and a dispatch asking for the same sent-back claim at once: one takes it, the dispatch's line says "taken by a resume" when it lost, and the claim gets one new decision
+- [x] pytest: a dispatch started while a resume is working on its claim leaves the claim alone; once the resume has been quiet for six minutes, the next dispatch carries it on
+- [x] pytest: a send back the agent never got, because the call failed, leaves the claim sent back; the next dispatch takes it, resumes the paused thread with the note, and records a new decision
+- [x] pytest: a claim whose process stopped after its decision was saved and before the pause ran, then sent back, is taken by the next dispatch and resumed with the note
+- [x] pytest: `heartbeat.beating` calls its function each interval while its block runs and never after, and a failing call is logged without stopping the block
+- [x] vitest: a handler who can sign off over the limit sees Sign off and Send back; Send back needs a note and allows 1,000 characters; Marcus Oyelaran sees why he can't; the queue has a Sent back tile; a sent-back claim says it's with the agent; each sent-back decision shows its note, who sent it back and when; a `sent_back` step shows the note
+- [x] e2e: Dana sends a held claim back with a note on its page; the page shows Sent back, the sent-back decision with the note and "Sent back by Dana Whitfield", and the note among the steps, and the stand-in received the resume. Then the test, as the agent, takes the claim, works out and records an approval of $900.00 and pays it, and without a reload the page shows the new decision above the sent-back one
+- [x] `git diff main -- backend/instructions/claim.md` changes only the sentence that said a decision can't be changed
+- [x] The boundaries test: `heartbeat` uses nothing else in the agent
+- [x] `docs/SPEC.md` describes the sign-off or the send back, and the claim's states
+- [x] `npm run check` passes with `.env` moved out of the way
 
 ## Phase 3: The agent as an AgentCore app
 

@@ -29,6 +29,7 @@ it("shows the queue with counts by state", async () => {
         payout: 420,
       },
       { ...summary, claim_id: "CLM-1004", status: "left_for_handler" },
+      { ...summary, claim_id: "CLM-1005", status: "sent_back" },
     ],
     "GET /api/dispatches/latest": null,
   });
@@ -39,14 +40,17 @@ it("shows the queue with counts by state", async () => {
   expect(screen.getByLabelText("Decided: 1")).toBeDefined();
   expect(screen.getByLabelText("In progress: 0")).toBeDefined();
   expect(screen.getByLabelText("Left for a handler: 1")).toBeDefined();
+  const sentBack = screen.getByLabelText("Sent back: 1");
+  expect(sentBack.className).toBe("tile status-sent_back");
+  expect(sentBack.querySelector("svg.lucide-undo-2")).not.toBeNull();
   const left = screen.getByRole("row", { name: /CLM-1004/ });
   const chip = within(left).getByText("Left for a handler");
   expect(chip.className).toBe("chip status-left_for_handler");
   const row = screen.getByRole("row", { name: /CLM-1003/ });
   expect(within(row).getByText("Approved")).toBeDefined();
   expect(within(row).getByText("$420.00")).toBeDefined();
-  expect(screen.getAllByText("$1,150.00")).toHaveLength(3);
-  expect(screen.getAllByText("Jul 20, 2026")).toHaveLength(3);
+  expect(screen.getAllByText("$1,150.00")).toHaveLength(4);
+  expect(screen.getAllByText("Jul 20, 2026")).toHaveLength(4);
 });
 
 it("shows an error when the queue can't load", async () => {

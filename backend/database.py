@@ -147,6 +147,8 @@ claims = Table(
     Column("attempts", Integer, nullable=False),
     Column("evaluation_id", Text, ForeignKey("runs.run_id")),
     Column("copy_of", Text),
+    # When the agent last said a resume was working on the claim.
+    Column("resume_heard_at", Text),
 )
 held_out_claims = Table(
     "held_out_claims",
@@ -185,6 +187,26 @@ decisions = Table(
     Column("signed_off_at", Text),
     # Why the Gateway refused to pay an approval, which then waits for sign-off.
     Column("gateway_refusal", Text),
+)
+# The decisions handlers sent back to the agent, each with its note, who sent it
+# back and when.
+sent_back_decisions = Table(
+    "sent_back_decisions",
+    metadata,
+    Column("sent_back_id", Integer, primary_key=True),
+    Column("claim_id", Text, ForeignKey("claims.claim_id"), nullable=False),
+    Column("decision", Text, nullable=False),
+    Column("payout", Float, nullable=False),
+    Column("calculation", JSON),
+    Column("section", Text, nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("decided_by", Text, nullable=False),
+    Column("decided_at", Text, nullable=False),
+    Column("manual_version", Text, nullable=False),
+    Column("gateway_refusal", Text),
+    Column("note", Text, nullable=False),
+    Column("sent_back_by", Text, nullable=False),
+    Column("sent_back_at", Text, nullable=False),
 )
 # Each claim's latest calculation of its payout, on the thread of the attempt it was
 # made in, which an approval in that attempt must match.
@@ -381,6 +403,7 @@ claim_view = (
         claims.c.attempts,
         claims.c.evaluation_id,
         claims.c.copy_of,
+        claims.c.resume_heard_at,
         customers.c.name.label("customer_name"),
         decisions.c.decision,
         decisions.c.payout,

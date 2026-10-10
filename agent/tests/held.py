@@ -1,5 +1,5 @@
 """Claims the tests hold for a handler's sign-off, paused or stopped short of the
-pause."""
+pause, and resume through the agent's service."""
 
 from langgraph.checkpoint.memory import InMemorySaver
 
@@ -36,3 +36,8 @@ class StopAtThePause(InMemorySaver):
             self.stopped = True
             raise KeyboardInterrupt
         super().put_writes(config, writes, task_id, task_path)
+
+
+def resume_claim(service, claim_id):
+    """Ask the agent's service to resume a claim, as the app does."""
+    return service.post(f"/api/claims/{claim_id}/resume")

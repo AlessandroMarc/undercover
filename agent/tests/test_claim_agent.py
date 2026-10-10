@@ -55,7 +55,8 @@ def test_the_graph():
         ("tools", "__end__", True),
         ("pay", "wait_for_handler", True),
         ("pay", "__end__", True),
-        ("wait_for_handler", "__end__", False),
+        ("wait_for_handler", "agent", True),
+        ("wait_for_handler", "__end__", True),
     }
 
 

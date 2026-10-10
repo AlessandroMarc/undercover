@@ -25,6 +25,11 @@ def keep_calculation(
     )
 
 
+def clear_calculation(db: Connection, claim_id: str) -> None:
+    """Forget a claim's calculation, so its next approval needs one of its own."""
+    db.execute(delete(calculations).where(calculations.c.claim_id == claim_id))
+
+
 def attempts_calculation(db: Connection, claim: RowMapping) -> Calculation | None:
     """Return the latest calculation on a claim's current attempt, if any."""
     query = select(calculations).where(

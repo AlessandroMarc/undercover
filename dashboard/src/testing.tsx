@@ -160,6 +160,7 @@ export const claim: Claim = {
   copy_of: null,
   decision: null,
   payment: null,
+  sent_back_decisions: [],
 };
 
 export const summary: ClaimSummary = {
@@ -172,6 +173,7 @@ export const summary: ClaimSummary = {
   status: "waiting",
   decision: null,
   payout: null,
+  resuming: false,
 };
 
 export const policy: Policy = {

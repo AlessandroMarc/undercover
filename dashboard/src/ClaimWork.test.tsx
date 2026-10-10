@@ -6,44 +6,24 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { Claim, Decision, Source, Step } from "./api";
-import { time } from "./format";
+import type { Claim, Source, Step } from "./api";
 import {
-  wholeText,
-  Refusal,
-  type Routes,
-  claim,
-  history,
-  marcus,
-  panel,
-  policy,
-  renderAt,
-  sent,
-  stubApi,
-} from "./testing";
+  approval,
+  approved,
+  decidedAt,
+  decisionPanel,
+  held,
+  showClaim,
+  step,
+} from "./claimTesting";
+import { time } from "./format";
+import { wholeText, Refusal, claim, marcus, panel, sent } from "./testing";
 import { REFRESH_MS } from "./useLoad";
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
-});
-
-const decidedAt = "2026-09-27T17:06:16+00:00";
-
-// A step of the agent's work, from no context file unless it's a lookup.
-const step = (
-  step_id: number,
-  kind: Step["kind"],
-  content: string,
-  sources: Source[] = [],
-): Step => ({
-  step_id,
-  thread_id: "t-1",
-  kind,
-  content,
-  sources,
-  created_at: decidedAt,
 });
 
 const steps: Step[] = [
@@ -67,61 +47,6 @@ const manual: Source = {
   system: "Claims operations",
   owner: "Head of claims operations",
   reviewed: "2026-09-01",
-};
-
-function showClaim(shown: Claim, stepsShown: Step[] = []) {
-  const routes: Routes = {
-    "GET /api/claims/CLM-1002": shown,
-    "GET /api/claims/CLM-1002/steps": stepsShown,
-    "GET /api/policies/POL-2002": policy,
-    "GET /api/customers/CUS-3002/claims": history,
-  };
-  const fetchMock = stubApi(routes);
-  renderAt("/claims/CLM-1002");
-  return { routes, fetchMock };
-}
-
-const decisionPanel = () => panel("Decision");
-
-const approval: Decision = {
-  decision: "approve",
-  payout: 420,
-  calculation: {
-    lines: [
-      { step: "Suitcase, limited to $300.00", amount: 300 },
-      { step: "Clothes", amount: 170 },
-      { step: "Less the deductible", amount: -50 },
-    ],
-    payout: 420,
-  },
-  section: "Section 5, Baggage and Personal Effects",
-  reason: "The suitcase was lost by the carrier.",
-  decided_by: "UnderCover Agent, version 1",
-  decided_at: decidedAt,
-  manual_version: "2026.2",
-  signed_off_by: null,
-  signed_off_at: null,
-  gateway_refusal: null,
-};
-
-const approved: Claim = {
-  ...claim,
-  status: "decided",
-  thread_id: "t-1",
-  decision: approval,
-  payment: {
-    amount: 420,
-    paid_at: decidedAt,
-    signed_off_by: null,
-    signed_off_at: null,
-  },
-};
-
-const held: Claim = {
-  ...approved,
-  status: "waiting_for_sign_off",
-  decision: { ...approval, payout: 1350 },
-  payment: null,
 };
 
 it("says when the agent hasn't started", async () => {

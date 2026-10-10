@@ -10,7 +10,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import api, harness, service
 from agent.tests.dispatching import new_dispatch
-from agent.tests.held import StopAtThePause, hold
+from agent.tests.held import StopAtThePause, hold, resume_claim
 from agent.tests.queue_setup import leave_waiting
 from agent.tests.records import claim_of, model_calls_of, work_times_of
 from agent.tests.stubs import agent_on, approve, decide, stub, swarm
@@ -173,10 +173,6 @@ def test_the_services_operations():
         "review_proposal",
         "resume_claim",
     }
-
-
-def resume_claim(agent, claim_id):
-    return agent.post(f"/api/claims/{claim_id}/resume")
 
 
 def built_on(saver, built):

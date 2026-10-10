@@ -37,7 +37,7 @@ The agent works the queue in dispatches, with many claims at once:
 - Before the claim agent's model sees a claim, a second model reads everything the customer wrote, as the claim agent would read it, and checks whether it tries to instruct whoever handles the claim. A claim with such an instruction goes to a handler as a referral with the check's reason, and the claim agent's model never sees it. The check runs once at the start of a claim's work, on a model of its own that the improver can't change, and its result is the first step on the claim.
 - For each claim the agent looks up the sections of the policy wording and the claims manual it needs, the way a handler would, rather than being handed whole documents, and whatever else in the context layer bears on the claim. It works out an approval's payout with UnderCover's payout rules, which are part of our systems.
 - Every decision record meets claims manual section 14: it holds the decision, the payout, the calculation of an approval's payout, the section relied on, the reason, who or what made the decision (the UnderCover Agent with its version, or the security check) and when, and the claims manual's version in force. The system refuses a record that falls short, saying what is missing, and an approval's payout must be the calculation it worked out for that attempt.
-- An approval over the approval limit ends the agent's work on that claim, and the payment waits for a handler's sign-off. When a handler who can sign off over the limit does, the sign-off pays the claim at once, without the agent. The payment records who signed off and when. For now a handler can only sign off.
+- An approval over the approval limit pauses the agent's work on that claim, and the payment waits for a handler who can sign off over the limit. That handler either signs it off or sends it back to the agent with a note saying what to look at again, of up to 1,000 characters. A sign-off pays the claim at once, and the payment records who signed off and when; the agent then finishes its work on the claim. A send back keeps the decision with the note, who sent it back and when, clears it from the claim and records the note among the claim's steps. The agent reads the note as a senior handler's review, checked against the policy wording and the claims manual like everything else, and decides again, referring the claim when the wording doesn't support the note. Its new decision goes through the same checks as any other, and can be sent back again. A sent-back claim is taken up once, straight away or by the next dispatch if the agent didn't get it.
 - Work survives a restart. If the agent is stopped partway through a claim, by a crash, a restart or Ctrl-C, the next dispatch carries on with that claim from where it got to, and that doesn't count as a new attempt. A dispatch that was stopped shows as stopped.
 - Problems are put right automatically. A claim that hits a rate limit or a timeout waits and carries on from where it got to, as the same attempt, and one still hitting them after its waits stays in progress for the next dispatch. A claim that fails with any other error before it is decided goes back in the queue and the same dispatch tries it once more from the start, and a claim that fails twice is left for a handler. One bad claim never stops a dispatch, and no claim is ever decided or paid twice, even when a step runs again after a restart.
 - When a dispatch finishes, its summary is built from our records, with no model writing it: how many claims were approved, declined and referred, each payout waiting for a sign-off, and each claim left for a handler or for the next dispatch.
@@ -56,10 +56,10 @@ The claim agent's instructions, model and reasoning effort make up one configura
 
 ## What the team needs to see
 
-- The queue, with where each claim stands: waiting, in progress, waiting for sign-off, decided or left for a handler.
+- The queue, with where each claim stands: waiting, in progress, waiting for sign-off, sent back, decided or left for a handler.
 - The latest dispatch, with each of its claims and where it stands, its model cost and time, and its summary when it finishes.
 - A scoreboard of the evaluations, newest first, with their measures, each opening to its claims beside the handlers' decisions with the misses easy to spot.
-- Each claim in full, with the agent's decision and its reasons.
+- Each claim in full, with the agent's decision and its reasons, and each decision sent back with its note, who sent it back and when.
 - What the agent is doing on a claim while it works, step by step, starting with the security check: each tool it calls, each lookup in the context layer with where it came from, each search of the memory and each save to it, each refusal, standing out from the other steps, and any attempt that failed. A panel lists everything it looked up, once each, grouped by the file it came from with that file's source, and the decision shows the whole record with the calculation line by line.
 - The claim agent's configuration: every version, what it changed from the one before, why, who proposed and approved it, and its held-out scores.
 - The improvement rounds as they happen: where a round has got to, a proposal waiting with its change shown as a diff, the rounds so far with the held-out scores before and after, the verdict and why, who approved or rejected what and when, and the cost, a chart of each version tried, and the recipe's versions.
@@ -69,7 +69,7 @@ The claim agent's instructions, model and reasoning effort make up one configura
 
 - Our handlers sign in with their email and password. Every page needs a signed-in handler, and the system checks the handler on every action they take.
 - The agent identifies itself with an API key on every request it makes to our systems. What only the agent does needs the key, what only handlers do needs a signed-in handler, and the key never stands in for a handler.
-- A payout over the approval limit, $1,000 to start with and a setting, needs a sign-off from a handler who can sign off over it. The agent can approve such a claim, but the payment waits until that sign-off. The system refuses any payment over the limit, even if the agent tries to pay, and the sign-off itself pays the claim. Only such a handler can also start or stop a round, approve or reject the improver's proposals or change a setting; anyone else is told what they can't do and why.
+- A payout over the approval limit, $1,000 to start with and a setting, needs a sign-off from a handler who can sign off over it. The agent can approve such a claim, but the payment waits until that sign-off. The system refuses any payment over the limit, even if the agent tries to pay, and the sign-off itself pays the claim. Only such a handler can also send a held decision back to the agent, start or stop a round, approve or reject the improver's proposals or change a setting; anyone else is told what they can't do and why.
 - Decisions follow the policy wording and the claims manual. The wording comes first, and the manual says how to read it.
 - Every decision record meets claims manual section 14, and carries the manual's version (section 13).
 - Each customer's memories are used only for that customer's claims (claims manual section 11).
@@ -83,7 +83,7 @@ Everything is in `data/`, described in `data/README.md`: the claims queue, the p
 ## Not for now
 
 - No sign-up. Our handlers' accounts are set up for them.
-- Rejecting a held payout. For now a handler can only sign off.
+- Declining a held payout outright. A handler signs it off or sends it back to the agent.
 - No real payments.
 - No messages to customers.
 - Memory in evaluations.

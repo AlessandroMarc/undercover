@@ -3,18 +3,19 @@ import { useId, useState } from "react";
 import {
   api,
   type ProposalKind,
-  REQUEST_FAILED,
   type RoundStage,
   type RoundView,
   type WaitingProposal,
 } from "../api";
 import { stageLabels } from "../format";
+import { REQUEST_FAILED } from "../refusals";
 import { useHandler } from "../handler";
 import { useAction } from "../useAction";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DiffView } from "./DiffView";
 import { ModelName } from "./ModelName";
 import { NotAllowed } from "./NotAllowed";
+import { ReasonForm } from "./ReasonForm";
 
 // The stage a round is at while each kind of proposal waits.
 const WAITING: Record<ProposalKind, RoundStage> = {
@@ -111,7 +112,6 @@ function Review({
   const [confirming, setConfirming] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
-  const reasonId = useId();
   const rejectId = useId();
   const ids = [round.round_id, proposal.proposal_id] as const;
   const refused = (error: unknown) => {
@@ -124,7 +124,6 @@ function Review({
     api.rejectProposal(...ids, reason.trim()).then(onReviewed, refused),
   );
   const sending = approve.sending || reject.sending;
-  const ready = reason.trim() !== "";
   const what = proposal.kind;
 
   return (
@@ -155,35 +154,16 @@ function Review({
         </button>
       </div>
       {rejecting && (
-        <form
+        <ReasonForm
           id={rejectId}
-          className="reject-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!sending && ready) reject.run();
-          }}
-        >
-          <label htmlFor={reasonId}>Why reject it?</label>
-          <textarea
-            id={reasonId}
-            required
-            rows={3}
-            value={reason}
-            onChange={(event) => {
-              setReason(event.target.value);
-            }}
-          />
-          <p className="muted small">
-            The improver reads your reason and may propose again.
-          </p>
-          <button
-            type="submit"
-            className="button"
-            aria-disabled={sending || !ready}
-          >
-            Reject the {what}
-          </button>
-        </form>
+          label="Why reject it?"
+          hint="The improver reads your reason and may propose again."
+          submitLabel={`Reject the ${what}`}
+          value={reason}
+          onChange={setReason}
+          sending={sending}
+          onSubmit={reject.run}
+        />
       )}
       <ConfirmDialog
         open={confirming}

@@ -22,8 +22,9 @@ from agent import api, improver, improver_api
 from agent.connection import Refused, api_key
 from agent.console import describe, show_reports
 from agent.dispatcher import WorkInRun, work_run
-from agent.handler_answer import answer_of
+from agent.handler_answer import SENT_BACK, answer_of
 from agent.harness import (
+    ClaimAgent,
     NewAgent,
     checkpoint_pool,
     claim_graphs,
@@ -31,6 +32,7 @@ from agent.harness import (
     resume,
     work_in_run,
 )
+from agent.heartbeat import beating
 
 ACCEPTED = {"status": "accepted"}
 # The most claim agents at once, as the backend and the dashboard also allow.
@@ -264,6 +266,13 @@ def carry_the_round_on(
         one_at_a_time.release()
 
 
+def resume_telling_the_app(claim_id: str, agent: ClaimAgent) -> None:
+    """Resume a paused claim, telling the app every minute that the resume is still
+    working on it."""
+    with beating(partial(api.record_claim_heartbeat, claim_id)):
+        resume(claim_id, agent)
+
+
 @app.get("/api/health", operation_id="health")
 def health() -> dict[str, str]:
     """Check that the agent's service is running."""
@@ -343,7 +352,10 @@ def resume_claim(
     agent = claim_agents(api.get_current_version(), None)()
     if not paused(claim, agent):
         raise HTTPException(409, NOT_PAUSED.format(claim_id=claim_id))
-    if answer_of(claim) is None:
+    answer = answer_of(claim)
+    if answer is None:
         raise HTTPException(409, NO_ANSWER.format(claim_id=claim_id))
-    background.add_task(resume, claim_id, agent)
+    if answer["answer"] == SENT_BACK:
+        api.take_claim(claim_id, None)
+    background.add_task(resume_telling_the_app, claim_id, agent)
     return ACCEPTED

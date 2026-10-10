@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { REQUEST_FAILED } from "./api";
+import { REQUEST_FAILED } from "./refusals";
 
 // Runs an action that asks the backend to do one thing, such as signing off a
 // payout or saving the settings, one request at a time, and keeps the

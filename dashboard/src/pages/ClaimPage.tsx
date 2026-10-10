@@ -7,6 +7,7 @@ import { DecisionPanel } from "../components/DecisionPanel";
 import { StateMessage } from "../components/StateMessage";
 import { PageHeader } from "../components/PageHeader";
 import { HistoryPanel, PolicyPanel } from "../components/PolicyPanels";
+import { SentBackDecisions } from "../components/SentBackDecisions";
 import { StepList } from "../components/StepList";
 import { date, label, money } from "../format";
 import { evaluationPage, QUEUE } from "../paths";
@@ -69,7 +70,8 @@ export function ClaimPage() {
           <ContextUsed steps={steps.data} />
         </div>
         <div className="column">
-          <DecisionPanel claim={claim} onSignedOff={reload} />
+          <DecisionPanel claim={claim} onAnswered={reload} />
+          <SentBackDecisions decisions={claim.sent_back_decisions} />
           <StepList steps={steps.data} error={steps.error} />
         </div>
       </div>
