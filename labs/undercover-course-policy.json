@@ -83,7 +83,7 @@
       "Resource": "*"
     },
     {
-      "Sid": "ServiceLinkedRolesForAgentCoreAndTraces",
+      "Sid": "ServiceLinkedRoles",
       "Effect": "Allow",
       "Action": "iam:CreateServiceLinkedRole",
       "Resource": "*",
@@ -91,7 +91,8 @@
         "StringLike": {
           "iam:AWSServiceName": [
             "*bedrock-agentcore*",
-            "application-signals.cloudwatch.amazonaws.com"
+            "application-signals.cloudwatch.amazonaws.com",
+            "resource-explorer-2.amazonaws.com"
           ]
         }
       }
@@ -246,6 +247,17 @@
       "Sid": "FindEverythingByTag",
       "Effect": "Allow",
       "Action": "tag:GetResources",
+      "Resource": "*"
+    },
+    {
+      "Sid": "FindEverythingInTheAccount",
+      "Effect": "Allow",
+      "Action": [
+        "resource-explorer-2:Get*",
+        "resource-explorer-2:List*",
+        "resource-explorer-2:Search",
+        "resource-explorer-2:BatchGetView"
+      ],
       "Resource": "*"
     },
     {
