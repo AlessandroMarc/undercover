@@ -2,9 +2,9 @@
 
 Reviewed `docs/PLAN_COPILOT.md` against `docs/COPILOT.md`, the project's required guidance, the existing backend, agent and dashboard, the referenced deployment material, and the installed framework code.
 
-**Recommendation: revise the plan before implementation.** The overall architecture and six-phase structure are sound. The most serious gaps concern what a confirmation authorizes, recovery when a turn stops, the correctness of the success-criteria answer, and keeping the handler's token out of SDK logs. Several success criteria currently miss these cases; one explicitly requires incorrect behavior.
+**Recommendation: retain the six-phase plan with the targeted amendments below.** This revision reflects the assessment of the original review. Keep the decision-time approval limit for the third success criterion. Do not add execution generations, reconciliation tables, action receipts or decision revisions.
 
-This is a review of the proposed design, not a claim that these bugs already exist in an implemented Copilot. Plan line references below refer to the version reviewed. P1 findings should be resolved before building the affected phases; P2 findings need explicit implementation decisions and acceptance tests.
+This is a review of the proposed design, not a claim that the Copilot is implemented. The seven amendments below replace the original review's broader recommendations; leave the rest of the plan unchanged. Only this review has been edited. References to changes in the plan or `docs/STATUS.md` are recommendations for later work, not changes made to those documents.
 
 ## What the plan gets right
 
@@ -16,193 +16,87 @@ This is a review of the proposed design, not a claim that these bugs already exi
 - Handler memory has its own store setting and namespaces, derives its actor from verified identity, and saves only the user message and final answer.
 - The plan covers the sidebar, ownership, token refresh, model-call limits, optional memory, local and Runtime entry points, and the required handover. It does not add AWS provisioning to application code.
 
-## Findings to resolve before implementation
+## Agreed amendments
 
-### 1. P1 — The success-criteria answer deliberately preserves invented figures
+### 1. Write the complete success-criteria answer in code
 
-**Plan:** lines 94, 128–139 and, most clearly, the phase 3 test at line 317. **Spec:** `docs/COPILOT.md:104`.
+The original plan appends the correct table to unrestricted model text, and its phase 3 test preserves incorrect figures before that table. Replace this with a terminal answer written entirely in code: the table and its verdict line, including the existing explanations for unavailable evaluation results.
 
-The plan appends the correct table to unrestricted model text. Its test explicitly preserves “We're at 50% straight through and 40% accurate” before a table reporting 80% and 88%, then saves that contradictory answer to memory. That directly violates the requirement that every figure in this answer come from records and be worked out in code. A prompt asking the model not to repeat figures does not enforce it. The model can also falsely say “All three are met” before a table showing a failure.
+After `check_success_criteria` finishes, the graph ends the turn through the memory node when enabled, with no further model call, as it does for Cancel. The sidebar, saved conversation and memory all receive exactly that answer.
 
-**Change:** make the published success-criteria result authoritative in code, including its overall verdict and unavailable-results explanation. A deterministic answer is the simplest option; if model commentary is retained, define a constrained output contract that cannot introduce alternative figures or a contradictory verdict. Use the same final answer for the sidebar, conversation history and memory. Do not rely on simply removing digits: an incorrect claim can use words.
+**Plan changes:** remove `answer_of` and the instruction line telling the model that code will append the table. Update the graph's routing and the phase 3 wording to describe the code-written answer instead of a table appended to a model reply.
 
-**Acceptance:** replace line 317 with tests that supply contradictory figures and verdicts from the stub and verify that neither is published or remembered. Test exact threshold equality, a failed criterion, and unavailable evaluation results; unavailable must not be presented as a failed measurement or as “all three met.”
+**Acceptance:** replace the “50% and 40%” test with one asserting that the final answer is exactly the code's table and verdict line, that the model is not called after the tool, and that memory saves the same answer. Retain the planned tests for a refused start, an unfinished or failed evaluation, no payouts over the limit, and a changed accuracy objective.
 
-### 2. P1 — A confirmation is not bound to the decision and amount the handler saw
+### 2. Bind the answer to the displayed turn and check the held decision
 
-**Plan:** lines 90–92 and 108–113. **Existing code:** `backend/main.py:518` and `backend/main.py:533`.
+The confirmation request currently carries only `{answer}`, so an old browser tab can answer a newer card. Change the body to `{turn_id, answer}`, using the displayed card's turn id. The app refuses the answer if that turn is not the one waiting for confirmation.
 
-The card is a snapshot, but the eventual sign-off calls the existing operation using only `claim_id`. While the card waits, another tab or handler can send that decision back, and the claim agent can record a different held payout. The old card might show $1,350 while the current decision asks for $3,750. The existing endpoint signs off the current held decision; it has no knowledge of the snapshot the user confirmed. This is especially relevant because the spec permits answering on another day.
+The app also compares the claim's current held decision with the decision captured for the card. If they no longer match, it refuses the answer and asks for a fresh card. Use the existing decision record for this comparison; no decision revision or separate confirmation identifier is required.
 
-Re-reading the claim before sending the sign-off is insufficient by itself: the decision can change between the read and the payment transaction. The plan's “already signed off by this handler counts as done” rule is also too broad to establish that this particular confirmation succeeded.
+Allow one `sign_off_claim` request per turn. A second request in that turn is refused with a line asking the handler to ask again, and creates no second pause. This keeps the existing single confirmation and pause-time fields sufficient.
 
-**Change:** assign the held decision a stable revision or equivalent immutable identity, record it with the confirmation, and check that identity atomically in the backend transaction that pays. Reuse the existing sign-off business logic through an explicit confirmation-aware path or a carefully designed precondition. A changed decision must require a fresh card and a fresh click. Record a receipt tied to the confirmation so a replay can identify its own completed payment.
+The card shows “Signed off and paid” only from the sign-off's actual successful result, not from `confirmation_answer == "sign_off"`. While the action is pending, refused or failed, the card must reflect that outcome. No action receipt is added.
 
-**Acceptance:** pause, send back, record a different held decision, and answer the old card: no payment. Repeat with the same amount but a different decision/reason. Test a change concurrent with sign-off, an already-paid claim, and an exact replay after payment committed but the response was lost.
+**Acceptance:** add tests for a stale tab submitting an older `turn_id`, an answer after cancellation, and a held decision changed since the card was created, including a changed reason with the same payout. Each stale answer is refused and pays nothing. Test a second `sign_off_claim` in the same turn: no second pause or payment, and the refusal asks the handler to ask again. In the sidebar tests, an accepted confirmation alone must not show “Signed off and paid”; the successful sign-off result must, and a refusal or failure must not.
 
-### 3. P1 — An old browser tab can answer a different confirmation
+### 3. Run tool calls one at a time
 
-**Plan:** line 160, `POST /api/copilot/conversations/{conversation_id}/confirmation`, body `{answer}`.
+Set `max_concurrency: 1` when running the Copilot's graph, including a resumed confirmation, as the claim agent's graph does. Keep the existing model setting that disables parallel tool calls; the graph configuration enforces serial execution even if a model reply contains several calls.
 
-The request identifies the conversation but not the card. Suppose tab A shows confirmation X. In tab B the handler cancels X and later receives confirmation Y in the same conversation. Clicking the old button in A sends the same request that would approve Y. The backend's “something is waiting” check and the Copilot's “latest working turn” check both accept the newer turn.
+**Acceptance:** return multiple ordinary tool calls from the stub and verify that they execute one at a time in order. Retain the sign-off handling, with the one-sign-off-per-turn rule above.
 
-**Change:** require the displayed `turn_id` and a unique confirmation identifier, and condition the transition on that exact pending confirmation. Associate the saved LangGraph interrupt with it too. Duplicate answers and callbacks must either return the recorded outcome for that identifier or refuse without touching a newer card. Define whether a turn can contain multiple sequential confirmations; a single reusable `confirmation_answer` cannot safely stand for all of them.
+### 4. Keep botocore above DEBUG and exercise its real request path
 
-**Acceptance:** exercise two tabs, a stale answer after cancellation, a stale answer after a new turn, and simultaneous Sign off/Cancel requests. Only the card actually displayed and selected may be answered.
+The original review verified that botocore's DEBUG request logging includes the invocation payload, which contains the handler's token. A stand-in replacing `invoke_agent_runtime` bypasses that logging path.
 
-### 4. P1 — A turn being displayed as stopped does not stop its worker or protect the next turn
+Keep botocore's logger above DEBUG, at INFO or higher, including when application logging is at DEBUG. Keep the existing rules that application logs, saved state, cards and memory never contain the sign-in.
 
-**Plan:** lines 149–151, the entrypoint's process-local guard, and phase 4 line 338.
+**Acceptance:** make the DEBUG-log test use the real boto3 client with fake credentials and a fake handler token, stubbing only the network send. Let serialization and SDK request handling run normally. Capture logs with application logging at DEBUG, verify botocore remains above DEBUG, and assert that no log contains the token. This test makes no AWS request.
 
-After 20 minutes the backend accepts a new message, but the old thread may still be running. In the same process, the proposed conversation guard refuses the new work, contradicting the requirement that the handler can continue after a stopped turn. In a different process there is no such guard: both workers can write to the same checkpoint thread. Rejecting late sidebar records does not protect an action already past its card-start check or prevent another graph checkpoint from the old worker.
+### 5. Make the phase wording match the work available in each phase
 
-There is also no persisted stopped status in the proposed table. Unless every transition uses the same effective-status/deadline condition, a late `finish_turn` can turn a previously displayed stopped turn into done.
+Three wording changes are needed:
 
-**Change:** define a backend-authoritative execution generation/claim and a terminal transition for expired work. Specify how an old worker loses permission to proceed, how a successor starts without competing checkpoint writers, and how action calls and final callbacks are tied to the current execution. Check before further model/tool work, including after a long wait. A stale worker must not block a valid successor indefinitely. This is recovery ownership, not a new user-facing stop feature.
+- Phase 2's tool inventory includes only the tools implemented by phase 2. Exclude `wait_for_run`, `what_needs_a_handler`, `check_success_criteria` and the memory lookup until phase 3 adds them.
+- Say that the claim agent's behavior tests stay unchanged, while its boundary tests change to describe the shared modules. The existing boundary tests require imports that the proposed extraction intentionally moves.
+- Move phase 5's manual browser check on `npm run dev` to phase 6. Phase 5 keeps its vitest and end-to-end checks with the existing local stand-ins, consistent with the commitment to use no real services in phases 1–5.
 
-**Acceptance:** hold a worker inside a tool past the deadline, start the next turn, then release the old worker. Run both in one process and with separate app instances sharing the saver. The new turn must proceed; the old worker must not overwrite its state, publish an answer, or start another action.
+**Acceptance:** phase-specific tool assertions match the implemented tools; the existing claim-agent behavior tests still pass; the updated boundary tests enforce the new module relationships. Phase 6 includes the greeting, open/collapsed sidebar, narrow window, light/dark mode and console checks previously assigned to the phase 5 manual check.
 
-### 5. P1 — Application records and graph checkpoints can disagree after a crash
+### 6. Add the negative payout case, bound conflict retries and observe connections
 
-**Plan:** lines 95–97 and 110–112; `turns.py` reports a pause or completion only after running the graph.
+**Payment criterion:** keep comparing each queue payment with the approval limit recorded on its decision. The original review's recommendation to use the current Settings limit is withdrawn. Add a test fixture with a payment over its decision-time limit and no handler sign-off. The third criterion must report No. Keep the existing successful and empty-count tests and the exclusion of evaluation copies.
 
-There are two independent durable stores: the LangGraph checkpoint and the backend's turn/card records. The plan describes the normal order but not recovery at the boundaries. Examples include:
+**Runtime conflicts:** cap conflict retries so the complete start request stays inside the app Lambda's 30 seconds. The budget must cover connection/read timeouts and retry sleeps, with time left to return the outcome. Stop retrying when that budget is exhausted, even if fewer than the planned four attempts have run. Preserve the existing distinction between work known not to have started and an uncertain result after sending it.
 
-- The interrupt is saved, but the process dies before `pause_turn`: the app shows working and eventually stopped, with no confirmation card.
-- The app accepts a confirmation and the graph consumes it, but the process dies before reporting the result: the app shows working even though the graph no longer has an interrupt.
-- The answer and memory save complete, but `finish_turn` never reaches the app: the conversation state contains an answer the sidebar never shows.
+**Connections:** note Supabase's connection count during the existing live handover, particularly while the Copilot waits for the dispatch or evaluation it started. Record the observation with the live results; this does not require a pool redesign or extra live runs.
 
-Closing dangling tool calls on the next message does not reconcile these states. A blanket “step stopped before it finished” can also be false if the action committed and only its response or card update was lost.
+**Acceptance:** the seeded unsigned payout produces No; a test with delayed conflict responses proves that attempts and waits respect the total start budget; the final live report includes the observed connection count alongside the already planned costs.
 
-**Change:** define an explicit reconciliation table for app status, graph status and recorded action outcomes. Make pause/finish callbacks safely repeatable for the same turn and confirmation. On an authorized reload/continuation, recover a saved pause or final answer when possible, and distinguish an unknown action outcome from an action known not to have happened. Never infer a successful payment solely from the stored button answer.
+### 7. Refuse late updates to stopped turns and document the crash gaps
 
-**Acceptance:** inject failures immediately before and after each checkpoint, pause report, confirmation transition, payment response, memory save and finish report. Rebuild the Copilot on the same saver and verify the sidebar, graph and backend agree, without duplicate effects. The existing fresh-process pause test covers only the successful boundary.
+Every turn-update route must use the same stopped-turn check as the read path. Once a turn is shown as stopped, refuse late step updates, pause reports, finish reports and failure reports, including when it is still the conversation's latest turn. A late callback must not change it back to working, waiting for confirmation, done or failed. A turn waiting for confirmation remains exempt from the working-turn timeout, as planned.
 
-### 6. P1 — Non-payment actions have no durable identity for ambiguous outcomes
+**Acceptance:** age a working turn past the cutoff, read it as stopped, and send each late update: every update is refused and the turn remains stopped. Repeat after a newer turn has begun and verify that its records are unaffected. No execution generation or broader recovery mechanism is added.
 
-**Plan:** `cards.py`, lines 92 and 117–128, and the step schema at line 147. **Existing code:** `backend/runs.py:489` and `backend/main.py:533`.
+The gaps between a graph checkpoint and an app update remain accepted limitations. Recommend adding the following to `docs/STATUS.md` as known gaps of the Copilot design when that document is next updated:
 
-Dispatch starts, evaluation starts and send-backs can commit before a connection drops or a checkpoint is saved. None is currently identified by a Copilot action/turn receipt. A repeated start after the first run finishes can create a second run; a repeated send-back can affect a newly held decision. The success-criteria tool also performs start, wait and measurement inside one tool invocation, leaving no specified durable run reference until the invocation completes.
+- If the Copilot stops after saving an interrupt but before reporting the pause to the app, the saved graph is waiting for confirmation while the app still shows the turn working. The card is absent, and the app eventually shows the turn as stopped.
+- If the Copilot stops after saving its result but before reporting completion to the app, the sidebar can miss an answer or confirmation outcome already present in the saved graph. A sign-off may already have paid, or memory may already have been saved; the app can still show the turn working and eventually stopped. Automatic reconciliation is not included.
 
-Synchronous checkpointing protects completed graph steps, not an external mutation and its following checkpoint as one transaction. LangGraph's guidance likewise requires side effects to be designed for re-execution; a checkpointer alone does not supply an exactly-once API. See [LangGraph interrupts and side effects](https://docs.langchain.com/oss/python/langgraph/interrupts#side-effects-called-before-interrupt-must-be-idempotent).
+These are documentation recommendations only. `docs/STATUS.md` has not been changed in this revision.
 
-**Change:** record an action identifier, its intended target/revision, and its result such as `run_id`, with a uniqueness rule enforced where the action commits. Preserve the started evaluation's identity before entering its long wait. On uncertain responses, reconcile the same action rather than asking the model to repeat it without context. Keep card identity stable across retries as well.
+## Applying the amendments to the existing phases
 
-**Acceptance:** let a start/send-back commit and then drop its response or fail its card update. Continue the conversation and verify there is one run or send-back, the recorded outcome is recovered, and a later decision cannot be affected by the old request.
-
-### 7. P1 — Token-free application logs do not guarantee token-free SDK logs
-
-**Plan:** lines 102–105, Runtime payloads, and the DEBUG-log assertions in phases 1 and 4.
-
-The handler token is included in the JSON body passed to boto3. The installed `botocore.endpoint.Endpoint.make_request` logs the request parameters, including that body, at DEBUG. I verified this locally with fake credentials, a fake token and the network send replaced: the fake token appeared in captured botocore DEBUG logs. No live service or real credential was involved.
-
-A stand-in that replaces `invoke_agent_runtime` never exercises that logging path, so the planned test can pass despite the leak. Formatting the application's own errors without values does not fix SDK logging. SDK exceptions and chained validation errors also deserve inspection because the plan persists short exception descriptions.
-
-**Change:** specify protection at the logging boundary for token-bearing requests, including third-party request logging and exception formatting. Avoid process-global per-request token filters that could mix handlers or leave gaps under concurrency. Keep safe diagnostic metadata without payloads or authorization headers.
-
-**Acceptance:** exercise the real boto3 serialization/request path with fake credentials and a stubbed network boundary while capturing DEBUG output. Include malformed payloads, refusals, timeouts and concurrent handlers; inspect exception logs, checkpoint writes and saved failure/card text as well as application log messages.
-
-### 8. P1 — The over-limit criterion changes the definition in the brief
-
-**Plan:** line 138. **Spec:** `docs/COPILOT.md:100–104`. **Existing code:** `backend/main.py:429` and `backend/main.py:475`.
-
-The brief asks whether queue payments over the approval limit have a handler's sign-off. The plan instead compares each payment with the limit stored when its decision was recorded. Those are different measures when Settings changes. For example, a $900 automatic payment made under a $1,000 limit is excluded by the plan even if today's limit is $500. Conversely, a signed $1,350 payment is counted by the plan after the limit rises to $2,000, although it is no longer above the current limit.
-
-Historical compliance might be a useful separate measure, but the plan should not silently substitute it for the requested current-limit check. The system already distinguishes the limit at decision time from the current payment limit, so tests with unchanged settings cannot expose this discrepancy.
-
-**Change:** use the Settings limit for the specified criterion, or explicitly resolve the business definition in the spec before implementation. Return the limit used alongside both counts from one consistent read, so the answer can explain the scope. Likewise identify when the accuracy objective is sampled if it changes during the evaluation.
-
-**Acceptance:** test a raised limit, a lowered limit, payment exactly at the limit, no qualifying payments, exclusion of evaluation copies, and a deliberately seeded payment lacking sign-off. The last case proves the criterion can actually report No; the planned tests demonstrate only successful and empty counts.
-
-## Further implementation risks
-
-### 9. P2 — Permission checks are inconsistent across the two senior-handler actions
-
-**Plan:** phase 2 line 292 versus lines 90 and 296. **Spec:** item 2 says the Copilot knows permissions and tells an unauthorized handler rather than trying the action.
-
-Sign-off is refused locally before an action call, but the send-back test relies on calling the backend and displaying its refusal. Marcus cannot send a held decision back either: today's route uses the `SendsBack` senior-handler dependency.
-
-**Change:** apply the verified handler permission check consistently to send-back and sign-off, while retaining backend enforcement. Test that neither mutation endpoint is called for Marcus, and that permissions changed since an earlier turn are checked again. Include tests that unsupported actions such as changing Settings or starting an improvement round produce directions to the dashboard and no mutation.
-
-### 10. P2 — Serial tool execution is not enforced by disabling parallel model calls
-
-**Plan:** lines 88–90 and the `ToolNode` design.
-
-The plan requests `parallel_tool_calls=False` and handles a sign-off beside another tool, but does not define what happens to multiple ordinary tools or multiple sign-offs in one model response. The installed `ToolNode` uses an executor for the supplied calls; the claim harness separately limits concurrency. Model settings alone should not determine the ordering of mutations and confirmations.
-
-**Change:** choose and enforce one code-level rule: serialize the calls, or refuse additional calls with a `ToolMessage` for every rejected call id. Cover the special sign-off schema's validation too, since it bypasses the ordinary tool node. Preserve `Command` state updates from the criteria tool through the card wrapper.
-
-**Acceptance:** return two mutations, two sign-offs, a sign-off plus a lookup, malformed arguments, and an unknown tool from the stub. Verify ordering, complete tool-call responses, at most the intended mutation, and no accidental concurrent payments or lost criteria state.
-
-### 11. P2 — The invocation retries lack a total budget for the deployed Lambda
-
-**Plan:** Runtime transport table and four attempts with 1/2/4-second waits. **Deployment:** `labs/week3day4_aws.py:145–149` sets the backend Lambda timeout to 30 seconds.
-
-Each attempt can consume 5 seconds connecting and 20 reading. A conflict is safe to retry, but it can arrive after some latency, so four attempts plus waits do not have a 30-second upper bound. Local tests shortening sleeps do not verify the deployed behavior. The callback chain also holds a backend database connection while the Copilot calls the app back for `/api/me` and the conversation; this extends an existing connection-pressure risk documented in `docs/STATUS.md`.
-
-**Change:** use a total invocation deadline that leaves time to return or record the outcome within the existing Lambda budget, and cap each retry to the remaining time. Preserve the distinction between a request known not to have reached the worker and one with an uncertain result. Review releasing the request's database connection before the service call without losing transactional guarantees.
-
-**Acceptance:** simulate late conflicts, a cold start and a timeout after acceptance. Verify elapsed bounds and correct turn state. Exercise several simultaneous conversation starts with the backend's connection limit and callbacks enabled.
-
-### 12. P2 — The extra runtime changes the database connection budget
-
-**Plan:** shared `open_checkpoint_pool()` unchanged and one Runtime session per conversation. **Existing code:** `agent/harness.py:122`; **operational evidence:** `docs/STATUS.md`'s connection measurements.
-
-The current checkpoint pool has a minimum of one connection and a maximum of four per process. On the laptop, adding a Copilot process means another pool alongside the backend and claim agent. On Runtime, separate conversations create separate processes and pools. The existing measurements already report 8–9 connections against a documented allowance of 12; simply keeping “four per process” does not establish that the new total is acceptable.
-
-**Change:** state the expected number of active conversations/sessions, allocate pools for that workload, and include the resulting total in the live checks. Verify that setup on a new session is safe when both runtimes initialize their checkpoint tables concurrently. Reuse the transaction-pooler settings and avoid holding a checkpoint connection during the 15-minute wait.
-
-**Acceptance:** measure connection use during a Copilot turn that starts a dispatch, while another handler has a conversation. Add local tests for pool exhaustion/setup failure and recovery; live database checks can remain in the final phase.
-
-### 13. P2 — Confirmation outcomes and elapsed time need more than one answer flag
-
-**Plan:** lines 113, 146 and 149; phase 5's “Signed off and paid” test.
-
-Choosing Sign off is an authorization, not evidence that payment succeeded. The backend can refuse, the sign-in can expire, or the response can be lost. A turn can also pay successfully and then fail during a later model call. The proposed schema does not explicitly distinguish these outcomes. A single `paused_at`/`answered_at` pair also cannot account for several sequential confirmations in one turn without overwriting earlier waiting time and card history.
-
-**Change:** represent each confirmation's requested answer separately from its action outcome and payment receipt. Render “Signed off and paid” only from a confirmed backend result. Either support a sequence of confirmation records and accumulated active time, or define a deliberate single-confirmation-per-turn restriction. Handle a refused/failed sign-off through the same model-visible refusal and card rules as other actions.
-
-**Acceptance:** confirm after the claim was paid elsewhere, after permissions were revoked, and with an expired token; simulate a payment success followed by an answer failure. Verify the card reports the actual payment result. Test two pauses if supported and ensure waiting time is excluded from the whole turn's duration.
-
-### 14. P2 — The phase gates contradict the proposed refactor
-
-**Plan:** phase 2 lines 303–305, and phase 3 line 311. **Existing tests:** `agent/tests/test_boundaries.py`, especially `test_the_routes_and_who_uses_them` and `test_the_memory_uses_nothing_else_in_the_agent_and_the_claim_agent_uses_it`.
-
-Phase 2 requires the tools to equal the final table even though phase 3 adds several of those tools. It also requires the claim agent's tests to pass unchanged, while existing boundary tests explicitly require `harness` to import `gateway`/`direct` and `memory` to import no other agent module. The proposed extraction intentionally changes both relationships. Those assertions must change to test the new design; leaving them untouched cannot satisfy the phase.
-
-The proposed boundary list also bans direct `connection` imports outside `app_api.py`, but `turns.py` and the graph must recognize refusals. Decide whether the API module exposes the expected refusal contract or a neutral shared errors module owns it, rather than discovering this while implementing.
-
-**Change:** make tool inventories phase-specific and list necessary structural-test updates explicitly. Preserve the claim agent's behavioral regression coverage while rewriting architecture assertions around the shared modules. Resolve the `ToolRuntime`/context protocol experiment early, with the installed version, before committing to the full extraction.
-
-**Acceptance:** the new boundary tests must detect forbidden dependencies while allowing the intended ones. Existing claim behavior, Gateway refusals, memory isolation, resumption and API-key behavior must remain covered and pass.
-
-## Additional acceptance criteria and clarifications
-
-These are useful additions to the relevant phases, rather than reasons to expand the product's scope:
-
-| Area | Add or clarify |
+| Phase | Agreed amendment |
 | --- | --- |
-| Authentication isolation | Run Dana and Marcus turns concurrently through the shared HTTP client. Assert request-local bearer headers, no retained default authorization, no agent key, and no cross-handler memory or conversation content. Test refresh failure as well as 19/21-minute expiry boundaries. |
-| Answer-key isolation | Assert the actual response/tool payloads contain no labeled handler decisions or reasons. A grep for `get_evaluation` is a useful boundary check but is not a data-isolation test. Keep the Gateway's six-operation app schema unchanged. |
-| Context trust | State that customer stories, tool results and recalled preferences are evidence, not authority to start actions or override confirmation. Test a claim document that instructs the Copilot to pay/send back. Do not add a new screening model merely to address this. |
-| Tool cards | Specify stable ordering, idempotent completion and terminal treatment of cards left working by a failed/stopped turn. Never present an uncertain committed action as definitely refused. Keep display truncation separate from the full tool result needed by the model. |
-| Waits | Use a monotonic deadline including HTTP time, not just a number of sleeps. Give a link and identify the started run on timeout. For criteria, test stopped runs as well as start refusals and timeouts, and ensure no other evaluation's measures are substituted. |
-| Sidebar lifecycle | Test switching conversation/page while a request is in flight, signing out and signing in as another handler, focus and Escape behavior for the narrow overlay, keyboard operation of cards/confirmation, and reduced motion. Assert that a late response cannot appear in another conversation. |
-| Markdown | Retain the renderer's safe handling of HTML and URLs. Test claim links, code blocks and tables so linkification does not rewrite unrelated text or produce unsafe navigation. |
-| Reseed | Define what happens to Copilot checkpoint threads and active sessions when app conversations are removed. Unique conversation ids and ownership checks prevent reuse, but deleting three app tables alone does not delete `PostgresSaver` state. Do not clear unrelated claim-agent checkpoints accidentally. |
-| Phase sequencing | The introduction says phases 1–5 use no real model/AWS/Supabase, but phase 5 asks for a signed-in browser check on `npm run dev`, which normally uses the real services. Move that manual check to phase 6 or explicitly use the test servers and Auth stand-in. |
-| Compatibility | Use a run-start response model for the added `run_id`/`number`; do not require those fields on every existing `Accepted` response, including improvement operations. Include `npm run build` and a built-dashboard smoke check, beyond importing both Runtime entry files. |
-
-## Suggested changes to the phases
-
-Keep the six phases, but make these decisions part of the design before writing code:
-
-1. **Phase 1:** settle confirmation/decision identity, turn execution ownership, terminal states, action receipts and the payment-count definition. Add the race and stale-request API tests here, plus the real-SDK logging test and transport deadline.
-2. **Phase 2:** implement the loop against those contracts, including explicit tool ordering and crash reconciliation. Update structural tests for the planned extraction while preserving behavioral checks. Prove the shared context tools work with both context schemas early.
-3. **Phase 3:** make the entire criteria result consistent by construction, persist the evaluation identity before waiting, and test memory against the published answer. Cover changed thresholds and negative payment counts.
-4. **Phase 4:** prove execution ownership across app instances, token-safe Runtime transport, bounded startup/retries and the connection budget. Keep the deployment folders' changes narrow as planned.
-5. **Phase 5:** test stale tabs, honest confirmation outcomes, conversation switching and recovery displays alongside the existing layout and end-to-end checks.
-6. **Phase 6:** perform the authorized handover once after reseeding, check the deterministic report against records, confirm restart recovery, and record costs and connection use. Retain the notebook-owned deployed-memory check.
+| 1 | Require the card's `turn_id`, refuse a mismatched held decision and late stopped-turn updates, bound conflict retries, and add the real-boto3 logging test and unsigned-payout count case. |
+| 2 | Enforce one sign-off per turn and serial tool execution; keep behavior tests unchanged and update boundary tests and the phase-specific tool inventory. |
+| 3 | End the success-criteria turn with the complete code-written answer; remove `answer_of` and the table instruction, and test exact output and the negative payment criterion. |
+| 4 | Keep botocore above DEBUG wherever Runtime calls are made and retain the actual SDK request path in the logging test. |
+| 5 | Base the confirmation card's success label on the actual sign-off result and test stale cards; keep checks on local stand-ins. |
+| 6 | Include the moved manual browser check, note Supabase connections during the planned handover, and document the two checkpoint/app crash gaps. |
 
 ## Review evidence and limits
 
