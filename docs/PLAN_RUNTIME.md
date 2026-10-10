@@ -309,16 +309,16 @@ Add `runs.heard_at`, `runs.stopped_because`, `rounds.heard_at` and the `locks` t
 
 Then the live checks, after one reseed, with Lab 1's `agentcore dev` stopped:
 
-- [ ] `npm run seed` prints the 26 claims seeded into the `undercover` schema on Postgres
-- [ ] With `npm run dev` stopped, `uv run --env-file .env --isolated --only-group runtime python -m runtime.main` serves the agent on port 8080, and `{"operation": "health"}` posted to `http://127.0.0.1:8080/invocations` answers `{"healthy": true}`
-- [ ] With `npm run dev` running and Dana Whitfield signed in, the queue, a claim, the Scoreboard and the Improvement, Configuration and Settings pages load with no console errors
-- [ ] A dispatch at N=25 on the queue page works the 26 claims; while it runs, Start a dispatch again shows "A dispatch is running"; it finishes with its summary, every claim decided once and the held payouts listed
-- [ ] A short script with no model shows an interrupt waiting on the thread of each claim held for sign-off
-- [ ] CLM-1011, or another held claim if it wasn't held, sent back on its page with a note saying Meridian Air has already paid $350 for the lost bag, is taken by the agent and decided again; its page shows the new decision, the sent-back decision with its note, who sent it back and when, and the note among the steps, in light and dark mode, with no console errors
-- [ ] Another held claim signed off on its page shows "Paid $..., signed off by Dana Whitfield" at once, and its thread has no interrupt and nothing left to run
-- [ ] An evaluation of the evaluation set's five tiny claims on the Scoreboard finishes with its measures
-- [ ] Supabase: no run is left running, every finished run has a `heard_at`, and `sent_back_decisions` holds the one decision sent back with its note
-- [ ] What it cost: the backend's records for the dispatch, the resume and the evaluation, beside the rise in the OpenRouter key's usage over the same time, in `docs/STATUS.md`'s "Last live run"
+- [x] `npm run seed` prints the 26 claims seeded into the `undercover` schema on Postgres
+- [x] With `npm run dev` stopped, `uv run --env-file .env --isolated --only-group runtime python -m runtime.main` serves the agent on port 8080, and `{"operation": "health"}` posted to `http://127.0.0.1:8080/invocations` answers `{"healthy": true}`
+- [x] With `npm run dev` running and Dana Whitfield signed in, the queue, a claim, the Scoreboard and the Improvement, Configuration and Settings pages load with no console errors
+- [x] A dispatch at N=25 on the queue page works the 26 claims; while it runs, Start a dispatch again shows "A dispatch is running"; it finishes with its summary, every claim decided once and the held payouts listed
+- [x] A short script with no model shows an interrupt waiting on the thread of each claim held for sign-off
+- [x] CLM-1011, or another held claim if it wasn't held, sent back on its page with a note saying Meridian Air has already paid $350 for the lost bag, is taken by the agent and decided again; its page shows the new decision, the sent-back decision with its note, who sent it back and when, and the note among the steps, in light and dark mode, with no console errors
+- [x] Another held claim signed off on its page shows "Paid $..., signed off by Dana Whitfield" at once, and its thread has no interrupt and nothing left to run
+- [x] An evaluation of the evaluation set's five tiny claims on the Scoreboard finishes with its measures
+- [x] Supabase: no run is left running, every finished run has a `heard_at`, and `sent_back_decisions` holds the one decision sent back with its note
+- [x] What it cost: the backend's records for the dispatch, the resume and the evaluation, beside the rise in the OpenRouter key's usage over the same time, in `docs/STATUS.md`'s "Last live run"
 
 ## Not in this plan
 
