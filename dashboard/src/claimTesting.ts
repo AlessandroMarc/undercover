@@ -1,7 +1,8 @@
 // A claim as the backend gives it to the claim page, with its decision and
 // the agent's steps, for the page's tests.
 
-import type { Claim, Decision, Source, Step } from "./api";
+import type { Claim, Decision, Step } from "./api";
+import type { Source } from "./sources";
 import {
   claim,
   history,

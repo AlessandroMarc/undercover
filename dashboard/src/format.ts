@@ -5,11 +5,11 @@ import type {
   RoundStatus,
   RoundSummary,
   RunStatus,
-  Source,
   Status,
   Verdict,
   VersionStatus,
 } from "./api";
+import type { Source } from "./sources";
 
 const dollars = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -81,6 +81,12 @@ export function duration(seconds: number): string {
   return whole % 60 === 0
     ? `${String(minutes)} min`
     : `${String(minutes)} min ${rest}`;
+}
+
+// A short length of time, to a tenth of a second under ten seconds, such as
+// 0.4 s, and as duration gives it from there.
+export function briefly(seconds: number): string {
+  return seconds < 10 ? `${seconds.toFixed(1)} s` : duration(seconds);
 }
 
 export function date(isoDate: string): string {

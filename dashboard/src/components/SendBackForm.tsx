@@ -46,7 +46,9 @@ export function SendBackForm({
           value={note}
           onChange={setNote}
           sending={sending}
-          onSubmit={run}
+          onSubmit={() => {
+            void run();
+          }}
           maxLength={NOTE_LENGTH}
         >
           {error && <FormError>{error}</FormError>}

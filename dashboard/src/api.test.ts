@@ -1,7 +1,13 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { api } from "./api";
 import { ApiError } from "./refusals";
-import { TOKEN, endSession } from "./fakeAuth";
+import {
+  CONVERSATIONS,
+  CONVERSATION_ID,
+  CONVERSATION_PATH,
+  conversation,
+} from "./copilotTesting";
+import { TOKEN, endSession, freshAccessToken } from "./fakeAuth";
 import { Refusal, claim, stubApi } from "./testing";
 
 afterEach(() => {
@@ -56,4 +62,33 @@ it("sends no token when no one is signed in", async () => {
   await api.getClaim("CLM-1002");
   const [[, init]] = fetchMock.mock.calls;
   expect(new Headers(init?.headers).has("Authorization")).toBe(false);
+});
+
+it("sends the Copilot a message or an answer with a renewed sign-in, and reads with the session's", async () => {
+  freshAccessToken
+    .mockResolvedValueOnce("renewed-1")
+    .mockResolvedValueOnce("renewed-2")
+    .mockResolvedValueOnce("renewed-3");
+  const fetchMock = stubApi({
+    [`POST ${CONVERSATIONS}`]: conversation(),
+    [`POST ${CONVERSATION_PATH}/messages`]: conversation(),
+    [`POST ${CONVERSATION_PATH}/confirmation`]: conversation(),
+    [`GET ${CONVERSATION_PATH}`]: conversation(),
+    [`GET ${CONVERSATIONS}`]: [],
+  });
+  await api.startConversation("What needs me today?");
+  await api.sendMessage(CONVERSATION_ID, "And tomorrow?");
+  await api.answerConfirmation(CONVERSATION_ID, "turn-1", "sign_off");
+  await api.getConversation(CONVERSATION_ID);
+  await api.listConversations();
+  const headers = fetchMock.mock.calls.map(([, init]) =>
+    new Headers(init?.headers).get("Authorization"),
+  );
+  expect(headers).toEqual([
+    "Bearer renewed-1",
+    "Bearer renewed-2",
+    "Bearer renewed-3",
+    `Bearer ${TOKEN}`,
+    `Bearer ${TOKEN}`,
+  ]);
 });

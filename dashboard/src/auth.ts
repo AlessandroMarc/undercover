@@ -30,6 +30,23 @@ export async function accessToken(): Promise<string | undefined> {
   return data.session?.access_token;
 }
 
+// A sign-in lasts an hour; one with less than this left is renewed before the
+// Copilot is given it, so it lasts the Copilot's turn.
+export const RENEW_WITHIN_SECONDS = 20 * 60;
+
+// The session's access token, renewed first when it has less than
+// RENEW_WITHIN_SECONDS left, or nothing when no one is signed in.
+export async function freshAccessToken(): Promise<string | undefined> {
+  const { data } = await supabase.auth.getSession();
+  const session = data.session;
+  if (!session) return undefined;
+  const left = (session.expires_at ?? 0) - Date.now() / 1000;
+  if (left >= RENEW_WITHIN_SECONDS) return session.access_token;
+  const { data: renewed, error } = await supabase.auth.refreshSession();
+  if (error) throw new Error(error.message);
+  return renewed.session?.access_token;
+}
+
 // Tells the callback whether a handler is signed in, at once and again on each
 // sign-in and sign-out, until the function it returns is called.
 export function followSession(

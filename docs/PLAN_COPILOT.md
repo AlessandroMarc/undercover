@@ -62,7 +62,7 @@ The dashboard (phase 5):
 - `components/Copilot.tsx` (new): the sidebar: open or collapsed to a slim tab with `BotMessageSquare`, the conversation's turns, the message box and "Signed in as ...". `components/CopilotConversations.tsx` (new): New conversation and the earlier conversations. `components/CopilotTurn.tsx` (new): a turn: the handler's message, its cards, the working indicator, the confirmation card, the answer and its small print. `components/StepCard.tsx`, `components/ConfirmationCard.tsx`, `components/CopilotGreeting.tsx` and `components/MessageBox.tsx` (new). `components/Markdown.tsx` (new): an answer formatted with `react-markdown` and `remark-gfm`, with claim ids as links to their pages.
 - `copilot.ts` (new): what the browser remembers, the sidebar open or collapsed and the conversation open, and each card kind's icon and label.
 - `useLoad.ts`: an optional `keepAsking(data)`, so the sidebar asks again only while a turn is working.
-- `api.ts`: the Copilot's types and five operations. `auth.ts`: `freshAccessToken()`, which renews the sign-in when it has less than 20 minutes left; the message and the answer to a confirmation are sent with it.
+- `api.ts`: the Copilot's five operations, with its types in `conversation.ts` and, to keep `api.ts` under 500 lines, how a request is sent and its refusal read in `connection.ts`, which only `api.ts` uses, as `agent/connection.py` serves `agent/api.py`. `auth.ts`: `freshAccessToken()`, which renews the sign-in when it has less than 20 minutes left; the message and the answer to a confirmation are sent with it.
 - `package.json`: `react-markdown` and `remark-gfm`.
 
 The rest:
@@ -373,27 +373,27 @@ Build the sidebar and its parts, `freshAccessToken()`, `keepAsking` in `useLoad`
 
 SIDENOTE: Make sure the Copilot sidebar looks stunning, elegant, enterprise-grade - an interactive and compelling UX, fitting for a capstone project. Take the time to design and implement this UI to be outstanding. Take screenshots of it and iterate until you're very satisfied.
 
-- [ ] vitest: the sidebar is open the first time; collapsed, it shows the tab with its icon, and it stays collapsed after a reload; it opens again from the tab
-- [ ] vitest: on a narrow window the sidebar opens over the page
-- [ ] vitest: an empty conversation greets Dana by first name with the four questions; clicking one sends it
-- [ ] vitest: Enter sends and Shift+Enter starts a new line; the box is disabled while a turn works; while a confirmation waits it asks for the answer first; the foot says "Signed in as Dana Whitfield"
-- [ ] vitest, with fake timers: the conversation is read about once a second while a turn works, and not once it's done, failed, stopped or waiting
-- [ ] vitest: a card shows its kind's icon, its tool and main input, a spinner with its seconds while working, a check with its time when done, and a Refused or Failed chip with the reason; an action card has its fill; a click opens what was asked and came back, with a context layer answer's file and owner
-- [ ] vitest: the working indicator shows while the turn works and no card does
-- [ ] vitest: an answer with a paragraph, a list and a table shows them formatted, CLM-1003 links to its page, and the small print gives the model calls, the cost and the seconds
-- [ ] vitest: the confirmation card shows the claim, the customer, the amount and the reason, and its buttons send its own turn id with `sign_off` or `cancel`
-- [ ] vitest: after Sign off, the card says "Signing off" while the `sign_off_claim` card works and "Signed off and paid" only once it's done; an accepted answer alone, a refused or failed sign-off, a Cancel and a Cancel because the claim changed never say it, and each shows its own outcome and reason
-- [ ] vitest: a failed turn shows what went wrong and a stopped turn that it stopped, and the box is enabled after either
-- [ ] vitest: the earlier conversations are listed newest first by their first questions, and New conversation empties the sidebar
-- [ ] vitest: a message and an answer renew a sign-in with 19 minutes left before they're sent, and not one with 21
-- [ ] e2e: the sidebar is open beside the queue, a claim, the Scoreboard, and the Improvement, Configuration and Settings pages at 1280 wide; collapsed, it stays collapsed after a reload
-- [ ] e2e: at 800 wide the sidebar opens over the page
-- [ ] e2e: Dana asks a question; the stand-in's turn shows a lookup card, an action card with its fill, a refused card with the app's reason, and a formatted answer with a table and a claim link, which opens the claim's page; the page beside the sidebar shows the action's change without a reload
-- [ ] e2e: Dana asks to sign off a held claim; the card shows the claim, customer, amount and reason from the app; the box asks for the answer first; after a reload the card is still there; Sign off and pay shows "Signed off and paid" once the stand-in's sign-off is done, and the claim's page shows "Paid $1,350.00, signed off by Dana Whitfield"
-- [ ] e2e: Cancel leaves the claim held, and the answer says nothing was signed off
-- [ ] e2e: the earlier conversations list holds the conversations by their first questions, and opening one shows its turns
-- [ ] e2e: every existing spec passes with the sidebar open
-- [ ] `npm run check` passes with `.env` moved out of the way
+- [x] vitest: the sidebar is open the first time; collapsed, it shows the tab with its icon, and it stays collapsed after a reload; it opens again from the tab
+- [x] e2e, since jsdom lays nothing out: on a narrow window the sidebar opens over the page (the e2e check at 800 wide below)
+- [x] vitest: an empty conversation greets Dana by first name with the four questions; clicking one sends it
+- [x] vitest: Enter sends and Shift+Enter starts a new line; the box is disabled while a turn works; while a confirmation waits it asks for the answer first; the foot says "Signed in as Dana Whitfield"
+- [x] vitest, with fake timers: the conversation is read about once a second while a turn works, and not once it's done, failed, stopped or waiting
+- [x] vitest: a card shows its kind's icon, its tool and main input, a spinner with its seconds while working, a check with its time when done, and a Refused or Failed chip with the reason; an action card has its fill; a click opens what was asked and came back, with a context layer answer's file and owner
+- [x] vitest: the working indicator shows while the turn works and no card does
+- [x] vitest: an answer with a paragraph, a list and a table shows them formatted, CLM-1003 links to its page, and the small print gives the model calls, the cost and the seconds
+- [x] vitest: the confirmation card shows the claim, the customer, the amount and the reason, and its buttons send its own turn id with `sign_off` or `cancel`
+- [x] vitest: after Sign off, the card says "Signing off" while the `sign_off_claim` card works and "Signed off and paid" only once it's done; an accepted answer alone, a refused or failed sign-off, a Cancel and a Cancel because the claim changed never say it, and each shows its own outcome and reason
+- [x] vitest: a failed turn shows what went wrong and a stopped turn that it stopped, and the box is enabled after either
+- [x] vitest: the earlier conversations are listed newest first by their first questions, and New conversation empties the sidebar
+- [x] vitest: a message and an answer renew a sign-in with 19 minutes left before they're sent, and not one with 21
+- [x] e2e: the sidebar is open beside the queue, a claim, the Scoreboard, and the Improvement, Configuration and Settings pages at 1280 wide; collapsed, it stays collapsed after a reload
+- [x] e2e: at 800 wide the sidebar opens over the page
+- [x] e2e: Dana asks a question; the stand-in's turn shows a lookup card, an action card with its fill, a refused card with the app's reason, and a formatted answer with a table and a claim link, which opens the claim's page; the page beside the sidebar shows the action's change without a reload
+- [x] e2e: Dana asks to sign off a held claim; the card shows the claim, customer, amount and reason from the app; the box asks for the answer first; after a reload the card is still there; Sign off and pay shows "Signed off and paid" once the stand-in's sign-off is done, and the claim's page shows "Paid $1,350.00, signed off by Dana Whitfield"
+- [x] e2e: Cancel leaves the claim held, and the answer says nothing was signed off
+- [x] e2e: the earlier conversations list holds the conversations by their first questions, and opening one shows its turns
+- [x] e2e: every existing spec passes with the sidebar open
+- [x] `npm run check` passes with `.env` moved out of the way
 
 ## Phase 6: The docs and the live checks
 

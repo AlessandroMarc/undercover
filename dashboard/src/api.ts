@@ -1,5 +1,11 @@
-import { accessToken } from "./auth";
-import { ApiError, reasonFor } from "./refusals";
+import { freshAccessToken } from "./auth";
+import { post, request, send } from "./connection";
+import type {
+  ConfirmationAnswer,
+  Conversation,
+  ConversationSummary,
+} from "./conversation";
+import type { Source } from "./sources";
 
 export const statuses = [
   "waiting",
@@ -23,14 +29,6 @@ export type StepKind =
   | "error"
   // A handler's note on a decision sent back, which only the app records.
   | "sent_back";
-
-// A context file a lookup came from, with that file's source.
-export interface Source {
-  file: string;
-  system: string;
-  owner: string;
-  reviewed: string;
-}
 
 export interface ClaimSummary {
   claim_id: string;
@@ -477,31 +475,9 @@ export interface Improvement {
   recipes: RecipeSummary[];
 }
 
-// Sends a request with the signed-in handler's access token, if any.
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = await accessToken();
-  const headers = new Headers(init.headers);
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  const response = await fetch(path, { ...init, headers });
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as {
-      detail?: unknown;
-    };
-    throw new ApiError(response.status, reasonFor(body.detail));
-  }
-  return (await response.json()) as T;
-}
-
-function send<T>(method: "POST" | "PUT", path: string, body?: object) {
-  if (body === undefined) return request<T>(path, { method });
-  return request<T>(path, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
-const post = <T>(path: string, body?: object) => send<T>("POST", path, body);
+// What the Copilot is asked to work on, with a sign-in that won't run out first.
+const askTheCopilot = (path: string, body: object) =>
+  send<Conversation>("POST", path, body, freshAccessToken);
 
 const CLAIMS = "/api/claims";
 const claimPath = (claimId: string) =>
@@ -516,6 +492,9 @@ const roundPath = (roundId: string) =>
   `${ROUNDS}/${encodeURIComponent(roundId)}`;
 const proposalPath = (roundId: string, proposalId: string) =>
   `${roundPath(roundId)}/proposals/${encodeURIComponent(proposalId)}`;
+const CONVERSATIONS = "/api/copilot/conversations";
+const conversationPath = (conversationId: string) =>
+  `${CONVERSATIONS}/${encodeURIComponent(conversationId)}`;
 
 export const api = {
   listClaims: () => request<ClaimSummary[]>(CLAIMS),
@@ -568,5 +547,21 @@ export const api = {
   rejectProposal: (roundId: string, proposalId: string, reason: string) =>
     post<Accepted>(`${proposalPath(roundId, proposalId)}/rejection`, {
       reason,
+    }),
+  listConversations: () => request<ConversationSummary[]>(CONVERSATIONS),
+  getConversation: (conversationId: string) =>
+    request<Conversation>(conversationPath(conversationId)),
+  startConversation: (message: string) =>
+    askTheCopilot(CONVERSATIONS, { message }),
+  sendMessage: (conversationId: string, message: string) =>
+    askTheCopilot(`${conversationPath(conversationId)}/messages`, { message }),
+  answerConfirmation: (
+    conversationId: string,
+    turnId: string,
+    answer: ConfirmationAnswer,
+  ) =>
+    askTheCopilot(`${conversationPath(conversationId)}/confirmation`, {
+      turn_id: turnId,
+      answer,
     }),
 };

@@ -162,7 +162,9 @@ function Review({
           value={reason}
           onChange={setReason}
           sending={sending}
-          onSubmit={reject.run}
+          onSubmit={() => {
+            void reject.run();
+          }}
         />
       )}
       <ConfirmDialog
@@ -171,7 +173,7 @@ function Review({
         confirmLabel={`Approve the ${what}`}
         onConfirm={() => {
           setConfirming(false);
-          approve.run();
+          void approve.run();
         }}
         onCancel={() => {
           setConfirming(false);

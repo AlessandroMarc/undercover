@@ -140,7 +140,7 @@ function SettingsForm({
         confirmLabel="Save the settings"
         onConfirm={() => {
           setConfirming(false);
-          save.run();
+          void save.run();
         }}
         onCancel={() => {
           setConfirming(false);

@@ -106,3 +106,48 @@ it("stops asking once it's unmounted", async () => {
   await wait(5 * REFRESH_MS);
   expect(load).toHaveBeenCalledTimes(1);
 });
+
+it("asks again only while keepAsking says so of the data", async () => {
+  const { load } = backend(100);
+  const belowThree = (answered: number) => answered < 3;
+  renderHook(() => useLoad(load, REFRESH_MS, belowThree));
+  await wait(10 * REFRESH_MS);
+  expect(load).toHaveBeenCalledTimes(3);
+});
+
+it("starts afresh for a different load, rather than showing the last one's data", async () => {
+  const first = vi.fn(() => Promise.resolve("CLM-1001"));
+  const second = vi.fn(
+    () =>
+      new Promise<string>((resolve) =>
+        setTimeout(() => {
+          resolve("CLM-1002");
+        }, 100),
+      ),
+  );
+  const { result, rerender } = renderHook(({ load }) => useLoad(load), {
+    initialProps: { load: first },
+  });
+  await wait(0);
+  expect(result.current.data).toBe("CLM-1001");
+  rerender({ load: second });
+  expect(result.current.data).toBeUndefined();
+  await wait(100);
+  expect(result.current.data).toBe("CLM-1002");
+});
+
+it("shows what a change gave back at once, then asks again from there", async () => {
+  const { load } = backend(100);
+  const belowTwo = (answered: number) => answered < 2;
+  const { result } = renderHook(() => useLoad(load, REFRESH_MS, belowTwo));
+  await wait(100);
+  expect(result.current.data).toBe(1);
+  act(() => {
+    result.current.show(10);
+  });
+  expect(result.current.data).toBe(10);
+  await wait(100);
+  expect(result.current.data).toBe(2);
+  await wait(5 * REFRESH_MS);
+  expect(load).toHaveBeenCalledTimes(2);
+});

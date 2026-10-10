@@ -1,4 +1,5 @@
-import type { Source, Step } from "../api";
+import type { Step } from "../api";
+import type { Source } from "../sources";
 import { sourceOf } from "../format";
 
 interface FileUsed {

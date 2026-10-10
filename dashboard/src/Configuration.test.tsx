@@ -81,7 +81,7 @@ it("shows a version's diff and its instructions, read only", async () => {
   expect(
     instructions.getByText(/## Contents of the claims manual/),
   ).toBeDefined();
-  expect(screen.queryByRole("textbox")).toBeNull();
+  expect(within(screen.getByRole("main")).queryByRole("textbox")).toBeNull();
 });
 
 it("says version 1 has nothing before it", async () => {

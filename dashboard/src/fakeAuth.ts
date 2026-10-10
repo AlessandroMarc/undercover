@@ -43,6 +43,10 @@ export function accessToken(): Promise<string | undefined> {
   return Promise.resolve(token);
 }
 
+export const freshAccessToken = vi.fn<typeof auth.freshAccessToken>(() =>
+  Promise.resolve(token),
+);
+
 export function followSession(
   callback: (signedIn: boolean) => void,
 ): () => void {

@@ -6,7 +6,8 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { Claim, Source, Step } from "./api";
+import type { Claim, Step } from "./api";
+import type { Source } from "./sources";
 import {
   approval,
   approved,

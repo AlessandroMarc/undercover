@@ -4,6 +4,7 @@ import {
   AGENT_STAND_IN,
   BACKEND,
   AUTH_STAND_IN,
+  COPILOT_STAND_IN,
   DASHBOARD,
   JUDGE_STAND_IN,
 } from "./e2e/servers";
@@ -32,15 +33,17 @@ export default defineConfig({
     {
       command: `uv run -m backend.seed && uv run uvicorn backend.main:app --port ${new URL(BACKEND).port}`,
       url: `${BACKEND}/api/health`,
-      // Empty DATABASE_URL, MODEL_NAME and UNDERCOVER_AGENT_RUNTIME keep the tests
-      // on SQLite, the default model and the agent's stand-in, whatever the shell
-      // has.
+      // Empty DATABASE_URL, MODEL_NAME, UNDERCOVER_AGENT_RUNTIME and
+      // UNDERCOVER_COPILOT_RUNTIME keep the tests on SQLite, the default model and
+      // the stand-ins for the agent and the Copilot, whatever the shell has.
       env: {
         UNDERCOVER_DB: "e2e/undercover.db",
         DATABASE_URL: "",
         MODEL_NAME: "",
         UNDERCOVER_AGENT: AGENT_STAND_IN,
         UNDERCOVER_AGENT_RUNTIME: "",
+        UNDERCOVER_COPILOT: COPILOT_STAND_IN,
+        UNDERCOVER_COPILOT_RUNTIME: "",
         VITE_SUPABASE_URL: AUTH_STAND_IN,
         JUDGE_URL: JUDGE_STAND_IN,
         OPENROUTER_API_KEY: "e2e-key",
@@ -60,6 +63,11 @@ export default defineConfig({
         UNDERCOVER_API: BACKEND,
         UNDERCOVER_API_KEY: AGENT_KEY,
       },
+    },
+    {
+      command: "node e2e/copilot_stand_in.ts",
+      url: `${COPILOT_STAND_IN}/ping`,
+      env: { PORT: new URL(COPILOT_STAND_IN).port, UNDERCOVER_API: BACKEND },
     },
     {
       command: "node e2e/auth_stand_in.ts",

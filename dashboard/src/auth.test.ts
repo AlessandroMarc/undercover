@@ -6,6 +6,7 @@ const supabase = vi.hoisted(() => ({
     signInWithPassword: vi.fn(),
     signOut: vi.fn(() => Promise.resolve({ error: null })),
     getSession: vi.fn(),
+    refreshSession: vi.fn(),
     onAuthStateChange: vi.fn<
       (tell: (event: string, session: object | null) => void) => {
         data: { subscription: { unsubscribe: () => void } };
@@ -83,4 +84,37 @@ it("follows sign-ins and sign-outs until told to stop", () => {
   expect(seen).toEqual([false, true]);
   stop();
   expect(unsubscribe).toHaveBeenCalled();
+});
+
+it("renews a sign-in with less than 20 minutes left before the Copilot gets it", async () => {
+  const now = Date.now() / 1000;
+  supabase.auth.refreshSession.mockResolvedValue({
+    data: { session: { access_token: "token-2" } },
+    error: null,
+  });
+  supabase.auth.getSession.mockResolvedValue({
+    data: { session: { access_token: "token-1", expires_at: now + 21 * 60 } },
+  });
+  expect(await auth.freshAccessToken()).toBe("token-1");
+  expect(supabase.auth.refreshSession).not.toHaveBeenCalled();
+  supabase.auth.getSession.mockResolvedValue({
+    data: { session: { access_token: "token-1", expires_at: now + 19 * 60 } },
+  });
+  expect(await auth.freshAccessToken()).toBe("token-2");
+  expect(supabase.auth.refreshSession).toHaveBeenCalledTimes(1);
+  supabase.auth.getSession.mockResolvedValue({ data: { session: null } });
+  expect(await auth.freshAccessToken()).toBeUndefined();
+});
+
+it("passes on a renewal Supabase refuses", async () => {
+  supabase.auth.getSession.mockResolvedValue({
+    data: { session: { access_token: "token-1", expires_at: 0 } },
+  });
+  supabase.auth.refreshSession.mockResolvedValue({
+    data: { session: null },
+    error: { message: "Refresh token expired" },
+  });
+  await expect(auth.freshAccessToken()).rejects.toThrow(
+    "Refresh token expired",
+  );
 });

@@ -24,6 +24,14 @@
   --on-header: #ffffff;
   --raised: light-dark(#ffffff, #0b2c37);
   --shadow: light-dark(rgb(7 59 76 / 0.07), rgb(0 0 0 / 0.5));
+  /* A panel opened over the page, as the Copilot is on a narrow window. */
+  --overlay-shadow: light-dark(rgb(7 59 76 / 0.18), rgb(0 0 0 / 0.6));
+  /* Marigold as text or an icon on a light surface. */
+  --marigold-text: light-dark(#8a5a00, var(--marigold));
+  /* The Copilot's own surfaces, its mark, its tab and the handler's messages:
+     Midnight, lifted off the black panel in dark mode. */
+  --copilot: light-dark(var(--midnight), #0f4152);
+  --on-copilot: #ffffff;
   /* What waits on a handler: a held payout, and a note sent back. */
   --held: color-mix(in srgb, var(--marigold) 22%, var(--panel));
   --sans: "Instrument Sans", system-ui, sans-serif;
@@ -343,13 +351,34 @@ p {
   }
 }
 
+/* The app fills the window: the header across the top, then the page, which
+   scrolls on its own, beside the Copilot's sidebar. The page's layouts answer
+   to the width the page has, not the window's. */
+.app {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.frame {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.page-area {
+  overflow-y: auto;
+  container: page / inline-size;
+}
+
 .page {
   max-width: 1320px;
   margin: 0 auto;
   padding: 32px 24px 56px;
 }
 
-@media (max-width: 560px) {
+@container page (max-width: 560px) {
   .page {
     padding: 24px 16px 48px;
   }
@@ -433,6 +462,19 @@ p {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 16px;
   margin-bottom: 20px;
+}
+
+/* Too narrow for the six side by side, the tiles sit in even rows. */
+@container page (max-width: 980px) {
+  .tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container page (max-width: 520px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .tile {
@@ -735,7 +777,7 @@ p {
   gap: 20px;
 }
 
-@media (max-width: 960px) {
+@container page (max-width: 960px) {
   .claim-layout {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1560,4 +1602,770 @@ fieldset.panel legend + * {
   min-width: 10rem;
   margin-top: 4px;
   color: var(--muted);
+}
+
+/* The Copilot's sidebar: on the right of every signed-in page, beside it, or
+   over it on a narrow window. */
+.copilot {
+  width: 400px;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--panel);
+  box-shadow: -12px 0 32px var(--shadow);
+  z-index: 2;
+}
+
+/* Read by a screen reader, but not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focused as it opens, so the keyboard carries on from there; it's no stop on
+   the way through. */
+.copilot:focus {
+  outline: none;
+}
+
+.copilot-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 14px 12px 10px 18px;
+}
+
+.copilot-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.copilot-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--copilot);
+  color: var(--sea-green);
+}
+
+.copilot-mark svg.lucide {
+  width: 18px;
+  height: 18px;
+}
+
+.icon-button {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.icon-button:hover,
+.icon-button[aria-pressed="true"] {
+  background: var(--inset);
+  color: var(--ink);
+}
+
+.copilot-body {
+  overflow-y: auto;
+  padding: 6px 18px 20px;
+  overscroll-behavior: contain;
+}
+
+/* An empty conversation: a greeting by first name and questions to start
+   from. */
+.greeting {
+  display: grid;
+  gap: 10px;
+  padding: 36px 0 8px;
+}
+
+.greeting-hello {
+  font-family: "Instrument Serif", serif;
+  font-size: 2.3rem;
+  line-height: 1.05;
+}
+
+.greeting-lead {
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.suggestions {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.suggestion {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border: none;
+  border-radius: 12px;
+  background: var(--inset);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.92rem;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    transform 140ms ease;
+}
+
+.suggestion svg.lucide {
+  color: var(--green-text);
+}
+
+.suggestion:enabled:hover {
+  background: color-mix(in srgb, var(--sea-green) 16%, var(--panel));
+  transform: translateX(2px);
+}
+
+.suggestion:disabled {
+  color: var(--disabled-ink);
+  cursor: not-allowed;
+}
+
+/* A conversation: each message on the right, the Copilot's steps and answer
+   on the left. */
+.turns {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 26px;
+}
+
+.turn {
+  display: grid;
+  gap: 10px;
+}
+
+.from-handler {
+  justify-self: end;
+  max-width: 86%;
+  padding: 10px 14px;
+  border-radius: 18px 18px 4px 18px;
+  background: var(--copilot);
+  color: var(--on-copilot);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.card {
+  border-radius: 12px;
+  background: var(--inset);
+}
+
+/* Each card arriving while the Copilot works, rather than every card as a
+   conversation opens. */
+.turn-working .card {
+  animation: card-in 260ms ease-out both;
+}
+
+.card-action {
+  background: var(--held);
+}
+
+.card:has(.step-refused, .step-failed) {
+  background: color-mix(in srgb, var(--raspberry) 14%, var(--panel));
+}
+
+.card-head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card-kind {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.card-kind svg.lucide {
+  width: 15px;
+  height: 15px;
+}
+
+.card-action .card-kind {
+  color: var(--marigold-text);
+}
+
+.card-call {
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-tool {
+  font-weight: 500;
+}
+
+.card-input {
+  color: var(--muted);
+}
+
+.card-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.card-state .mono {
+  font-size: 1em;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-done {
+  color: var(--green-text);
+}
+
+.card-open {
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+
+.card-head[aria-expanded="true"] .card-open {
+  transform: rotate(180deg);
+}
+
+.card-reason {
+  padding: 0 12px 10px 46px;
+  font-size: 0.85rem;
+}
+
+.card-details {
+  display: grid;
+  gap: 6px;
+  padding: 0 12px 12px 46px;
+}
+
+.card-details h4 {
+  margin: 4px 0 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.card-details pre {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--panel);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.card-sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+.spin {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* The small indicator while the Copilot works between steps. */
+.working {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.working-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.working-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sea-green);
+  animation: working 1200ms ease-in-out infinite;
+}
+
+.working-dots span:nth-child(2) {
+  animation-delay: 150ms;
+}
+
+.working-dots span:nth-child(3) {
+  animation-delay: 300ms;
+}
+
+@keyframes working {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* The card a sign-off waits on, which stands out until it's answered. */
+.confirmation {
+  padding: 14px 16px 16px;
+  border-radius: 16px;
+  background: var(--inset);
+}
+
+.confirmation.waiting {
+  background: color-mix(in srgb, var(--sea-green) 14%, var(--panel));
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.confirmation-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.confirmation-title svg.lucide {
+  color: var(--green-text);
+}
+
+.confirmation-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  margin: 12px 0;
+}
+
+.confirmation-facts dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.confirmation-facts dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.confirmation-amount {
+  grid-column: 1 / -1;
+}
+
+.confirmation-amount dd {
+  font-size: 1.6rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.confirmation-reason {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--inset);
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+/* On an answered card, which has the inset's fill, the reason takes the
+   panel's. */
+.confirmation:not(.waiting) .confirmation-reason {
+  background: var(--panel);
+}
+
+.confirmation-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.confirmation-outcome {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.confirmation-outcome svg.lucide {
+  margin-top: 0.15em;
+}
+
+.confirmation-outcome.paid svg.lucide {
+  color: var(--green-text);
+}
+
+.confirmation-outcome.refused svg.lucide {
+  color: var(--red-text);
+}
+
+.confirmation-outcome.unknown svg.lucide {
+  color: var(--marigold-text);
+}
+
+.confirmation-outcome.canceled svg.lucide,
+.confirmation-outcome.pending svg.lucide {
+  color: var(--muted);
+}
+
+/* The Copilot's answer, formatted, and its small print. */
+.from-copilot {
+  display: grid;
+  gap: 6px;
+}
+
+.answer {
+  font-size: 0.94rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.answer > * + * {
+  margin-top: 8px;
+}
+
+.answer ul,
+.answer ol {
+  margin-bottom: 0;
+  padding-left: 20px;
+}
+
+.answer li + li {
+  margin-top: 3px;
+}
+
+.answer code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+}
+
+/* A claim's id links to its page, set as ids are, and never breaks across
+   lines. */
+.answer a[href^="/claims/"] {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.answer-table {
+  overflow-x: auto;
+}
+
+.answer table {
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.answer th,
+.answer td {
+  padding: 6px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.answer thead th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.answer tbody tr:nth-child(odd) {
+  background: var(--inset);
+}
+
+.small-print {
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.turn-ended {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--inset);
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.turn-ended.failed {
+  background: color-mix(in srgb, var(--raspberry) 14%, var(--panel));
+  color: var(--ink);
+}
+
+.turn-ended svg.lucide {
+  margin-top: 0.2em;
+}
+
+.turn-ended.failed svg.lucide {
+  color: var(--red-text);
+}
+
+/* The handler's earlier conversations. */
+.earlier {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.earlier-back {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.earlier-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.earlier-item {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.earlier-item:hover,
+.earlier-item[aria-current="true"] {
+  background: var(--inset);
+}
+
+.earlier-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The foot: the message box and who is signed in. */
+.copilot-foot {
+  display: grid;
+  gap: 8px;
+  padding: 10px 14px 12px;
+}
+
+.message-box {
+  display: grid;
+  gap: 8px;
+}
+
+.message-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 6px 6px 6px 14px;
+  border-radius: 18px;
+  background: var(--inset);
+  transition: box-shadow 140ms ease;
+}
+
+.message-field:focus-within {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--link) 60%, transparent);
+}
+
+.message-field textarea {
+  flex: 1;
+  min-height: 34px;
+  max-height: 168px;
+  padding: 7px 0;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  field-sizing: content;
+}
+
+.message-field textarea:disabled {
+  color: var(--disabled-ink);
+  cursor: not-allowed;
+}
+
+.send {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: none;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--sea-green);
+  color: var(--midnight);
+  cursor: pointer;
+}
+
+.send:enabled:hover {
+  background: color-mix(in srgb, var(--sea-green) 88%, var(--midnight));
+}
+
+.send:disabled {
+  background: var(--disabled-surface);
+  color: var(--disabled-ink);
+  cursor: not-allowed;
+}
+
+.signed-in-as {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* The sidebar collapsed: a slim tab on the right with the Copilot's mark. */
+.copilot-tab {
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 9px;
+  border: none;
+  border-radius: 14px 0 0 14px;
+  background: var(--copilot);
+  color: var(--on-copilot);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: -4px 0 16px var(--shadow);
+}
+
+.copilot-tab svg.lucide {
+  width: 20px;
+  height: 20px;
+  color: var(--sea-green);
+}
+
+.copilot-tab span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  letter-spacing: 0.04em;
+}
+
+/* On a narrow window the sidebar opens over the page, below the header and
+   under the account menu that drops from it. */
+@media (width < 1100px) {
+  .frame {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .copilot {
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: min(400px, 100%);
+    z-index: 5;
+    box-shadow: -16px 0 48px var(--overlay-shadow);
+  }
+
+  .copilot-tab {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    translate: 0 -50%;
+    z-index: 5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn-working .card,
+  .spin,
+  .working-dots span {
+    animation: none;
+  }
+
+  .suggestion,
+  .card-open {
+    transition: none;
+  }
 }

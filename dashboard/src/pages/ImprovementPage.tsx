@@ -130,7 +130,7 @@ function StopRound({
         confirmLabel="Stop the round"
         onConfirm={() => {
           setConfirming(false);
-          stop.run();
+          void stop.run();
         }}
         onCancel={() => {
           setConfirming(false);

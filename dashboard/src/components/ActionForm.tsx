@@ -24,7 +24,7 @@ export function ActionForm({
 
   function submit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!disabled) run();
+    if (!disabled) void run();
   }
 
   return (

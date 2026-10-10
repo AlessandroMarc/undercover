@@ -4,9 +4,9 @@ import type {
   EvaluationSet,
   RoundStatus,
   Run,
-  Source,
   StepKind,
 } from "../dashboard/src/api";
+import type { Source } from "../dashboard/src/sources";
 import { HANDLERS, signedInAs } from "./handlers";
 import { roundPath, runPath } from "./paths";
 import { AGENT_KEY_HEADERS, AGENT_STAND_IN } from "./servers";
