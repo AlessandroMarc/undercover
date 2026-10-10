@@ -6,6 +6,8 @@ SIDENOTE: For consistency with the course, please build the Copilot the way the 
 
 When it's done, every signed-in page has the Copilot in a sidebar on the right. A handler asks in plain English, and the Copilot looks things up in the app and the context layer, starts dispatches and evaluations and waits for them in code, sends held decisions back, and signs off a held payout once the handler has confirmed on a card in the sidebar. It works as the handler who asked: the dashboard sends the handler's sign-in to the app with each message, the app passes it to the Copilot, and every call the Copilot makes to the app carries it, never the agent's key. Each tool call shows as a card as it happens. Conversations are saved after every step in Supabase, so a handler picks one up after a restart or on another day, a paused sign-off included. With its setting, the Copilot remembers each handler's preferences and facts in an AgentCore Memory of its own. It answers "Are we meeting the success criteria we agreed?" from an evaluation it runs, the settings and the app's count of payouts over the limit, every figure worked out in code. The Copilot is a second AgentCore app, `agent/copilot/entrypoint.py`, which `npm run dev` serves on 127.0.0.1:8081 and `runtime/copilot.py` runs on Runtime as the platform team's second runtime, `copilot`.
 
+SIDENOTE: Make sure the Copilot sidebar looks stunning, elegant, enterprise-grade - an interactive and compelling UX, fitting for a capstone project. Take the time to design and implement this UI to be outstanding. Take screenshots of it and iterate until you're very satisfied.
+
 Phases 1 to 5 are checked with tests, local commands and a SQLite backend, and none of them uses the real model, AWS or Supabase. Phase 6 brings the docs up to date and runs the live checks on the default model, on the direct route, with memory off.
 
 ## Design
@@ -367,6 +369,8 @@ Move the AgentCore apps' shared parts to `agentcore_app.py` and have `identity.f
 ## Phase 5: The sidebar
 
 Build the sidebar and its parts, `freshAccessToken()`, `keepAsking` in `useLoad`, and the Copilot's calls in `api.ts`. Add `e2e/copilot_stand_in.ts` and the Copilot's end-to-end tests.
+
+SIDENOTE: Make sure the Copilot sidebar looks stunning, elegant, enterprise-grade - an interactive and compelling UX, fitting for a capstone project. Take the time to design and implement this UI to be outstanding. Take screenshots of it and iterate until you're very satisfied.
 
 - [ ] vitest: the sidebar is open the first time; collapsed, it shows the tab with its icon, and it stays collapsed after a reload; it opens again from the tab
 - [ ] vitest: on a narrow window the sidebar opens over the page
