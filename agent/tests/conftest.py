@@ -1,4 +1,5 @@
 import threading
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Any
@@ -8,11 +9,12 @@ from fastapi.testclient import TestClient
 from langchain_core.callbacks import BaseCallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import connection, dispatcher, harness, improver, service
+from agent import connection, dispatcher, entrypoint, harness, improver
 from agent.direct import CONTEXT_URL
 from agent.tests.gateway_stand_in import GatewayStandIn
+from agent.tests.invoking import HEALTH, Agent
 from agent.tests.local_server import serving
-from agent.tests.stubs import agent_on
+from agent.tests.stubs import agent_on, stub
 from backend.main import app
 from context.server import build_server
 
@@ -82,27 +84,66 @@ def pauses_in(kind):
 
 
 @pytest.fixture
-def serve():
-    """Run the agent's service, without its lifespan, with each version's claim
-    agents on a stub model, given the version's instructions, whose graphs share a
-    saver."""
+def fresh_agent():
+    """Make the agent's AgentCore app, not yet ready, each with a client that stays
+    open for the test, so its requests share one event loop."""
+    with ExitStack() as clients:
+        yield lambda: Agent(clients.enter_context(TestClient(entrypoint.app)))
+
+
+@pytest.fixture
+def workers_from(monkeypatch):
+    """Stand in for what the agent builds as it gets ready: no checkpoint pool, and
+    the workers given, with each version's claim agents on a stub model, given the
+    version's instructions. The agent gets ready again in each test."""
+
+    def given(claim_model, saver, improver_model):
+        def claim_agents(version, kind):
+            return partial(
+                agent_on, claim_model, saver, version, pauses=pauses_in(kind)
+            )
+
+        workers = entrypoint.Workers(claim_agents, lambda round: improver_model, saver)
+        monkeypatch.setattr(entrypoint, "open_checkpoint_pool", object)
+        monkeypatch.setattr(entrypoint, "workers_on", lambda pool: workers)
+        monkeypatch.setattr(entrypoint, "ready", entrypoint.Ready())
+        return workers
+
+    return given
+
+
+@pytest.fixture
+def serve(workers_from, fresh_agent):
+    """The agent's AgentCore app, ready, with its claim agents on a stub model,
+    whose graphs share a saver."""
 
     def with_model(model, saver=None):
-        saver = saver or InMemorySaver()
+        workers_from(model, saver or InMemorySaver(), stub())
+        agent = fresh_agent()
+        agent.invoke(HEALTH)
+        return agent
 
-        def claim_agents(version, kind):
-            return partial(agent_on, model, saver, version, pauses=pauses_in(kind))
+    return with_model
 
-        service.app.dependency_overrides[service.claim_agents] = lambda: claim_agents
-        return TestClient(service.app)
 
-    yield with_model
-    service.app.dependency_overrides.clear()
+@pytest.fixture
+def serve_rounds(workers_from, fresh_agent):
+    """The agent's AgentCore app, ready, with a stub improver and stub claim agents
+    for each version, which save their progress in memory."""
+    saver = InMemorySaver()
+
+    def with_models(improver_model, claim_model):
+        workers_from(claim_model, saver, improver_model)
+        agent = fresh_agent()
+        agent.invoke(HEALTH)
+        return agent
+
+    return with_models
 
 
 @dataclass
 class HeldRun:
-    """A run the service is working, held open until the test releases it."""
+    """A run the agent is working, held open until the test releases it."""
 
     working: threading.Event = field(default_factory=threading.Event)
     release: threading.Event = field(default_factory=threading.Event)
@@ -110,19 +151,19 @@ class HeldRun:
 
 @pytest.fixture
 def hold_runs(monkeypatch):
-    """Hold each run the service starts from then on open until the test releases
+    """Hold each run the agent starts from then on open until the test releases
     it."""
 
     def from_now():
         held = HeldRun()
-        work_run = service.work_run
+        work_run = entrypoint.work_run
 
         def hold(run, work):
             held.working.set()
             held.release.wait(5)
             return work_run(run, work)
 
-        monkeypatch.setattr(service, "work_run", hold)
+        monkeypatch.setattr(entrypoint, "work_run", hold)
         return held
 
     return from_now
@@ -130,31 +171,9 @@ def hold_runs(monkeypatch):
 
 @pytest.fixture
 def held_run(hold_runs):
-    """Hold each run the service starts open until the test releases it."""
-    return hold_runs()
-
-
-@pytest.fixture
-def serve_rounds():
-    """Run the agent's service, without its lifespan, with a stub improver and stub
-    claim agents for each version, which save their progress in memory."""
-    saver = InMemorySaver()
-
-    def with_models(improver_model, claim_model):
-        def claim_agents(version, kind):
-            return partial(
-                agent_on, claim_model, saver, version, pauses=pauses_in(kind)
-            )
-
-        workers = service.RoundWorkers(
-            claim_agents, lambda round: improver_model, saver
-        )
-        service.app.dependency_overrides[service.round_workers] = lambda: workers
-        service.app.dependency_overrides[service.claim_agents] = lambda: claim_agents
-        return TestClient(service.app)
-
-    yield with_models
-    service.app.dependency_overrides.clear()
+    """Hold each run the agent starts open until the test releases it."""
+    yield (held := hold_runs())
+    held.release.set()
 
 
 @pytest.fixture(scope="session")

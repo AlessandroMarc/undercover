@@ -283,26 +283,19 @@ export async function finishOpenRound(request: Request) {
   await finishRound(request, round.round_id);
 }
 
-export interface Started {
-  path: string;
-  body: unknown;
-}
+// A payload the backend sent the agent, naming its operation.
+export type Payload = { operation: string } & Record<string, unknown>;
 
-export async function started(request: Request): Promise<Started[]> {
+// Every payload the stand-in for the agent took, oldest first.
+export async function started(request: Request): Promise<Payload[]> {
   const response = await request.get(`${AGENT_STAND_IN}/api/started`);
   await expect(response).toBeOK();
-  return (await response.json()) as Started[];
-}
-
-export async function reviews(request: Request): Promise<Started[]> {
-  const response = await request.get(`${AGENT_STAND_IN}/api/reviews`);
-  await expect(response).toBeOK();
-  return (await response.json()) as Started[];
+  return (await response.json()) as Payload[];
 }
 
 // The claims the backend has asked the agent to resume, oldest first.
-export async function resumes(request: Request): Promise<string[]> {
-  const response = await request.get(`${AGENT_STAND_IN}/api/resumes`);
-  await expect(response).toBeOK();
-  return (await response.json()) as string[];
+export async function resumes(request: Request): Promise<unknown[]> {
+  return (await started(request))
+    .filter((payload) => payload.operation === "resume_claim")
+    .map((payload) => payload.claim_id);
 }

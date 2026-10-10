@@ -69,7 +69,8 @@ def test_the_checkpoint_pool_settings(fakes):
         assert (pool.settings["min_size"], pool.settings["max_size"]) == (1, 4)
         assert pool.settings["timeout"] == 120
         kwargs = pool.settings["kwargs"]
-        assert (kwargs["autocommit"], kwargs["prepare_threshold"]) == (True, 0)
+        assert (kwargs["autocommit"], kwargs["prepare_threshold"]) == (True, None)
+        assert pool.settings["open"] is True
         assert kwargs["row_factory"] is harness.dict_row
         assert kwargs["options"] == "-c search_path=undercover"
         assert "undercover" in repr(pool.statements[0])

@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import event, select
 
 from backend.database import engine, handler_decisions, held_out_claims
+from backend.tests.agent_answers import unreachable
 from backend.tests.dashboard_reads import read, recipe
 from backend.tests.judging import answer
 from backend.tests.round_requests import (
@@ -58,7 +59,7 @@ def test_with_no_rounds_the_page_has_version_1_and_the_first_recipe(client):
 def test_start_a_round(client, agent_calls):
     response = act(client, ROUNDS)
     assert response.status_code == 202
-    assert agent_calls == [("/api/rounds", {"handler_id": "HND-01"})]
+    assert agent_calls == [{"operation": "start_round", "handler_id": "HND-01"}]
 
 
 def test_a_round_starts_only_when_none_is_open(client, agent_calls):
@@ -112,10 +113,14 @@ def test_an_approval_names_the_proposal_waiting(client, agent_calls):
     approved = act(client, approval(round_id, second))
     assert approved.status_code == 202
     assert agent_calls == [
-        (
-            f"/api/rounds/{round_id}/proposals/{second}/review",
-            {"review": "approved", "handler_id": "HND-01", "reason": ""},
-        )
+        {
+            "operation": "review_proposal",
+            "round_id": round_id,
+            "proposal_id": second,
+            "review": "approved",
+            "handler_id": "HND-01",
+            "reason": "",
+        }
     ]
 
 
@@ -126,7 +131,10 @@ def test_a_rejection_passes_its_reason_on(client, agent_calls):
     assert act(client, path, reason="").status_code == 422
     assert act(client, path, reason="  ").status_code == 422
     assert act(client, path, reason=" Keep each rule general ").status_code == 202
-    assert agent_calls[-1][1] == {
+    assert agent_calls[-1] == {
+        "operation": "review_proposal",
+        "round_id": round_id,
+        "proposal_id": proposal,
         "review": "rejected",
         "handler_id": "HND-01",
         "reason": "Keep each rule general",
@@ -146,9 +154,6 @@ def test_a_proposal_of_another_round_isnt_found(client):
 
 
 def test_an_approval_with_the_agents_service_down(client, agent_answers):
-    def unreachable(request):
-        raise httpx.ConnectError("Connection refused")
-
     agent_answers(unreachable)
     round_id = create_round(client).json()["round_id"]
     proposal = propose_change(client, round_id).json()["proposal_id"]

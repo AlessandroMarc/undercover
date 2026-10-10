@@ -198,7 +198,7 @@ def ask_to_resume(claim_id: str) -> None:
     whatever happens to the call: a failure is logged as a warning."""
     try:
         agent_service.resume_claim(claim_id)
-    except agent_service.FAILED as error:
+    except Exception as error:  # the handler's answer stands whatever happens
         log.warning("%s wasn't resumed: %s", claim_id, error)
 
 

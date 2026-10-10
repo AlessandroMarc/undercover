@@ -17,7 +17,7 @@ test("a dispatch started on the queue page reaches the agent's service", async (
   await button.click();
   await expect
     .poll(() => started(request))
-    .toContainEqual({ path: "/api/dispatches", body: { agents: 7 } });
+    .toContainEqual({ operation: "start_dispatch", agents: 7 });
   await expect(button).toHaveAttribute("aria-disabled", "false");
   await expect(panel.getByRole("alert")).toHaveCount(0);
 });
@@ -44,8 +44,10 @@ test("an evaluation started on the Scoreboard reaches the agent's service", asyn
   await expect
     .poll(() => started(request))
     .toContainEqual({
-      path: "/api/evaluations",
-      body: { evaluation_set: "held_out", tiny: true, agents: 5 },
+      operation: "start_evaluation",
+      evaluation_set: "held_out",
+      tiny: true,
+      agents: 5,
     });
   await expect(button).toHaveAttribute("aria-disabled", "false");
   await expect(form.getByRole("alert")).toHaveCount(0);

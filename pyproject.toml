@@ -4,6 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.15.0",
+    "bedrock-agentcore>=1.24.1",
     "boto3>=1.43.108",
     "claude-agent-sdk>=0.2.161",
     "deepagents>=0.7.19",
@@ -49,7 +50,27 @@ dev = [
     "pytest-xdist>=3.8.0",
     "ruff>=0.16.9",
 ]
+runtime = [
+    "bedrock-agentcore>=1.24.1",
+    "boto3>=1.43.108",
+    "botocore>=1.43.108",
+    "httpx>=0.28.1",
+    "langchain>=1.4.2",
+    "langchain-core>=1.6.5",
+    "langchain-mcp-adapters>=0.3.2",
+    "langchain-openai>=1.6.2",
+    "langfuse>=4.16.0",
+    "langgraph>=1.2.12",
+    "langgraph-checkpoint-aws>=1.2.4",
+    "langgraph-checkpoint-postgres>=3.1.2",
+    "mcp>=1.30.0",
+    "psycopg-pool>=3.3.3",
+    "psycopg[binary]>=3.3.6",
+    "pydantic>=2.12.5",
+    "starlette>=1.7.0",
+]
 server = [
+    "boto3>=1.43.108",
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
     "mangum>=0.22.0",
@@ -66,6 +87,7 @@ include = [
     "backend/**/*.py",
     "agent/**/*.py",
     "context/**/*.py",
+    "runtime/**/*.py",
     "conftest.py",
     "api_rules.py",
 ]
@@ -96,7 +118,7 @@ omit = ["*/tests/*"]
 fail_under = 80
 
 [tool.pyright]
-include = ["backend", "agent", "context", "conftest.py", "api_rules.py"]
+include = ["backend", "agent", "context", "runtime", "conftest.py", "api_rules.py"]
 venvPath = "."
 venv = ".venv"
 pythonVersion = "3.12"

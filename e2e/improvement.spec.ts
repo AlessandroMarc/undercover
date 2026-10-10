@@ -6,7 +6,6 @@ import {
   recordChangeProposal,
   recordRecipeProposal,
   recordReview,
-  reviews,
   started,
 } from "./api";
 import { HANDLERS } from "./handlers";
@@ -31,7 +30,7 @@ test("a round started on the page reaches the agent's service", async ({
   await page.getByRole("button", { name: "Start a round" }).click();
   await expect
     .poll(() => started(request))
-    .toContainEqual({ path: "/api/rounds", body: { handler_id: DANA } });
+    .toContainEqual({ operation: "start_round", handler_id: DANA });
 });
 
 test("a change approved on the page reaches the agent's service, and the round moves on", async ({
@@ -55,10 +54,14 @@ test("a change approved on the page reaches the agent's service, and the round m
   const dialog = page.getByRole("dialog", { name: "Approve the change?" });
   await dialog.getByRole("button", { name: "Approve the change" }).click();
   await expect
-    .poll(() => reviews(request))
+    .poll(() => started(request))
     .toContainEqual({
-      path: `/api/rounds/${round}/proposals/${proposal}/review`,
-      body: { review: "approved", handler_id: DANA, reason: "" },
+      operation: "review_proposal",
+      round_id: round,
+      proposal_id: proposal,
+      review: "approved",
+      handler_id: DANA,
+      reason: "",
     });
 
   await recordReview(request, round, proposal, "approved");
@@ -86,14 +89,14 @@ test("a recipe rejected on the page sends its reason to the agent's service", as
     .fill("Keep the step that reads the wrong claims");
   await waiting.getByRole("button", { name: "Reject the recipe" }).click();
   await expect
-    .poll(() => reviews(request))
+    .poll(() => started(request))
     .toContainEqual({
-      path: `/api/rounds/${round}/proposals/${proposal}/review`,
-      body: {
-        review: "rejected",
-        handler_id: DANA,
-        reason: "Keep the step that reads the wrong claims",
-      },
+      operation: "review_proposal",
+      round_id: round,
+      proposal_id: proposal,
+      review: "rejected",
+      handler_id: DANA,
+      reason: "Keep the step that reads the wrong claims",
     });
 });
 

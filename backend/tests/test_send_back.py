@@ -2,6 +2,7 @@
 is kept with the note and cleared from the claim, the claim waits for the agent,
 and a dispatch or a resume takes it back into work once."""
 
+import json
 import logging
 import threading
 from datetime import UTC, datetime, timedelta
@@ -45,9 +46,9 @@ def test_a_send_back_keeps_the_decision_with_the_note_and_clears_it(
     calls, seen = [], []
 
     def accept(request):
-        calls.append((request.url.path, request.content))
+        calls.append(json.loads(request.content))
         seen.append(committed_claim("CLM-1008")["status"])
-        return httpx.Response(202, json={"status": "accepted"})
+        return httpx.Response(200, json={"accepted": True})
 
     agent_answers(accept)
     response = send_back(client, "CLM-1008")
@@ -83,7 +84,7 @@ def test_a_send_back_keeps_the_decision_with_the_note_and_clears_it(
         f"Sent back by Dana Whitfield: {NOTE}",
         claim["thread_id"],
     )
-    assert calls == [("/api/claims/CLM-1008/resume", b"")]
+    assert calls == [{"operation": "resume_claim", "claim_id": "CLM-1008"}]
     assert seen == ["sent_back"]
     assert client.get("/api/claims/CLM-1008").json() == claim
 

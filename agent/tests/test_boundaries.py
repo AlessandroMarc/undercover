@@ -73,7 +73,7 @@ def test_the_routes_and_who_uses_them():
     assert imports_of("tools") & ROUTE_MODULES == {"routes"}
     for module in agents_modules() - {"harness", "__main__"}:
         assert {"gateway", "direct"} & imports_of(module) == set(), module
-    for module in ("dispatcher", "service", "improver", "improver_api"):
+    for module in ("dispatcher", "entrypoint", "improver", "improver_api"):
         assert imports_of(module) & ROUTE_MODULES == set(), module
     assert imports_of("gateway") & agents_modules() == {"routes", "mcp_tools"}
     assert imports_of("direct") & agents_modules() == {"routes", "mcp_tools", "api"}
@@ -84,7 +84,7 @@ def test_the_routes_and_who_uses_them():
 def test_the_memory_uses_nothing_else_in_the_agent_and_the_claim_agent_uses_it():
     assert imports_of("memory") & agents_modules() == set()
     assert "memory" in imports_of("tools") & imports_of("harness")
-    for module in ("improver", "improver_api", "dispatcher", "service"):
+    for module in ("improver", "improver_api", "dispatcher", "entrypoint"):
         assert "memory" not in imports_of(module), module
 
 
@@ -95,3 +95,7 @@ def test_a_handlers_answer_uses_nothing_else_in_the_agent_and_the_harness_uses_i
 
 def test_the_heartbeat_uses_nothing_else_in_the_agent():
     assert imports_of("heartbeat") & agents_modules() == set()
+
+
+def test_identity_uses_nothing_else_in_the_agent():
+    assert imports_of("identity") & agents_modules() == set()

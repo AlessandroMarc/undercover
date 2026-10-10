@@ -248,7 +248,7 @@ Add the `sent_back` state and step, `sent_back_decisions`, `resume_heard_at`, `s
 - [x] pytest: `heartbeat.beating` calls its function each interval while its block runs and never after, and a failing call is logged without stopping the block
 - [x] vitest: a handler who can sign off over the limit sees Sign off and Send back; Send back needs a note and allows 1,000 characters; Marcus Oyelaran sees why he can't; the queue has a Sent back tile; a sent-back claim says it's with the agent; each sent-back decision shows its note, who sent it back and when; a `sent_back` step shows the note
 - [x] e2e: Dana sends a held claim back with a note on its page; the page shows Sent back, the sent-back decision with the note and "Sent back by Dana Whitfield", and the note among the steps, and the stand-in received the resume. Then the test, as the agent, takes the claim, works out and records an approval of $900.00 and pays it, and without a reload the page shows the new decision above the sent-back one
-- [x] `git diff main -- backend/instructions/claim.md` changes only the sentence that said a decision can't be changed
+- [x] `git diff main -- backend/instructions/claim.md` changes only the sentence that said a decision can't be changed (checked against ec02afd: `main` has no `backend/`)
 - [x] The boundaries test: `heartbeat` uses nothing else in the agent
 - [x] `docs/SPEC.md` describes the sign-off or the send back, and the claim's states
 - [x] `npm run check` passes with `.env` moved out of the way
@@ -257,29 +257,29 @@ Add the `sent_back` state and step, `sent_back_decisions`, `resume_heard_at`, `s
 
 Add `bedrock-agentcore`, the `runtime` group and `check:runtime`, and `boto3` to the `server` group. Write `agent/entrypoint.py` and `agent/identity.py`, move the service's operations onto payloads and remove `agent/service.py`. Rewrite `backend/agent_service.py` for the two routes. Move `npm run dev`'s agent to port 8080, the e2e stand-in to `/invocations`, and turn off prepared statements in the checkpoint pool. The live check for this step is at the end of phase 4.
 
-- [ ] pytest: in a subprocess with no settings but `PATH` and sockets that refuse to connect, `import runtime.main` succeeds, and `runtime.main.app` is `agent.entrypoint.app`
-- [ ] pytest: on Runtime (`AGENTCORE_CREDENTIAL_OPENROUTER_API_KEY_NAME` and the other two set), the first request asks the stand-in Identity for each provider once, puts each value in its setting, reseeds `random` and opens the pool before it answers; a second request fetches nothing
-- [ ] pytest: when getting ready fails, the request gets a 503 with the error, and the next request gets ready and is answered
-- [ ] pytest: `{"operation": "health"}` answers `{"healthy": true}` without the key, and only once the agent is ready
-- [ ] pytest: each of `start_dispatch`, `start_evaluation`, `start_round`, `review_proposal` and `resume_claim` answers `{"accepted": true}` and its work runs; each start answers `{"refused": "A dispatch is running"}` (or the round's message) while other work holds `OneAtATime`; `resume_claim` refuses a claim that isn't paused
-- [ ] pytest: an unknown operation, a missing input, an input of the wrong type, an extra input and `agents` of 26 each get a 400 whose `error` says what's wrong
-- [ ] pytest: `/ping` says `HealthyBusy` while a dispatch is held open, and `Healthy` once it has finished, and again after a dispatch whose work raised
-- [ ] pytest: off Runtime, a request with no `Authorization` or the wrong key gets a 401 and the right key is accepted; on Runtime, a request with no key is accepted
-- [ ] pytest (backend), laptop route: the app posts the payload to `http://127.0.0.1:8080/invocations` by default, or `UNDERCOVER_AGENT`'s, with `Authorization: Bearer <key>` and a 10-second timeout
-- [ ] pytest (backend), Runtime route: with `UNDERCOVER_AGENT_RUNTIME` set, the stand-in client gets the ARN, the payload as JSON, no key, and a session id of at least 33 characters that differs on each call, from a client with one attempt, 5 seconds to connect and 20 to read
-- [ ] pytest (backend), each route: an acceptance gives a 202; a refusal a 409 with its reason; a failed connection a 503 "The agent's service isn't running"; an error answer a 502; and a timeout or a cut-off answer a 503 telling the handler to reload, recording nothing
-- [ ] pytest (backend), Runtime route: a response whose `statusCode` is 400 or 500, with the agent's `{"error": ...}` as its body, gives a 502 and counts as not taken, without the body being read as an acceptance or a refusal
-- [ ] pytest (backend), each route: a whole answer of `{"accepted": false}`, `{"status": "accepted"}` or a body that isn't JSON, with a 200 or a `statusCode` of 200, gives a 502 and counts as not taken
-- [ ] pytest (backend): a sign-off on the Runtime route sends `{"operation": "resume_claim", "claim_id": "CLM-1008"}`
-- [ ] pytest: the checkpoint pool's connections have `prepare_threshold` of `None`
-- [ ] `npm run check:runtime` passes and `npm run check` runs it; `uv export --only-group runtime` lists `bedrock-agentcore`, and the `server` group has `boto3`
-- [ ] Ruff and pyright check `runtime/main.py` and pass
-- [ ] `git diff main -- agentcore runtime` is empty, and `agent/service.py` is gone
-- [ ] `grep -rn "fastapi" agent --include='*.py'` finds only tests; `grep -rln "UNDERCOVER_AGENT\|invocations\|invoke_agent_runtime" backend --include='*.py'` finds only `backend/agent_service.py` and tests; `grep -rln "AGENTCORE_CREDENTIAL_\|requires_api_key" agent --include='*.py'` finds only `agent/identity.py` and tests
-- [ ] `package.json`'s `dev:agent` serves `agent.entrypoint:app` on port 8080 with reload, and nothing mentions port 8002
-- [ ] e2e: the stand-in answers `/invocations` and `/ping`, and the queue page's and the Scoreboard's starts and the sign-off reach it as payloads
-- [ ] `docs/CODE_STANDARDS.md` rules 7, 10 and 13 and `docs/TECH_STACK.md` describe the entry point, Identity, the heartbeat, the two routes from the app and the `runtime` group; `docs/PROCESS.md` describes the agent on port 8080 and the runtime check
-- [ ] `npm run check` passes with `.env` moved out of the way
+- [x] pytest: in a subprocess with no settings but `PATH` and sockets that refuse to connect, `import runtime.main` succeeds, and `runtime.main.app` is `agent.entrypoint.app` (checked by importing the agent's modules afresh in the test's own process, with the three credential settings named too, since ruff's S603 flags every subprocess call and the rules stay on)
+- [x] pytest: on Runtime (`AGENTCORE_CREDENTIAL_OPENROUTER_API_KEY_NAME` and the other two set), the first request asks the stand-in Identity for each provider once, puts each value in its setting, reseeds `random` and opens the pool before it answers; a second request fetches nothing
+- [x] pytest: when getting ready fails, the request gets a 503 with the error, and the next request gets ready and is answered
+- [x] pytest: `{"operation": "health"}` answers `{"healthy": true}` without the key, and only once the agent is ready
+- [x] pytest: each of `start_dispatch`, `start_evaluation`, `start_round`, `review_proposal` and `resume_claim` answers `{"accepted": true}` and its work runs; each start answers `{"refused": "A dispatch is running"}` (or the round's message) while other work holds `OneAtATime`; `resume_claim` refuses a claim that isn't paused
+- [x] pytest: an unknown operation, a missing input, an input of the wrong type, an extra input and `agents` of 26 each get a 400 whose `error` says what's wrong
+- [x] pytest: `/ping` says `HealthyBusy` while a dispatch is held open, and `Healthy` once it has finished, and again after a dispatch whose work raised
+- [x] pytest: off Runtime, a request with no `Authorization` or the wrong key gets a 401 and the right key is accepted; on Runtime, a request with no key is accepted
+- [x] pytest (backend), laptop route: the app posts the payload to `http://127.0.0.1:8080/invocations` by default, or `UNDERCOVER_AGENT`'s, with `Authorization: Bearer <key>` and a 10-second timeout
+- [x] pytest (backend), Runtime route: with `UNDERCOVER_AGENT_RUNTIME` set, the stand-in client gets the ARN, the payload as JSON, no key, and a session id of at least 33 characters that differs on each call, from a client with one attempt, 5 seconds to connect and 20 to read
+- [x] pytest (backend), each route: an acceptance gives a 202; a refusal a 409 with its reason; a failed connection a 503 "The agent's service isn't running"; an error answer a 502; and a timeout or a cut-off answer a 503 telling the handler to reload, recording nothing
+- [x] pytest (backend), Runtime route: a response whose `statusCode` is 400 or 500, with the agent's `{"error": ...}` as its body, gives a 502 and counts as not taken, without the body being read as an acceptance or a refusal
+- [x] pytest (backend), each route: a whole answer of `{"accepted": false}`, `{"status": "accepted"}` or a body that isn't JSON, with a 200 or a `statusCode` of 200, gives a 502 and counts as not taken
+- [x] pytest (backend): a sign-off on the Runtime route sends `{"operation": "resume_claim", "claim_id": "CLM-1008"}`
+- [x] pytest: the checkpoint pool's connections have `prepare_threshold` of `None`
+- [x] `npm run check:runtime` passes and `npm run check` runs it; `uv export --only-group runtime` lists `bedrock-agentcore`, and the `server` group has `boto3`
+- [x] Ruff and pyright check `runtime/main.py` and pass
+- [x] `git diff main -- agentcore runtime` is empty, and `agent/service.py` is gone (checked against this branch's starting commit, ec02afd: `main` keeps both folders under `setup/setup_week3day4`)
+- [x] `grep -rn "fastapi" agent --include='*.py'` finds only tests; `grep -rln "UNDERCOVER_AGENT\|invocations\|invoke_agent_runtime" backend --include='*.py'` finds only `backend/agent_service.py` and tests; `grep -rln "AGENTCORE_CREDENTIAL_\|requires_api_key" agent --include='*.py'` finds only `agent/identity.py` and tests
+- [x] `package.json`'s `dev:agent` serves `agent.entrypoint:app` on port 8080 with reload, and nothing mentions port 8002
+- [x] e2e: the stand-in answers `/invocations` and `/ping`, and the queue page's and the Scoreboard's starts and the sign-off reach it as payloads
+- [x] `docs/CODE_STANDARDS.md` rules 7, 10 and 13 and `docs/TECH_STACK.md` describe the entry point, Identity, the heartbeat, the two routes from the app and the `runtime` group; `docs/PROCESS.md` describes the agent on port 8080 and the runtime check
+- [x] `npm run check` passes with `.env` moved out of the way
 
 ## Phase 4: The app keeps one run at a time, then the live checks
 

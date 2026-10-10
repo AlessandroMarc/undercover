@@ -11,6 +11,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from agent import api, harness
 from agent.tests.dispatching import dispatch
 from agent.tests.held import StopAtThePause, hold, resume_claim, state_of
+from agent.tests.invoking import ACCEPTED
 from agent.tests.queue_setup import leave_waiting
 from agent.tests.records import claim_of, model_calls_of, payments_of
 from agent.tests.stubs import agent_on, approve, calculate, call, record, stub
@@ -45,7 +46,7 @@ def test_a_claim_sent_back_is_taken_by_a_resume_and_decided_again(client, serve)
     saver = InMemorySaver()
     sent_back(client, saver)
     model = decides_again()
-    assert resume_claim(serve(model, saver), "CLM-1003").status_code == 202
+    assert resume_claim(serve(model, saver), "CLM-1003").json() == ACCEPTED
 
     note = note_in(model)
     assert note.startswith("Dana Whitfield, a senior handler, sent your decision")
@@ -80,7 +81,7 @@ def test_a_new_decision_over_the_limit_pauses_again_and_can_be_sent_back(client,
     saver = InMemorySaver()
     sent_back(client, saver)
     over = decides_again(2500.0)
-    assert resume_claim(serve(over, saver), "CLM-1003").status_code == 202
+    assert resume_claim(serve(over, saver), "CLM-1003").json() == ACCEPTED
     claim = claim_of(client, "CLM-1003")
     assert (claim["status"], claim["decision"]["payout"]) == (
         "waiting_for_sign_off",
@@ -91,7 +92,7 @@ def test_a_new_decision_over_the_limit_pauses_again_and_can_be_sent_back(client,
     second = "Only the hospital's own bill is covered."
     assert send_back(client, "CLM-1003", second).status_code == 200
     model = decides_again()
-    assert resume_claim(serve(model, saver), "CLM-1003").status_code == 202
+    assert resume_claim(serve(model, saver), "CLM-1003").json() == ACCEPTED
     assert second in note_in(model)
     results = [m for m in model.prompts[0] if isinstance(m, ToolMessage)]
     assert results
@@ -172,20 +173,20 @@ def test_a_resume_and_a_dispatch_asking_at_once_take_the_claim_once(
         return take(claim_id, run_id)
 
     monkeypatch.setattr(api, "take_claim", at_once)
-    service = serve(decides_again(), saver)
+    agent = serve(decides_again(), saver)
     answers, reports = [], []
     resuming = threading.Thread(
-        target=lambda: answers.append(resume_claim(service, "CLM-1003"))
+        target=lambda: answers.append(resume_claim(agent, "CLM-1003"))
     )
     resuming.start()
     reports += dispatch(decides_again(), saver)
     resuming.join(10)
 
     [answer] = answers
-    if answer.status_code == 202:
+    if answer.json() == ACCEPTED:
         assert reports == ["CLM-1003  taken by a resume"]
     else:
-        assert answer.json()["detail"] == "Claim CLM-1003 isn't sent back"
+        assert answer.json() == {"refused": "Claim CLM-1003 isn't sent back"}
         assert reports == [NEW_DECISION]
     claim = claim_of(client, "CLM-1003")
     assert (claim["status"], claim["decision"]["payout"]) == ("decided", 890.0)
@@ -222,10 +223,7 @@ def test_a_resume_is_refused_a_claim_a_dispatch_took(client, serve):
     sent_back(client, saver)
     api.take_claim("CLM-1003", api.create_dispatch(3)["run_id"])
     refused = resume_claim(serve(stub(), saver), "CLM-1003")
-    assert (refused.status_code, refused.json()) == (
-        409,
-        {"detail": "Claim CLM-1003 isn't sent back"},
-    )
+    assert refused.json() == {"refused": "Claim CLM-1003 isn't sent back"}
 
 
 def test_a_dispatch_leaves_a_claim_alone_while_a_resume_works_on_it(client):

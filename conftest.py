@@ -1,6 +1,7 @@
 """Fixtures for the backend's and the agent's tests."""
 
 import json
+import os
 import shutil
 
 import httpx
@@ -9,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from openrouter import OpenRouter
 
+from agent import identity
 from agent.direct import CONTEXT_URL
 from agent.gateway import GATEWAY_URL
 from agent.memory import MEMORY_ID
@@ -56,10 +58,18 @@ def database(seeded, tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def no_aws(tmp_path, monkeypatch):
     """Keep every test away from AWS, a Gateway and the servers running on the
-    laptop: no Gateway, context layer or memory from the environment, and stand-in
-    AWS credentials and a region in place of the AWS CLI's."""
-    ours = (GATEWAY_URL, CONTEXT_URL, MEMORY_ID)
-    for name in (*ours, "AWS_PROFILE", "AWS_SESSION_TOKEN", "AWS_REGION"):
+    laptop: no Gateway, context layer, memory or agent's runtime from the
+    environment, never as if on AgentCore Runtime, and stand-in AWS credentials and
+    a region in place of the AWS CLI's."""
+    ours = (
+        GATEWAY_URL,
+        CONTEXT_URL,
+        MEMORY_ID,
+        agent_service.AGENT,
+        agent_service.RUNTIME,
+    )
+    on_runtime = [name for name in os.environ if name.startswith(identity.PREFIX)]
+    for name in (*ours, *on_runtime, "AWS_PROFILE", "AWS_SESSION_TOKEN", "AWS_REGION"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-access-key")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
@@ -121,29 +131,25 @@ def judged(judge_answers):
 
 @pytest.fixture
 def agent_answers(monkeypatch):
-    """Answer the backend's calls to the agent's service with a handler of the test's
-    own, in place of the service."""
+    """Answer the backend's calls to the agent on the laptop with a handler of the
+    test's own, in place of the agent."""
 
     def answer_with(handler):
         transport = httpx.MockTransport(handler)
-        stand_in = httpx.Client(
-            base_url=agent_service.agent.base_url, transport=transport
-        )
-        monkeypatch.setattr(agent_service, "agent", stand_in)
+        monkeypatch.setattr(agent_service, "agent", httpx.Client(transport=transport))
 
     return answer_with
 
 
 @pytest.fixture(autouse=True)
 def agent_calls(agent_answers):
-    """Stand in for the agent's service, keeping the path and the body of each call
-    to it, or None for a call with no body."""
-    calls: list[tuple[str, object]] = []
+    """Stand in for the agent on the laptop, taking the work each payload asks for
+    and keeping the payload."""
+    calls: list[object] = []
 
     def accept(request: httpx.Request) -> httpx.Response:
-        body = json.loads(request.content) if request.content else None
-        calls.append((request.url.path, body))
-        return httpx.Response(202, json={"status": "accepted"})
+        calls.append(json.loads(request.content))
+        return httpx.Response(200, json={"accepted": True})
 
     agent_answers(accept)
     return calls

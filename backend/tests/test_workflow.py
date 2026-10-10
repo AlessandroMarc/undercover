@@ -177,7 +177,7 @@ def test_a_sign_off_pays_the_held_payout_once(client, agent_calls):
     assert claim["payment"]["signed_off_by"] == "Dana Whitfield"
     assert claim["payment"]["signed_off_at"] == claim["decision"]["signed_off_at"]
     assert count(payments) == 1
-    assert agent_calls == [("/api/claims/CLM-1002/resume", None)]
+    assert agent_calls == [{"operation": "resume_claim", "claim_id": "CLM-1002"}]
 
     refused = pay(client, "CLM-1002", 1350.0)
     assert (refused.status_code, refused.json()["detail"]) == (

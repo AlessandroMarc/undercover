@@ -1,5 +1,6 @@
-"""How the tests' stand-in for the agent answers the backend's calls when the agent
-doesn't take the work."""
+"""How the tests' stand-in for the agent on the laptop answers when it doesn't take
+the work: it can't be reached, it times out, it refuses, or it gives an error
+answer."""
 
 import httpx
 
@@ -13,9 +14,9 @@ def slow(request):
 
 
 def refusing(request):
-    detail = "Claim CLM-1002 isn't paused for a handler"
-    return httpx.Response(409, json={"detail": detail})
+    refusal = "Claim CLM-1002 isn't paused for a handler"
+    return httpx.Response(200, json={"refused": refusal})
 
 
 def broken(request):
-    return httpx.Response(500, text="Internal Server Error")
+    return httpx.Response(500, json={"error": "The agent couldn't get ready"})

@@ -1,7 +1,6 @@
-"""Evaluations: the agent's service works copies of a labeled set's claims, and the
+"""Evaluations: the agent works copies of a labeled set's claims, and the
 backend scores them."""
 
-import threading
 from functools import partial
 
 import pytest
@@ -10,6 +9,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import api, dispatcher, harness
 from agent.tests.dispatching import dispatch
+from agent.tests.invoking import ACCEPTED, start_dispatch
 from agent.tests.queue_setup import leave_waiting
 from agent.tests.records import claim_of, model_calls_of, work_times_of
 from agent.tests.stubs import agent_on, approve, decide, stub, swarm
@@ -32,11 +32,15 @@ def test_an_evaluation_through_the_service(client, serve):
         }
     )
     saver = InMemorySaver()
-    response = serve(model, saver).post(
-        "/api/evaluations",
-        json={"evaluation_set": "evaluation", "tiny": True, "agents": 5},
+    response = serve(model, saver).invoke(
+        {
+            "operation": "start_evaluation",
+            "evaluation_set": "evaluation",
+            "tiny": True,
+            "agents": 5,
+        }
     )
-    assert response.status_code == 202
+    assert response.json() == ACCEPTED
 
     [listed] = evaluations(client)
     assert (listed["status"], listed["agents"], listed["size"]) == ("finished", 5, 5)
@@ -76,35 +80,33 @@ def test_a_dispatch_leaves_an_evaluations_copies_alone(client):
     assert claim_of(client, "CLM-1106-E1")["status"] == "waiting"
 
 
-RUNNING = {
-    "/api/dispatches": "A dispatch is running",
-    "/api/evaluations": "An evaluation is running",
+EVALUATION = {
+    "operation": "start_evaluation",
+    "evaluation_set": "held_out",
+    "tiny": True,
+    "agents": 3,
 }
 
 
 @pytest.mark.parametrize(
-    ("first", "second"),
+    ("first", "second", "running"),
     [
-        ("/api/dispatches", "/api/evaluations"),
-        ("/api/evaluations", "/api/dispatches"),
+        (start_dispatch(3), EVALUATION, "A dispatch is running"),
+        (EVALUATION, start_dispatch(3), "An evaluation is running"),
     ],
 )
 def test_a_dispatch_and_an_evaluation_never_run_together(
-    client, serve, held_run, first, second
+    serve, held_run, first, second, running
 ):
     leave_waiting()
     agent = serve(stub())
-    body = {"evaluation_set": "held_out", "tiny": True, "agents": 3}
-    running = threading.Thread(target=agent.post, args=(first,), kwargs={"json": body})
-    running.start()
+    assert agent.invoke(first, wait=False).json() == ACCEPTED
     assert held_run.working.wait(5)
 
-    refused = agent.post(second, json=body)
-    assert refused.status_code == 409
-    assert refused.json()["detail"] == RUNNING[first]
+    refused = agent.invoke(second, wait=False)
+    assert refused.json() == {"refused": running}
     held_run.release.set()
-    running.join(5)
-    assert not running.is_alive()
+    agent.settle()
 
 
 def test_the_agent_cant_read_the_scoreboard():

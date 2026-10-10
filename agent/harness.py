@@ -116,28 +116,40 @@ def model(named: dict[str, Any]) -> ChatOpenAI:
     return chat_model(named["model"], named["reasoning_effort"], timeout=120)
 
 
-@contextmanager
-def checkpoint_pool() -> Iterator[Pool]:
+def open_checkpoint_pool() -> Pool:
     """Open the process's pool of at most CONNECTIONS connections to DATABASE_URL,
     where claim graphs save their progress in our own schema, set up once. A claim
-    agent waits up to CONNECTION_WAIT seconds for a connection."""
+    agent waits up to CONNECTION_WAIT seconds for a connection. Prepared
+    statements are off, so it works through either of Supabase's poolers."""
     settings = {
         "autocommit": True,
-        "prepare_threshold": 0,
+        "prepare_threshold": None,
         "row_factory": dict_row,
         "options": f"-c search_path={SCHEMA}",
     }
-    with ConnectionPool[Connection[DictRow]](
+    pool = ConnectionPool[Connection[DictRow]](
         os.environ["DATABASE_URL"],
         min_size=1,
         max_size=CONNECTIONS,
         timeout=CONNECTION_WAIT,
         kwargs=settings,
-    ) as pool:
+        open=True,
+    )
+    try:
         with pool.connection() as connection:
             create = sql.SQL("CREATE SCHEMA IF NOT EXISTS {}")
             connection.execute(create.format(sql.Identifier(SCHEMA)))
         PostgresSaver(pool).setup()
+    except Exception:  # a pool that can't be set up is closed, to be opened again
+        pool.close()
+        raise
+    return pool
+
+
+@contextmanager
+def checkpoint_pool() -> Iterator[Pool]:
+    """The process's checkpoint pool, open while the block runs."""
+    with open_checkpoint_pool() as pool:
         yield pool
 
 

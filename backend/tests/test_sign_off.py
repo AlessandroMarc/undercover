@@ -1,6 +1,7 @@
 """A handler's sign-off of a held payout: it pays the claim once, commits, then asks
 the agent to resume the claim, and stands whatever happens to that call."""
 
+import json
 import logging
 import threading
 
@@ -20,10 +21,10 @@ def test_a_sign_off_pays_the_claim_then_asks_the_agent_to_resume_it(
     calls, seen = [], []
 
     def accept(request):
-        calls.append((request.method, request.url.path, request.content))
+        calls.append(json.loads(request.content))
         claim = committed_claim("CLM-1002")
         seen.append((claim["status"], claim["amount"], claim["signed_off_by"]))
-        return httpx.Response(202, json={"status": "accepted"})
+        return httpx.Response(200, json={"accepted": True})
 
     agent_answers(accept)
     response = sign_off(client, "CLM-1002")
@@ -33,11 +34,17 @@ def test_a_sign_off_pays_the_claim_then_asks_the_agent_to_resume_it(
     assert claim["payment"]["amount"] == 1350.0
     assert claim["decision"]["signed_off_by"] == "Dana Whitfield"
     assert claim["decision"]["signed_off_at"] is not None
-    assert calls == [("POST", "/api/claims/CLM-1002/resume", b"")]
+    assert calls == [{"operation": "resume_claim", "claim_id": "CLM-1002"}]
     assert seen == [("decided", 1350.0, "Dana Whitfield")]
 
 
-@pytest.mark.parametrize("answer", [unreachable, slow, refusing, broken])
+def undecodable(request):
+    return httpx.Response(
+        200, content=b"x", headers={"Content-Encoding": "unknown-encoding-x"}
+    )
+
+
+@pytest.mark.parametrize("answer", [unreachable, slow, refusing, broken, undecodable])
 def test_a_sign_off_stands_whatever_happens_to_the_call(
     client, agent_answers, caplog, answer
 ):
@@ -69,4 +76,4 @@ def test_two_sign_offs_at_the_same_moment_pay_the_claim_once(client, agent_calls
     [refused] = [a for a in answers if a.status_code == 409]
     assert refused.json()["detail"] == "Claim CLM-1002 is not waiting for sign-off"
     assert count(payments) == 1
-    assert agent_calls == [("/api/claims/CLM-1002/resume", None)]
+    assert agent_calls == [{"operation": "resume_claim", "claim_id": "CLM-1002"}]
