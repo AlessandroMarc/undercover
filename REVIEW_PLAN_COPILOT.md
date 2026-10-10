@@ -32,13 +32,13 @@ After `check_success_criteria` finishes, the graph ends the turn through the mem
 
 The confirmation request currently carries only `{answer}`, so an old browser tab can answer a newer card. Change the body to `{turn_id, answer}`, using the displayed card's turn id. The app refuses the answer if that turn is not the one waiting for confirmation.
 
-The app also compares the claim's current held decision with the decision captured for the card. If they no longer match, it refuses the answer and asks for a fresh card. Use the existing decision record for this comparison; no decision revision or separate confirmation identifier is required.
+For the waiting turn, Cancel is always accepted, regardless of whether the claim is still held or its decision still matches the card. For Sign off, the app compares the claim's current held decision with the decision captured for the card. If they no longer match, or the claim is no longer held, it resumes the graph as a Cancel with that reason instead of leaving the confirmation waiting. The turn ends with a code-written line: “The claim changed since the card was shown, so I canceled this sign-off without making a payment. Please ask again.” The conversation is then free for a new message. Use the existing decision record for this comparison; no decision revision or separate confirmation identifier is required.
 
 Allow one `sign_off_claim` request per turn. A second request in that turn is refused with a line asking the handler to ask again, and creates no second pause. This keeps the existing single confirmation and pause-time fields sufficient.
 
-The card shows “Signed off and paid” only from the sign-off's actual successful result, not from `confirmation_answer == "sign_off"`. While the action is pending, refused or failed, the card must reflect that outcome. No action receipt is added.
+The card shows “Signed off and paid” only from the sign-off's actual successful result, not from `confirmation_answer == "sign_off"`. While the action is pending, canceled, refused or failed, the card must reflect that outcome. A stale Sign off shows the cancellation and its reason. No action receipt is added.
 
-**Acceptance:** add tests for a stale tab submitting an older `turn_id`, an answer after cancellation, and a held decision changed since the card was created, including a changed reason with the same payout. Each stale answer is refused and pays nothing. Test a second `sign_off_claim` in the same turn: no second pause or payment, and the refusal asks the handler to ask again. In the sidebar tests, an accepted confirmation alone must not show “Signed off and paid”; the successful sign-off result must, and a refusal or failure must not.
+**Acceptance:** add tests for a stale tab submitting an older `turn_id` and an answer after cancellation: each is refused and pays nothing. Test Cancel on the waiting turn when the decision has changed or the claim is no longer held: it is accepted and ends the turn. Test Sign off in both cases, including a changed reason with the same payout: it resumes as a Cancel with the reason, pays nothing, ends with the code-written explanation, and leaves the conversation able to accept a new message. Test a second `sign_off_claim` in the same turn: no second pause or payment, and the refusal asks the handler to ask again. In the sidebar tests, an accepted confirmation alone must not show “Signed off and paid”; the successful sign-off result must, and a cancellation, refusal or failure must not.
 
 ### 3. Run tool calls one at a time
 
@@ -91,7 +91,7 @@ These are documentation recommendations only. `docs/STATUS.md` has not been chan
 
 | Phase | Agreed amendment |
 | --- | --- |
-| 1 | Require the card's `turn_id`, refuse a mismatched held decision and late stopped-turn updates, bound conflict retries, and add the real-boto3 logging test and unsigned-payout count case. |
+| 1 | Require the card's `turn_id`, accept Cancel for the waiting turn and resume a stale Sign off as a Cancel with its reason, refuse late stopped-turn updates, bound conflict retries, and add the real-boto3 logging test and unsigned-payout count case. |
 | 2 | Enforce one sign-off per turn and serial tool execution; keep behavior tests unchanged and update boundary tests and the phase-specific tool inventory. |
 | 3 | End the success-criteria turn with the complete code-written answer; remove `answer_of` and the table instruction, and test exact output and the negative payment criterion. |
 | 4 | Keep botocore above DEBUG wherever Runtime calls are made and retain the actual SDK request path in the logging test. |
