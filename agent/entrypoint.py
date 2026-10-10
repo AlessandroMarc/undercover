@@ -7,21 +7,30 @@ request."""
 
 import random
 import secrets
-import threading
-from collections.abc import Callable
 from functools import partial
 from typing import Annotated, Any, Literal
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp, RequestContext
 from bedrock_agentcore.runtime.models import AUTHORIZATION_HEADER
 from langgraph.checkpoint.postgres import PostgresSaver
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+from pydantic import Field, TypeAdapter
 from starlette.exceptions import HTTPException
 
 from agent import api, identity, improver, improver_api
+from agent.agentcore_app import (
+    ACCEPTED,
+    HEALTHY,
+    Health,
+    Operation,
+    Ready,
+    Refusal,
+    in_background,
+    is_the_health_check,
+    read,
+)
 from agent.checkpoints import Pool, open_checkpoint_pool
 from agent.connection import Refused, api_key
-from agent.console import describe, show_reports
+from agent.console import show_reports
 from agent.handler_answer import SENT_BACK, answer_of
 from agent.harness import claim_graphs, paused
 from agent.work import (
@@ -32,32 +41,18 @@ from agent.work import (
     work_the_run,
 )
 
-ACCEPTED = {"accepted": True}
-HEALTHY = {"healthy": True}
 RUN_NOT_RUNNING = "Run {run_id} isn't running"
 ROUND_NOT_OPEN = "Round {number} isn't open"
 NO_REVIEW = "Proposal {proposal_id} has no review"
 NOT_PAUSED = "Claim {claim_id} isn't paused for a handler"
 NO_ANSWER = "Claim {claim_id} has no answer from a handler yet"
 NOT_READY = "The agent couldn't get ready: {error}"
+# The agent's credentials in AgentCore Identity on Runtime.
+CREDENTIALS = ("OPENROUTER_API_KEY", "UNDERCOVER_API_KEY", "DATABASE_URL")
 NEEDS_THE_KEY = "This needs the agent's API key"
-UNKNOWN_OPERATION = "Unknown operation: {operation}"
-NO_OPERATION = "The payload names no operation"
-NOT_AN_OBJECT = "The payload isn't a JSON object"
 
 
 app = BedrockAgentCoreApp()
-
-
-class Operation(BaseModel):
-    """A payload: it names its operation and carries every input, each of the right
-    type, and no other."""
-
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-
-class Health(Operation):
-    operation: Literal["health"]
 
 
 class WorkRun(Operation):
@@ -88,10 +83,6 @@ Payload = Annotated[
 PAYLOADS: TypeAdapter[Payload] = TypeAdapter(Payload)
 
 
-class Refusal(Exception):
-    """The agent won't take the work, and why."""
-
-
 def workers_on(pool: Pool) -> Workers:
     """The claim agents and the improver, on the process's checkpoint pool."""
     return Workers(
@@ -103,72 +94,22 @@ def workers_on(pool: Pool) -> Workers:
 
 def get_ready() -> Workers:
     """Get ready to work. On Runtime, reseed the random numbers, which every session
-    starts with from one snapshot, and fetch the credentials. Then set up the report
-    lines, check the agent's key is set, and open the checkpoint pool. It stops no
-    work: the app keeps track of that. Raise a 503 that says what went wrong, so
-    the next request tries again."""
-    try:
-        if identity.on_runtime():
-            random.seed()
-            identity.fetch_credentials()
-        show_reports()
-        api_key()
-        return workers_on(open_checkpoint_pool())
-    except Exception as error:  # any failure leaves the agent to get ready again
-        raise HTTPException(503, NOT_READY.format(error=describe(error))) from error
+    starts with from one snapshot, and fetch the agent's three credentials. Then
+    set up the report lines, check the agent's key is set, and open the checkpoint
+    pool. It stops no work: the app keeps track of that."""
+    if identity.on_runtime():
+        random.seed()
+        identity.fetch_credentials(*CREDENTIALS)
+    show_reports()
+    api_key()
+    return workers_on(open_checkpoint_pool())
 
 
-class Ready:
-    """The agent's workers, made once in its process, on its first request."""
-
-    def __init__(self) -> None:
-        self.guard = threading.Lock()
-        self.workers: Workers | None = None
-
-    def get(self) -> Workers:
-        """Return the workers, getting ready first if no request has yet."""
-        with self.guard:
-            if self.workers is None:
-                self.workers = get_ready()
-            return self.workers
+def new_ready() -> Ready[Workers]:
+    return Ready(get_ready, NOT_READY)
 
 
-ready = Ready()
-
-
-def read(payload: Any) -> Payload:
-    """Read a payload, or refuse it with a 400 that says what's wrong."""
-    try:
-        return PAYLOADS.validate_python(payload)
-    except ValidationError as error:
-        raise HTTPException(400, what_is_wrong(error)) from error
-
-
-def what_is_wrong(error: ValidationError) -> str:
-    """Say what's wrong with a payload: an operation the agent doesn't know, or
-    each input that's missing, wrong or extra."""
-    problems = []
-    for problem in error.errors():
-        if problem["type"] == "union_tag_invalid":
-            operation = problem.get("ctx", {}).get("tag")
-            problems.append(UNKNOWN_OPERATION.format(operation=operation))
-        elif problem["type"] == "union_tag_not_found":
-            problems.append(NO_OPERATION)
-        elif not problem["loc"]:
-            problems.append(NOT_AN_OBJECT)
-        else:
-            field = ".".join(str(part) for part in problem["loc"][1:])
-            problems.append(f"{field}: {problem['msg']}")
-    return "; ".join(problems)
-
-
-def is_the_health_check(payload: Any) -> bool:
-    """Say whether a payload is the health check, which needs no key."""
-    try:
-        Health.model_validate(payload)
-    except ValidationError:
-        return False
-    return True
+ready = new_ready()
 
 
 def check_key(context: RequestContext) -> None:
@@ -180,20 +121,6 @@ def check_key(context: RequestContext) -> None:
     given = (context.request_headers or {}).get(AUTHORIZATION_HEADER, "")
     if not secrets.compare_digest(given.encode(), f"Bearer {api_key()}".encode()):
         raise HTTPException(401, NEEDS_THE_KEY)
-
-
-def in_background(name: str, work: Callable[[], object]) -> None:
-    """Register the work with the AgentCore app, so its /ping says HealthyBusy
-    until the work ends, however it ends, and run it on a thread of its own."""
-    task_id = app.add_async_task(name)
-
-    def run() -> None:
-        try:
-            work()
-        finally:
-            app.complete_async_task(task_id)
-
-    threading.Thread(target=run, name=name, daemon=True).start()
 
 
 def open_round(round_id: str) -> dict[str, Any]:
@@ -210,14 +137,14 @@ def take_run(request: WorkRun, workers: Workers) -> None:
     run = api.get_run(request.run_id)
     if run["status"] != api.RUNNING:
         raise Refusal(RUN_NOT_RUNNING.format(run_id=request.run_id))
-    in_background("run", partial(work_the_run, run, workers.claim_agents))
+    in_background(app, "run", partial(work_the_run, run, workers.claim_agents))
 
 
 def take_round(request: WorkRound, workers: Workers) -> None:
     """Work a round the app created: its first evaluations, then the improver
     until it waits for a handler or ends."""
     round = open_round(request.round_id)
-    in_background("round", partial(work_the_round, round, workers))
+    in_background(app, "round", partial(work_the_round, round, workers))
 
 
 def carry_round_on(request: CarryRoundOn, workers: Workers) -> None:
@@ -227,7 +154,7 @@ def carry_round_on(request: CarryRoundOn, workers: Workers) -> None:
     if proposal["review"] is None:
         raise Refusal(NO_REVIEW.format(proposal_id=request.proposal_id))
     start = improver.resume(proposal["review"], proposal["rejection_reason"] or "")
-    in_background("round", partial(carry_the_round_on, round, start, workers))
+    in_background(app, "round", partial(carry_the_round_on, round, start, workers))
 
 
 def resume_claim(request: ResumeClaim, workers: Workers) -> None:
@@ -243,7 +170,7 @@ def resume_claim(request: ResumeClaim, workers: Workers) -> None:
         raise Refusal(NO_ANSWER.format(claim_id=claim_id))
     if answer["answer"] == SENT_BACK:
         api.take_claim(claim_id, None)
-    in_background("resume", partial(resume_telling_the_app, claim_id, agent))
+    in_background(app, "resume", partial(resume_telling_the_app, claim_id, agent))
 
 
 def start(request: Payload, workers: Workers) -> dict[str, Any]:
@@ -269,7 +196,7 @@ def invoke(payload: Any, context: RequestContext) -> dict[str, Any]:
     workers = ready.get()
     if not is_the_health_check(payload):
         check_key(context)
-    request = read(payload)
+    request = read(PAYLOADS, payload)
     try:
         return start(request, workers)
     except Refusal as refusal:

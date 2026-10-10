@@ -152,11 +152,24 @@ def resume_of(record: dict[str, Any]) -> dict[str, Any]:
     return answer
 
 
+def waits_for_an_answer(graph: CopilotGraph, config: RunnableConfig) -> bool:
+    """Say whether the conversation's graph is paused for the handler's answer to a
+    confirmation."""
+    return bool(graph.get_state(config).interrupts)
+
+
+def check_paused(turn: Turn, saver: BaseCheckpointSaver[Any]) -> None:
+    """Refuse a turn whose conversation has no sign-off waiting for an answer."""
+    graph = copilot_graph(copilot_model(turn.sign_in), saver, None)
+    if not waits_for_an_answer(graph, thread_of(turn.conversation_id)):
+        raise NotThisTurn(NOTHING_TO_RESUME)
+
+
 def answer_confirmation(turn: Turn, saver: BaseCheckpointSaver[Any]) -> None:
     """Carry a paused turn on with the handler's answer to its confirmation."""
 
     def start(graph: CopilotGraph, config: RunnableConfig) -> Command:
-        if not graph.get_state(config).interrupts:
+        if not waits_for_an_answer(graph, config):
             raise NotThisTurn(NOTHING_TO_RESUME)
         return Command(resume=resume_of(turn.record))
 

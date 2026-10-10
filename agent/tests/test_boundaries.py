@@ -125,7 +125,6 @@ SHARED = {
     "openrouter",
     "json_text",
     "console",
-    "root_run",
 }
 
 

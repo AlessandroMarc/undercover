@@ -1,13 +1,13 @@
 # Process
 
-`uv sync` and `npm install` at the repo root install everything, including a git pre-commit hook. `npm run dev` starts the backend, the agent's AgentCore app on port 8080 (`agent.entrypoint:app` with uvicorn, reloading as `agent/` changes), the context layer and the dashboard, passing `.env` to the backend and the agent. Stop Lab 1's `agentcore dev` first, which serves on port 8080 too. `npm run build` builds the dashboard into `dashboard/dist`, which the backend then serves beside the API. `npm run seed` rebuilds the database `npm run dev` uses, on Supabase when `DATABASE_URL` is in `.env`. The agent always needs `DATABASE_URL`, where it saves its progress.
+`uv sync` and `npm install` at the repo root install everything, including a git pre-commit hook. `npm run dev` starts the backend, the agent's AgentCore app on port 8080 (`agent.entrypoint:app` with uvicorn, reloading as `agent/` changes), the Copilot's AgentCore app on 127.0.0.1:8081 (`agent.copilot.entrypoint:app`, reloading as `agent/` changes), the context layer and the dashboard, passing `.env` to the backend, the agent and the Copilot. Stop Lab 1's `agentcore dev` first, which serves on port 8080 too. `npm run build` builds the dashboard into `dashboard/dist`, which the backend then serves beside the API. `npm run seed` rebuilds the database `npm run dev` uses, on Supabase when `DATABASE_URL` is in `.env`. The agent and the Copilot always need `DATABASE_URL`, where they save their progress.
 
 `npm run check` runs every check but the end-to-end tests at once with `concurrently`, each one's output shown in one piece, in this order, then the end-to-end tests on their own, since their timeouts need a machine that isn't busy:
 
 - Python: ruff (lint and format), pyright, and pytest with 80% coverage, across the machine's cores with pytest-xdist
 - The server check: the backend imports with only the `server` dependency group installed, in a temporary environment, from uv's cache, that leaves `.venv` alone
 - The context check: the context layer imports with only the `context` dependency group installed, in the same way
-- The runtime check: `runtime.main`, the file AgentCore Runtime starts, imports with only the `runtime` dependency group installed, in the same way
+- The runtime check: `runtime.main` and `runtime.copilot`, the files AgentCore Runtime starts for the agent and the Copilot, import with only the `runtime` dependency group installed, in the same way
 - TypeScript: ESLint, Prettier, tsc, and vitest with 80% coverage
 - Playwright end-to-end tests
 

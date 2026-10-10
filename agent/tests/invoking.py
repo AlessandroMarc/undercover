@@ -1,8 +1,10 @@
-"""The agent's AgentCore app as the tests call it: through Starlette's TestClient, as
-the app calls it on the laptop, with the agent's key."""
+"""The agent's and the Copilot's AgentCore apps as the tests call them: through
+Starlette's TestClient, as the app calls them on the laptop, the agent with its key
+and the Copilot with none."""
 
 import os
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from starlette.testclient import TestClient
@@ -33,26 +35,43 @@ def resume_claim(claim_id: str) -> dict[str, Any]:
     return {"operation": "resume_claim", "claim_id": claim_id}
 
 
+def take_turn(conversation_id: str, turn_id: str, sign_in: str) -> dict[str, Any]:
+    return {
+        "operation": "take_turn",
+        "conversation_id": conversation_id,
+        "turn_id": turn_id,
+        "sign_in": sign_in,
+    }
+
+
+def answer_confirmation(
+    conversation_id: str, turn_id: str, sign_in: str
+) -> dict[str, Any]:
+    return take_turn(conversation_id, turn_id, sign_in) | {
+        "operation": "answer_confirmation"
+    }
+
+
 def key_headers() -> dict[str, str]:
     """The agent's key as the app sends it, read as the tests set it."""
     return {"Authorization": f"Bearer {os.environ['UNDERCOVER_API_KEY']}"}
 
 
+@dataclass
 class Agent:
-    """The agent's AgentCore app, which waits after each request for the work it
-    started, by asking its /ping until the app is no longer busy."""
+    """An AgentCore app, which waits after each request for the work it started, by
+    asking its /ping until the app is no longer busy."""
 
-    def __init__(self, client: TestClient) -> None:
-        self.client = client
+    client: TestClient
+    with_key: bool = True
 
     def invoke(self, payload: Any, wait: bool = True, headers=None):
-        """Post a payload to /invocations, with the agent's key unless other headers
-        are given, and wait for its work unless told not to."""
-        response = self.client.post(
-            "/invocations",
-            json=payload,
-            headers=key_headers() if headers is None else headers,
-        )
+        """Post a payload to /invocations, with the agent's key if the app takes it,
+        unless other headers are given, and wait for its work unless told not
+        to."""
+        if headers is None:
+            headers = key_headers() if self.with_key else {}
+        response = self.client.post("/invocations", json=payload, headers=headers)
         if wait:
             self.settle()
         return response

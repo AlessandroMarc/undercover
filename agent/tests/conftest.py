@@ -1,7 +1,11 @@
+import importlib
+import os
+import sys
 import threading
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from functools import partial
+from types import ModuleType
 from typing import Any
 
 import pytest
@@ -9,11 +13,22 @@ from fastapi.testclient import TestClient
 from langchain_core.callbacks import BaseCallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import connection, dispatcher, entrypoint, harness, improver, work
+from agent import (
+    connection,
+    dispatcher,
+    entrypoint,
+    harness,
+    identity,
+    improver,
+    work,
+)
+from agent import copilot as copilot_package
+from agent.copilot import entrypoint as copilot_entrypoint
 from agent.copilot import memory as copilot_memory
 from agent.copilot import turns
 from agent.direct import CONTEXT_URL
 from agent.tests.copilot_driver import Copilot
+from agent.tests.credentials import CREDENTIALS
 from agent.tests.gateway_stand_in import GatewayStandIn
 from agent.tests.invoking import HEALTH, Agent
 from agent.tests.local_server import serving
@@ -109,7 +124,7 @@ def workers_from(monkeypatch):
         workers = work.Workers(claim_agents, lambda round: improver_model, saver)
         monkeypatch.setattr(entrypoint, "open_checkpoint_pool", object)
         monkeypatch.setattr(entrypoint, "workers_on", lambda pool: workers)
-        monkeypatch.setattr(entrypoint, "ready", entrypoint.Ready())
+        monkeypatch.setattr(entrypoint, "ready", entrypoint.new_ready())
         return workers
 
     return given
@@ -203,3 +218,64 @@ def copilot(dashboard, copilot_calls, monkeypatch):
     monkeypatch.setattr(turns, "copilot_model", driver.model_for)
     monkeypatch.setattr(copilot_memory, "memory_store", lambda: driver.store)
     return driver
+
+
+@pytest.fixture
+def on_runtime(monkeypatch, agent_key):
+    """Run as on AgentCore Runtime: the deployment names the three credentials, and
+    a stand-in for Identity gives each provider's value, keeping each it was asked
+    for."""
+    asked = []
+    for setting, provider in CREDENTIALS.items():
+        monkeypatch.setenv(f"AGENTCORE_CREDENTIAL_{setting}_NAME", provider)
+        # Identity's value lands in the setting, which is as it was after the test.
+        monkeypatch.setenv(setting, os.getenv(setting, ""))
+
+    # The database's value is empty, which keeps the tests' backend, in the same
+    # process, on SQLite.
+    values = {
+        "undercover-openrouter": "openrouter-key",
+        "undercover-api-key": agent_key,
+        "undercover-database": "",
+    }
+
+    def requires_api_key(provider_name):
+        def wrap(function):
+            def fetched():
+                asked.append(provider_name)
+                return function(api_key=values[provider_name])
+
+            return fetched
+
+        return wrap
+
+    monkeypatch.setattr(identity, "requires_api_key", requires_api_key)
+    return asked
+
+
+@dataclass
+class CopilotApp(Agent):
+    """The Copilot's AgentCore app, and the module it was imported from."""
+
+    module: ModuleType = field(kw_only=True)
+
+
+@pytest.fixture
+def copilot_app(copilot, monkeypatch):
+    """The Copilot's AgentCore app as a new process starts it, imported afresh,
+    nothing ready and no turn working, each time the test asks for one: its turns
+    on the model the test gives the Copilot, saving their state in the Copilot's
+    saver."""
+    monkeypatch.setattr(copilot_package, "entrypoint", copilot_entrypoint)
+    with ExitStack() as clients:
+
+        def fresh() -> CopilotApp:
+            name = copilot_entrypoint.__name__
+            monkeypatch.delitem(sys.modules, name, raising=False)
+            module = importlib.import_module(name)
+            monkeypatch.setattr(module, "open_checkpoint_pool", object)
+            monkeypatch.setattr(module, "saver_on", lambda pool: copilot.saver)
+            client = clients.enter_context(TestClient(module.app))
+            return CopilotApp(client, with_key=False, module=module)
+
+        yield fresh

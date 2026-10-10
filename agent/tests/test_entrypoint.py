@@ -21,10 +21,10 @@ from agent import (
     entrypoint,
     harness,
     heartbeat,
-    identity,
     improver_api,
     work,
 )
+from agent.tests.credentials import CREDENTIALS
 from agent.tests.dispatching import (
     new_dispatch,
     new_evaluation,
@@ -55,14 +55,6 @@ from backend.tests.run_requests import (
 )
 from backend.tests.versions import add_version
 
-# The settings the deployment gives the agent on Runtime, naming the providers of
-# its three credentials in AgentCore Identity.
-CREDENTIALS = {
-    "OPENROUTER_API_KEY": "undercover-openrouter",
-    "UNDERCOVER_API_KEY": "undercover-api-key",
-    "DATABASE_URL": "undercover-database",
-}
-
 
 def refuse(*args, **kwargs):
     raise ConnectionRefusedError("Nothing may connect as the agent is imported")
@@ -86,39 +78,6 @@ def test_importing_the_agent_reads_no_setting_opens_nothing_and_starts_nothing(
     main = importlib.import_module("runtime.main")
     assert main.app is sys.modules["agent.entrypoint"].app
     assert set(threading.enumerate()) <= threads
-
-
-@pytest.fixture
-def on_runtime(monkeypatch, agent_key):
-    """Run as on AgentCore Runtime: the deployment names the three credentials, and
-    a stand-in for Identity gives each provider's value, keeping each it was asked
-    for."""
-    asked = []
-    for setting, provider in CREDENTIALS.items():
-        monkeypatch.setenv(f"AGENTCORE_CREDENTIAL_{setting}_NAME", provider)
-        # Identity's value lands in the setting, which is as it was after the test.
-        monkeypatch.setenv(setting, os.getenv(setting, ""))
-
-    # The database's value is empty, which keeps the tests' backend, in the same
-    # process, on SQLite.
-    values = {
-        "undercover-openrouter": "openrouter-key",
-        "undercover-api-key": agent_key,
-        "undercover-database": "",
-    }
-
-    def requires_api_key(provider_name):
-        def wrap(function):
-            def fetched():
-                asked.append(provider_name)
-                return function(api_key=values[provider_name])
-
-            return fetched
-
-        return wrap
-
-    monkeypatch.setattr(identity, "requires_api_key", requires_api_key)
-    return asked
 
 
 def test_on_runtime_the_first_request_fetches_each_credential_once(
@@ -208,12 +167,17 @@ def test_off_runtime_a_payload_it_cant_read_without_the_key_is_refused(serve):
     )
 
 
+UNKNOWN = (
+    "Unknown operation: it must be one of 'health', 'work_run', 'work_round', "
+    "'carry_round_on', 'resume_claim'"
+)
+
+
 @pytest.mark.parametrize(
     ("payload", "error"),
     [
-        ({"operation": "dance"}, "Unknown operation: dance"),
-        ({"operation": "start_dispatch", "agents": 3}, "Unknown operation: "
-         "start_dispatch"),
+        ({"operation": "dance"}, UNKNOWN),
+        ({"operation": "start_dispatch", "agents": 3}, UNKNOWN),
         ({"run_id": "run-1"}, "The payload names no operation"),
         ([{"operation": "health"}], "The payload isn't a JSON object"),
         ({"operation": "work_run"}, "run_id: Field required"),
@@ -231,6 +195,7 @@ def test_off_runtime_a_payload_it_cant_read_without_the_key_is_refused(serve):
 def test_a_payload_it_cant_read_gets_a_400_saying_why(serve, payload, error):
     refused = serve(stub()).invoke(payload)
     assert (refused.status_code, refused.json()) == (400, {"error": error})
+    assert "dance" not in refused.text
 
 
 def test_work_a_dispatch_the_app_created(client, serve):

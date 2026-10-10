@@ -217,7 +217,7 @@ def test_the_rounds_work_is_traced_in_its_own_session(client, serve_rounds, trac
 
 def restart(monkeypatch, fresh_agent):
     """Get the agent ready again, as after a restart."""
-    monkeypatch.setattr(entrypoint, "ready", entrypoint.Ready())
+    monkeypatch.setattr(entrypoint, "ready", entrypoint.new_ready())
     fresh_agent().invoke(HEALTH)
 
 

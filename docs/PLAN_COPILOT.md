@@ -350,22 +350,22 @@ Add `waiting.py`, `needs_a_handler.py`, `criteria.py` and `copilot/memory.py`, t
 
 Move the AgentCore apps' shared parts to `agentcore_app.py` and have `identity.fetch_credentials` take the settings to fetch. Write `agent/copilot/entrypoint.py`, `runtime/copilot.py` and `runtime/copilot_policy.json`, add the `copilot` runtime to `agentcore/agentcore.json` and its setting to `cdk-stack.ts`, and serve the Copilot with `npm run dev`. Update `docs/CODE_STANDARDS.md`, `docs/TECH_STACK.md` and `docs/PROCESS.md`.
 
-- [ ] pytest: in a subprocess with no settings but `PATH` and sockets that refuse to connect, `import runtime.copilot` succeeds, and `runtime.copilot.app` is `agent.copilot.entrypoint.app`
-- [ ] pytest: on Runtime, with all three credentials named, the Copilot's first request asks Identity for `OPENROUTER_API_KEY` and `DATABASE_URL` only, reseeds `random` and opens the pool before it answers; a second request fetches nothing; the claim agent still fetches its three
-- [ ] pytest: when getting ready fails, the request gets a 503 with the error and the next is answered; `{"operation": "health"}` answers `{"healthy": true}` once ready
-- [ ] pytest: `take_turn` reads `/api/me` and the conversation with the sign-in before it answers; accepted, the turn runs in the background, `/ping` says `HealthyBusy` until it ends and `Healthy` after, and after a turn that raised
-- [ ] pytest: `take_turn` refuses a sign-in the app refuses, another handler's conversation, a turn that isn't the latest working one, and a second turn in a conversation whose turn is still working in the process; a turn in another conversation is accepted beside it
-- [ ] pytest: an unknown operation, a missing input, an extra input and a `sign_in` that isn't a string each get a 400 that says what's wrong, without the payload's values
-- [ ] pytest: `answer_confirmation` resumes a paused conversation with the answer the app recorded; it refuses a conversation with no interrupt waiting and a turn with no answer recorded
-- [ ] pytest (the laptop, end to end): the backend's `start_conversation`, with `UNDERCOVER_COPILOT` at the Copilot's app on a local port, has the stub model's turn recorded and answered; then a turn that pauses on CLM-1008, answered with `answer_confirmation`, pays it as Dana Whitfield; no request to the Copilot carries a key
-- [ ] pytest (across sessions): a turn paused by one Copilot app is answered by another, freshly imported with nothing ready, on the same saver, and the claim is paid once
-- [ ] pytest: over a whole turn and its answer through the app, no log line at DEBUG holds the sign-in
-- [ ] `npm run check:runtime` imports `runtime.main` and `runtime.copilot` with only the `runtime` group
-- [ ] `npm run dev` serves the Copilot on 127.0.0.1:8081 with reload: `curl 127.0.0.1:8081/ping` answers, and nothing listens on 8081 on another address
-- [ ] `agentcore/agentcore.json` has the runtimes `agent` and `copilot`; `git diff c84d998 -- agentcore runtime` shows only the `copilot` runtime, `UNDERCOVER_COPILOT_MEMORY_ID` in `SETTINGS`, `runtime/copilot.py` and `runtime/copilot_policy.json`
-- [ ] `grep -rln "AGENTCORE_CREDENTIAL_\|requires_api_key" agent --include='*.py'` finds only `agent/identity.py` and tests; `grep -rn "fastapi" agent --include='*.py'` finds only tests
-- [ ] `docs/CODE_STANDARDS.md` has the Copilot as a part of its own and the shared modules; `docs/TECH_STACK.md` describes the Copilot, its two routes from the app and its deployment; `docs/PROCESS.md` has the Copilot on port 8081 and the runtime check of both files
-- [ ] `npm run check` passes with `.env` moved out of the way
+- [x] pytest: in a subprocess with no settings but `PATH` (and the credentials' names, as on Runtime) and sockets that refuse to connect, `import runtime.copilot` succeeds, and `runtime.copilot.app` is `agent.copilot.entrypoint.app`
+- [x] pytest: on Runtime, with all three credentials named, the Copilot's first request asks Identity for `OPENROUTER_API_KEY` and `DATABASE_URL` only, reseeds `random` and opens the pool before it answers; a second request fetches nothing; the claim agent still fetches its three
+- [x] pytest: when getting ready fails, the request gets a 503 with the error and the next is answered; `{"operation": "health"}` answers `{"healthy": true}` once ready
+- [x] pytest: `take_turn` reads `/api/me` and the conversation with the sign-in before it answers; accepted, the turn runs in the background, `/ping` says `HealthyBusy` until it ends and `Healthy` after, and after a turn that raised
+- [x] pytest: `take_turn` refuses a sign-in the app refuses, another handler's conversation, a turn that isn't the latest working one, and a second turn in a conversation whose turn is still working in the process; a turn in another conversation is accepted beside it
+- [x] pytest: an unknown operation, a missing input, an extra input and a `sign_in` that isn't a string each get a 400 that says what's wrong, without the payload's values
+- [x] pytest: `answer_confirmation` resumes a paused conversation with the answer the app recorded; it refuses a conversation with no interrupt waiting and a turn with no answer recorded
+- [x] pytest (the laptop, end to end): the backend's `start_conversation`, with `UNDERCOVER_COPILOT` at the Copilot's app on a local port, has the stub model's turn recorded and answered; then a turn that pauses on CLM-1008, answered with `answer_confirmation`, pays it as Dana Whitfield; no request to the Copilot carries a key
+- [x] pytest (across sessions): a turn paused by one Copilot app is answered by another, freshly imported with nothing ready, on the same saver, and the claim is paid once
+- [x] pytest: over a whole turn and its answer through the app, no log line at DEBUG holds the sign-in
+- [x] `npm run check:runtime` imports `runtime.main` and `runtime.copilot` with only the `runtime` group
+- [x] `npm run dev` serves the Copilot on 127.0.0.1:8081 with reload: `curl 127.0.0.1:8081/ping` answers, and nothing listens on 8081 on another address
+- [x] `agentcore/agentcore.json` has the runtimes `agent` and `copilot`; `git diff c84d998 -- agentcore runtime` shows only the `copilot` runtime, `UNDERCOVER_COPILOT_MEMORY_ID` in `SETTINGS`, `runtime/copilot.py` and `runtime/copilot_policy.json`
+- [x] `grep -rln "AGENTCORE_CREDENTIAL_\|requires_api_key" agent --include='*.py'` finds only `agent/identity.py` and tests; `grep -rn "fastapi" agent --include='*.py'` finds only tests
+- [x] `docs/CODE_STANDARDS.md` has the Copilot as a part of its own and the shared modules; `docs/TECH_STACK.md` describes the Copilot, its two routes from the app and its deployment; `docs/PROCESS.md` has the Copilot on port 8081 and the runtime check of both files
+- [x] `npm run check` passes with `.env` moved out of the way
 
 ## Phase 5: The sidebar
 
