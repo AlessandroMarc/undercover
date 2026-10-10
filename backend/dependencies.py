@@ -2,7 +2,7 @@
 who may call each route (the agent with its key, a signed-in handler, or either),
 the handler signed in, and the senior handler an action needs."""
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from typing import Annotated
 
 from fastapi import Depends, HTTPException
@@ -25,10 +25,14 @@ BEARER_CHALLENGE = {"WWW-Authenticate": "Bearer"}
 API_KEY_CHALLENGE = {"WWW-Authenticate": "APIKey"}
 
 
-def database() -> Iterator[Connection]:
-    """Open the database for one request, in a transaction committed at its end."""
-    with engine().begin() as connection:
+def database() -> Generator[Connection]:
+    """Open the database for one request on one connection, and commit at its end.
+    A route may commit sooner, as one that asks the agent for something does first,
+    so the agent sees it; what it writes afterwards is committed at the end. A
+    request that fails is rolled back to its last commit."""
+    with engine().connect() as connection:
         yield connection
+        connection.commit()
 
 
 # Committed before the response is sent.

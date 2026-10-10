@@ -60,11 +60,6 @@ def test_an_approval_paid_saves_the_claim_and_the_decision(client):
     [
         ("CLM-1003", partial(decide, "decline", 0), "CLM-1003  decline  $0.00"),
         ("CLM-1004", partial(decide, "refer", 0), "CLM-1004  refer  $0.00"),
-        (
-            "CLM-1002",
-            partial(approve, "CLM-1002", 1350.0),
-            "CLM-1002  approve  $1,350.00, waiting for sign-off",
-        ),
     ],
 )
 def test_each_decision_the_claim_agent_makes_is_saved(

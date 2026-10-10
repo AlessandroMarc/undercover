@@ -75,6 +75,12 @@ def no_waits(monkeypatch):
     return real
 
 
+def pauses_in(kind):
+    """Whether a kind of run's claim agents pause for a handler, as the harness
+    builds them."""
+    return harness.traits_of(kind).pauses
+
+
 @pytest.fixture
 def serve():
     """Run the agent's service, without its lifespan, with each version's claim
@@ -85,7 +91,7 @@ def serve():
         saver = saver or InMemorySaver()
 
         def claim_agents(version, kind):
-            return partial(agent_on, model, saver, version)
+            return partial(agent_on, model, saver, version, pauses=pauses_in(kind))
 
         service.app.dependency_overrides[service.claim_agents] = lambda: claim_agents
         return TestClient(service.app)
@@ -136,7 +142,9 @@ def serve_rounds():
 
     def with_models(improver_model, claim_model):
         def claim_agents(version, kind):
-            return partial(agent_on, claim_model, saver, version)
+            return partial(
+                agent_on, claim_model, saver, version, pauses=pauses_in(kind)
+            )
 
         workers = service.RoundWorkers(
             claim_agents, lambda round: improver_model, saver

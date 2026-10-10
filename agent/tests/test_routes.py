@@ -188,9 +188,11 @@ def test_a_payment_the_gateway_refuses_waits_for_a_handlers_sign_off(client, gat
         f"{APP}pay_claim: Refused by the Gateway: {DENIED}",
     )
 
+    assert harness.paused(claim, agent)
+
     assert sign_off(client, "CLM-1002").status_code == 200
     steps = steps_of(client, "CLM-1002")
-    assert harness.carry_on("CLM-1002", None, agent) == "CLM-1002  approve  $1,500.00"
+    assert harness.resume("CLM-1002", agent) == "CLM-1002  approve  $1,500.00"
     assert len(model.prompts) == 3
     assert steps_of(client, "CLM-1002") == steps
     assert [p["amount"] for p in payments_of("CLM-1002")] == [1500.0]

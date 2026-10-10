@@ -1,6 +1,7 @@
 """The agent's service: it works the dispatches, evaluations and rounds of the improver
-the backend starts, one at a time, and carries a round on after a handler's review.
-npm run dev starts it beside the backend and the dashboard."""
+the backend starts, one at a time, carries a round on after a handler's review, and
+resumes a paused claim after a handler's answer, beside any of them. npm run dev
+starts it beside the backend and the dashboard."""
 
 import logging
 import threading
@@ -21,7 +22,15 @@ from agent import api, improver, improver_api
 from agent.connection import Refused, api_key
 from agent.console import describe, show_reports
 from agent.dispatcher import WorkInRun, work_run
-from agent.harness import NewAgent, checkpoint_pool, claim_graphs, work_in_run
+from agent.handler_answer import answer_of
+from agent.harness import (
+    NewAgent,
+    checkpoint_pool,
+    claim_graphs,
+    paused,
+    resume,
+    work_in_run,
+)
 
 ACCEPTED = {"status": "accepted"}
 # The most claim agents at once, as the backend and the dashboard also allow.
@@ -31,6 +40,8 @@ AN_EVALUATION = "An evaluation is running"
 A_ROUND = "Round {number} is running"
 A_ROUND_STARTING = "A round is starting"
 RESTARTED = "The agent's service restarted"
+NOT_PAUSED = "Claim {claim_id} isn't paused for a handler"
+NO_ANSWER = "Claim {claim_id} has no answer from a handler yet"
 
 log = logging.getLogger(__name__)
 
@@ -89,8 +100,8 @@ def refused(_: Request, error: Refused) -> JSONResponse:
 
 
 # How to build the claim agents of a version of the claim agent for a kind of run,
-# each with a saver of its own.
-ClaimAgents = Callable[[dict[str, Any], api.RunKind], NewAgent]
+# or for no run, each with a saver of its own.
+ClaimAgents = Callable[[dict[str, Any], api.RunKind | None], NewAgent]
 
 
 def claim_agents(request: Request) -> ClaimAgents:
@@ -320,4 +331,19 @@ def review_proposal(
         raise
     start = improver.resume(request.review, request.reason)
     background.add_task(carry_the_round_on, round, start, workers)
+    return ACCEPTED
+
+
+@app.post("/api/claims/{claim_id}/resume", operation_id="resume_claim", status_code=202)
+def resume_claim(
+    claim_id: str, claim_agents: ClaimAgentsDep, background: BackgroundTasks
+) -> dict[str, str]:
+    """Resume a paused claim with its handler's answer, beside any other work."""
+    claim = api.get_claim(claim_id)
+    agent = claim_agents(api.get_current_version(), None)()
+    if not paused(claim, agent):
+        raise HTTPException(409, NOT_PAUSED.format(claim_id=claim_id))
+    if answer_of(claim) is None:
+        raise HTTPException(409, NO_ANSWER.format(claim_id=claim_id))
+    background.add_task(resume, claim_id, agent)
     return ACCEPTED

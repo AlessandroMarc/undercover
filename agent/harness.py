@@ -32,12 +32,12 @@ from langgraph.prebuilt import ToolNode
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.runtime import Runtime
 from langgraph.store.base import BaseStore
-from langgraph.types import Command, RetryPolicy
+from langgraph.types import Command, RetryPolicy, interrupt
 from psycopg import Connection, sql
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import ConnectionPool
 
-from agent import api, direct, gateway, memory
+from agent import api, direct, gateway, handler_answer, memory
 from agent.connection import Refused
 from agent.console import describe
 from agent.json_text import as_json
@@ -58,7 +58,7 @@ log = logging.getLogger(__name__)
 ClaimGraph = CompiledStateGraph[ClaimState, ClaimContext, Any, Any]
 Pool = ConnectionPool[Connection[DictRow]]
 Messages = dict[str, list[BaseMessage]]
-Start = Messages | None
+Start = Messages | Command | None
 # Tags for a claim's trace beside its run's, such as the round it works in.
 Tags = tuple[str, ...]
 
@@ -73,12 +73,16 @@ CLAIM_MODEL_CALLS = 30
 NO_DECISION = "The agent finished without recording a decision"
 WORK_CLAIM = "Work claim"
 CARRY_ON = "Carry on"
+RESUME = "Resume"
 SCREEN = "screen"
 REFER = "refer"
 AGENT = "agent"
 TOOLS = "tools"
 PAY = "pay"
 REMEMBER = "remember"
+WAIT_FOR_HANDLER = "wait_for_handler"
+# Where a decision goes when its payout is held for a handler's sign-off.
+HELD = "held"
 PAY_CLAIM = "pay_claim"
 REFUSAL = "refusal"
 
@@ -277,15 +281,31 @@ def after_agent(state: ClaimState) -> str:
 
 def after_tools(state: ClaimState) -> str:
     """Go back to the model until a decision is recorded, then pay an approval the
-    backend can pay at once, or end the claim agent's work: a payout it holds is
-    paid by the handler's sign-off. The graph maps the end to `remember` when it
-    has a memory."""
+    backend can pay at once, hold one it holds for a handler's sign-off, or end the
+    claim agent's work. The graph maps a held payout to the pause, or to the end
+    for a graph that doesn't pause, and the end to `remember` when it has a
+    memory."""
     decision, status = state["decision"], state["status"]
     if not decision:
         return AGENT
+    if status == api.Status.WAITING_FOR_SIGN_OFF:
+        return HELD
     if decision["decision"] == api.APPROVE and status == api.Status.IN_PROGRESS:
         return PAY
     return END
+
+
+def after_pay(state: ClaimState) -> str:
+    """Hold a payment the Gateway refused for a handler's sign-off, or end the claim
+    agent's work on a claim that is paid."""
+    return HELD if state["status"] == api.Status.WAITING_FOR_SIGN_OFF else END
+
+
+def wait_for_handler(state: ClaimState, runtime: Runtime[ClaimContext]) -> None:
+    """Pause the claim's work until a handler answers its held approval. A resume
+    runs this node again from the top, so nothing goes before the interrupt. A
+    sign-off has already paid the claim, so the work then ends."""
+    interrupt({"claim_id": runtime.context.claim_id})
 
 
 def remember(state: ClaimState, runtime: Runtime[ClaimContext]) -> None:
@@ -298,20 +318,42 @@ def remember(state: ClaimState, runtime: Runtime[ClaimContext]) -> None:
     api.record_step(claim["claim_id"], "memory_save", saved, [])
 
 
+@dataclass(frozen=True)
+class RunTraits:
+    """What the kind of run a claim graph works in gives it: a memory of each
+    customer, or none, and whether a payout held for sign-off pauses for a
+    handler's answer."""
+
+    store: BaseStore | None
+    pauses: bool
+
+
+def traits_of(kind: api.RunKind | None) -> RunTraits:
+    """An evaluation's claim graphs have no memory, so its scores don't depend on
+    it, and don't pause, since nobody signs off a copy. Any other's have the memory
+    the environment names, read now, and pause."""
+    if kind == api.EVALUATION:
+        return RunTraits(store=None, pauses=False)
+    return RunTraits(store=memory.memory_store(), pauses=True)
+
+
 def claim_graph(
     llm: BaseChatModel,
     screener: BaseChatModel,
     saver: BaseCheckpointSaver[Any],
     instructions: str,
-    store: BaseStore | None,
+    traits: RunTraits,
 ) -> ClaimGraph:
     """Build the claim agent's graph, which saves its progress after every step: the
     check for hidden instructions on its own model, then the claim agent on its
     model, with its instructions. With a memory, it can search the customer's, and
-    a claim it decides is remembered once its work ends."""
-    remembers = store is not None
+    a claim it decides is remembered once its work ends. A graph that pauses waits
+    for a handler's answer to a payout held for sign-off; any other ends its work
+    there."""
+    remembers = traits.store is not None
     tools = claim_tools(remembers)
     decided = REMEMBER if remembers else END
+    held = WAIT_FOR_HANDLER if traits.pauses else decided
     builder = StateGraph(ClaimState, context_schema=ClaimContext)
     builder.add_node(
         SCREEN, partial(screen_claim, screener=screener), retry_policy=SCREEN_RETRY
@@ -335,13 +377,16 @@ def claim_graph(
     builder.add_edge(REFER, END)
     builder.add_conditional_edges(AGENT, after_agent, [TOOLS, END])
     builder.add_conditional_edges(
-        TOOLS, after_tools, {AGENT: AGENT, PAY: PAY, END: decided}
+        TOOLS, after_tools, {AGENT: AGENT, PAY: PAY, HELD: held, END: decided}
     )
-    builder.add_edge(PAY, decided)
+    builder.add_conditional_edges(PAY, after_pay, {HELD: held, END: decided})
+    if traits.pauses:
+        builder.add_node(WAIT_FOR_HANDLER, wait_for_handler)
+        builder.add_edge(WAIT_FOR_HANDLER, decided)
     if remembers:
         builder.add_node(REMEMBER, remember)
         builder.add_edge(REMEMBER, END)
-    return builder.compile(checkpointer=saver, store=store)
+    return builder.compile(checkpointer=saver, store=traits.store)
 
 
 @dataclass
@@ -374,16 +419,15 @@ def claim_graphs(
     """Return how to build a version's claim agent for a kind of run, or none: a
     claim graph with a saver of its own on the pool, since a saver lets one claim
     at a time read or write, on the route and with the memory read when the run's
-    agents are built. An evaluation's claim agents have no memory, so its scores
-    don't depend on it. The check runs on the model the backend names for it."""
+    agents are built. The check runs on the model the backend names for it."""
     llm, screener = model(version), model(api.get_screening())
     route = tool_route()
-    store = memory.memory_store() if kind != api.EVALUATION else None
+    traits = traits_of(kind)
     decided_by = maker_of(version)
 
     def new_agent() -> ClaimAgent:
         saver = PostgresSaver(pool)
-        graph = claim_graph(llm, screener, saver, version["instructions"], store)
+        graph = claim_graph(llm, screener, saver, version["instructions"], traits)
         return ClaimAgent(graph, route, decided_by)
 
     return new_agent
@@ -488,6 +532,23 @@ def settle(claim_id: str, error: str | None) -> str:
     return line
 
 
+def work_on(
+    claim: dict[str, Any],
+    start: Start,
+    config: RunnableConfig,
+    run_id: str | None,
+    agent: ClaimAgent,
+) -> str:
+    """Run the claim graph on the claim's thread from a start, in the run given if
+    any, timed as one spell of work, then settle the claim and report how it
+    ended."""
+    claim_id = claim["claim_id"]
+    context = context_of(claim, run_id, agent)
+    with spell(claim_id, run_id):
+        error = run_claim_graph(agent.graph, start, config, context)
+        return settle(claim_id, error)
+
+
 def work_claim(
     claim_id: str, run_id: str | None, agent: ClaimAgent, tags: Tags = ()
 ) -> str:
@@ -495,10 +556,7 @@ def work_claim(
     and report how it ended."""
     claim = api.start_claim(claim_id, str(uuid.uuid4()))
     config = claim_config(claim, WORK_CLAIM, run_id, tags)
-    context = context_of(claim, run_id, agent)
-    with spell(claim_id, run_id):
-        error = run_claim_graph(agent.graph, begin(claim_id), config, context)
-        return settle(claim_id, error)
+    return work_on(claim, begin(claim_id), config, run_id, agent)
 
 
 def carry_on(
@@ -514,10 +572,24 @@ def carry_on(
     if saved.created_at is None and claim["decision"] is None:
         start = begin(claim_id)
     config = claim_config(claim, CARRY_ON, run_id, tags)
-    context = context_of(claim, run_id, agent)
-    with spell(claim_id, run_id):
-        error = run_claim_graph(agent.graph, start, config, context)
-        return settle(claim_id, error)
+    return work_on(claim, start, config, run_id, agent)
+
+
+def paused(claim: dict[str, Any], agent: ClaimAgent) -> bool:
+    """Say whether the claim's work is paused for a handler's answer: an interrupt
+    waits on its thread. The next step names the pause as soon as the step before
+    it is saved, before the pause has run, so it isn't enough."""
+    if claim["thread_id"] is None:
+        return False
+    return bool(agent.graph.get_state(thread_of(claim)).interrupts)
+
+
+def resume(claim_id: str, agent: ClaimAgent) -> str:
+    """Resume a paused claim with the handler's answer from the app's record, with
+    no run, and report how it ended."""
+    claim = api.get_claim(claim_id)
+    start = Command(resume=handler_answer.answer_of(claim))
+    return work_on(claim, start, claim_config(claim, RESUME, None, ()), None, agent)
 
 
 def work_in_run(

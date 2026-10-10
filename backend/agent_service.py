@@ -1,5 +1,6 @@
 """The agent's service, as the backend calls it: to start a dispatch, an evaluation
-or a round, and to pass on a review of a proposal."""
+or a round, to pass on a review of a proposal, and to resume a claim after a
+handler's answer."""
 
 import os
 from http import HTTPStatus
@@ -17,11 +18,15 @@ NO_ANSWER = (
 
 agent = httpx.Client(base_url=f"{AGENT_URL}/api", timeout=10)
 
+# What a call raises when the service refused the work, couldn't be reached, didn't
+# answer in time or gave an error.
+FAILED = (HTTPException, httpx.HTTPError)
 
-def send(path: str, body: dict[str, Any]) -> None:
-    """Send the agent's service some work, passing on its refusal while something
-    else is running, or say it isn't running when it can't be reached, or that
-    it didn't answer in time."""
+
+def send(path: str, body: dict[str, Any] | None) -> None:
+    """Send the agent's service some work, with a body or none, passing on its
+    refusal while something else is running, or say it isn't running when it can't
+    be reached, or that it didn't answer in time."""
     try:
         response = agent.post(path, json=body)
     except (httpx.ConnectError, httpx.ConnectTimeout) as error:
@@ -56,3 +61,9 @@ def review_proposal(
     it and carries the improver on."""
     body = {"review": review, "handler_id": handler_id, "reason": reason}
     send(f"/rounds/{round_id}/proposals/{proposal_id}/review", body)
+
+
+def resume_claim(claim_id: str) -> None:
+    """Ask the agent's service to resume a paused claim with its handler's answer,
+    which it reads from the claim."""
+    send(f"/claims/{claim_id}/resume", None)

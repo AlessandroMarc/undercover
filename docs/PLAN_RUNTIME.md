@@ -210,21 +210,21 @@ pytest, vitest and Playwright run with `npm run check` and never read `.env`. Gr
 
 Add `wait_for_handler`, `after_pay`, `paused()`, `resume()` and `handler_answer.answer_of` for a sign-off. Add `resume_claim` to the agent's service, `POST /api/claims/{claim_id}/resume`, 202 or 409, outside `OneAtATime`. Change the `Database` dependency so a route can commit sooner, and make `sign_off_claim` move the claim with a conditional update, commit, and ask the agent to resume it through `agent_service.resume_claim`, logging any failure as a warning. The e2e stand-in records each resume it gets. The live check for this step is at the end of phase 4.
 
-- [ ] Stub test: CLM-1003 approved for $3,750.00 ends its graph's run reported `CLM-1003  approve  $3,750.00, waiting for sign-off`, with one interrupt waiting on its thread, which a new graph on the same saver also sees
-- [ ] Stub test, Gateway route: with the approval limit at $2,000, an approval of $1,500.00 whose payment the Gateway refuses is held with the Gateway's reason, and its thread is paused
-- [ ] Stub test: an evaluation's copy approved over the limit ends as today: waiting for sign-off, no interrupt, nothing left to run
-- [ ] Stub test: a claim worked on the command line, with no run, pauses like a dispatch's
-- [ ] Stub test, stand-in memory: after Dana Whitfield's sign-off pays CLM-1003, `resume` finishes its work: one payment, a `memory_save` step, the stand-in memory holds the claim's two events, and the thread has no interrupt and nothing left to run; with memory off it ends with no `memory_save` step
-- [ ] pytest (service): `resume_claim` on a paused, signed-off claim answers 202 at once and resumes it in the background on the current version's claim agents, with its work time and model calls recorded with no run
-- [ ] pytest (service): `resume_claim` refuses with a 409 and the reason a claim still waiting for sign-off, a decided claim that never paused, an evaluation's copy, and a claim whose process stopped after the decision was saved and before the pause ran (its `next` names the pause, but no interrupt waits); an unknown claim gets the app's 404
-- [ ] pytest (service): `resume_claim` is accepted while a dispatch is running
-- [ ] pytest (backend): a sign-off pays the claim, records who and when, and makes exactly one call to the agent, naming only the claim; the stand-in, reading the claim through a fresh connection when the call arrives, finds it decided and paid
-- [ ] pytest (backend): when the call can't connect, times out, is refused or gets an error answer, the sign-off still answers 200 with the paid claim, and a warning names the claim
-- [ ] pytest (backend): two sign-offs released together pay the claim once; the other gets a 409
-- [ ] e2e: Dana signs off a held payout on its page, which shows "Paid $1,350.00, signed off by Dana Whitfield", and the agent's stand-in received the resume for that claim
-- [ ] The boundaries test: `handler_answer` uses nothing else in the agent, and the harness uses it
-- [ ] `docs/STATUS.md`'s known gaps say that a sign-off whose call to the agent fails, or whose claim never paused, stands, and the claim isn't saved to memory
-- [ ] `npm run check` passes with `.env` moved out of the way
+- [x] Stub test: CLM-1003 approved for $3,750.00 ends its graph's run reported `CLM-1003  approve  $3,750.00, waiting for sign-off`, with one interrupt waiting on its thread, which a new graph on the same saver also sees
+- [x] Stub test, Gateway route: with the approval limit at $2,000, an approval of $1,500.00 whose payment the Gateway refuses is held with the Gateway's reason, and its thread is paused
+- [x] Stub test: an evaluation's copy approved over the limit ends as today: waiting for sign-off, no interrupt, nothing left to run
+- [x] Stub test: a claim worked on the command line, with no run, pauses like a dispatch's
+- [x] Stub test, stand-in memory: after Dana Whitfield's sign-off pays CLM-1003, `resume` finishes its work: one payment, a `memory_save` step, the stand-in memory holds the claim's two events, and the thread has no interrupt and nothing left to run; with memory off it ends with no `memory_save` step
+- [x] pytest (service): `resume_claim` on a paused, signed-off claim answers 202 at once and resumes it in the background on the current version's claim agents, with its work time and model calls recorded with no run
+- [x] pytest (service): `resume_claim` refuses with a 409 and the reason a claim still waiting for sign-off, a decided claim that never paused, an evaluation's copy, and a claim whose process stopped after the decision was saved and before the pause ran (its `next` names the pause, but no interrupt waits); an unknown claim gets the app's 404
+- [x] pytest (service): `resume_claim` is accepted while a dispatch is running
+- [x] pytest (backend): a sign-off pays the claim, records who and when, and makes exactly one call to the agent, naming only the claim; the stand-in, reading the claim through a fresh connection when the call arrives, finds it decided and paid
+- [x] pytest (backend): when the call can't connect, times out, is refused or gets an error answer, the sign-off still answers 200 with the paid claim, and a warning names the claim
+- [x] pytest (backend): two sign-offs released together pay the claim once; the other gets a 409
+- [x] e2e: Dana signs off a held payout on its page, which shows "Paid $1,350.00, signed off by Dana Whitfield", and the agent's stand-in received the resume for that claim
+- [x] The boundaries test: `handler_answer` uses nothing else in the agent, and the harness uses it
+- [x] `docs/STATUS.md`'s known gaps say that a sign-off whose call to the agent fails, or whose claim never paused, stands, and the claim isn't saved to memory
+- [x] `npm run check` passes with `.env` moved out of the way
 
 ## Phase 2: Sign off or send back
 

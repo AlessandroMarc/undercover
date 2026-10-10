@@ -1,16 +1,21 @@
 import threading
 from contextlib import nullcontext
+from functools import partial
 from types import SimpleNamespace
 
 import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
+from langgraph.checkpoint.memory import InMemorySaver
 
-from agent import api, service
+from agent import api, harness, service
 from agent.tests.dispatching import new_dispatch
+from agent.tests.held import StopAtThePause, hold
 from agent.tests.queue_setup import leave_waiting
-from agent.tests.stubs import decide, stub, swarm
+from agent.tests.records import claim_of, model_calls_of, work_times_of
+from agent.tests.stubs import agent_on, approve, decide, stub, swarm
 from api_rules import rule_breaks
+from backend.tests.claim_requests import sign_off
 from backend.tests.run_requests import latest_dispatch
 from backend.tests.versions import add_version
 
@@ -154,7 +159,7 @@ def test_claim_agents_are_built_on_the_services_pool(monkeypatch):
     assert built == ({"number": 2}, "evaluation", pool)
 
 
-def test_the_service_no_longer_resumes_claims():
+def test_the_services_operations():
     operations = {
         operation["operationId"]
         for methods in service.app.openapi()["paths"].values()
@@ -166,4 +171,88 @@ def test_the_service_no_longer_resumes_claims():
         "start_evaluation",
         "start_round",
         "review_proposal",
+        "resume_claim",
     }
+
+
+def resume_claim(agent, claim_id):
+    return agent.post(f"/api/claims/{claim_id}/resume")
+
+
+def built_on(saver, built):
+    """Claim agents on a stub model, sharing a saver, that keep the version and the
+    kind of run each was built for."""
+
+    def claim_agents(version, kind):
+        built.append((version["number"], kind))
+        return partial(agent_on, stub(), saver, version)
+
+    return claim_agents
+
+
+def test_a_signed_off_claim_is_resumed_in_the_background(client, serve):
+    add_version("Version 2's instructions", verdict="kept")
+    saver = InMemorySaver()
+    hold(saver=saver)
+    sign_off(client, "CLM-1003")
+    calls, times = model_calls_of("CLM-1003"), work_times_of("CLM-1003")
+    agent, built = serve(stub(), saver), []
+    service.app.dependency_overrides[service.claim_agents] = lambda: built_on(
+        saver, built
+    )
+    response = resume_claim(agent, "CLM-1003")
+    assert (response.status_code, response.json()) == (202, {"status": "accepted"})
+    assert built == [(2, None)]
+    claim = claim_of(client, "CLM-1003")
+    assert claim["status"] == "decided"
+    assert not harness.paused(claim, agent_on(stub(), saver))
+    assert work_times_of("CLM-1003")[: len(times)] == times
+    [resumed] = work_times_of("CLM-1003")[len(times) :]
+    assert resumed["run_id"] is None
+    # A sign-off has already paid the claim, so the resume calls no model.
+    assert model_calls_of("CLM-1003") == calls
+
+
+def test_resume_claim_refuses_a_claim_that_isnt_paused_with_an_answer(client, serve):
+    saver = StopAtThePause()
+    with pytest.raises(KeyboardInterrupt):
+        hold("CLM-1002", 1350.0, saver)
+    sign_off(client, "CLM-1002")
+    hold(saver=saver)
+    harness.work_claim("CLM-1001", None, agent_on(stub(*decide("decline", 0)), saver))
+    run_id = api.create_evaluation("evaluation", True, 5)["run_id"]
+    copy = agent_on(stub(*approve("CLM-1020", 1240.0)), saver, pauses=False)
+    harness.work_in_run("CLM-1020-E1", run_id, lambda: copy)
+
+    agent = serve(stub(), saver)
+    for claim_id, reason in [
+        ("CLM-1003", "Claim CLM-1003 has no answer from a handler yet"),
+        ("CLM-1001", "Claim CLM-1001 isn't paused for a handler"),
+        ("CLM-1020-E1", "Claim CLM-1020-E1 isn't paused for a handler"),
+        ("CLM-1002", "Claim CLM-1002 isn't paused for a handler"),
+    ]:
+        refused = resume_claim(agent, claim_id)
+        assert (refused.status_code, refused.json()) == (409, {"detail": reason})
+    unknown = resume_claim(agent, "CLM-9999")
+    assert (unknown.status_code, unknown.json()) == (
+        404,
+        {"detail": "Claim CLM-9999 not found"},
+    )
+    assert claim_of(client, "CLM-1003")["status"] == "waiting_for_sign_off"
+
+
+def test_a_resume_is_accepted_while_a_dispatch_is_running(client, serve, held_run):
+    leave_waiting("CLM-1003")
+    saver = InMemorySaver()
+    hold(saver=saver)
+    sign_off(client, "CLM-1003")
+    agent = serve(stub(), saver)
+    dispatching = threading.Thread(target=start_dispatch, args=(agent, 3))
+    dispatching.start()
+    assert held_run.working.wait(5)
+
+    assert resume_claim(agent, "CLM-1003").status_code == 202
+    assert not harness.paused(claim_of(client, "CLM-1003"), agent_on(stub(), saver))
+    held_run.release.set()
+    dispatching.join(5)
+    assert latest_dispatch(client)["status"] == "finished"

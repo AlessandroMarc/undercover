@@ -46,7 +46,7 @@ def test_an_evaluation_through_the_service(client, serve):
     # A copy held for sign-off counts as finished, with nothing left to run.
     held_state = agent_on(stub(), saver).graph.get_state(harness.thread_of(held))
     assert held_state.created_at is not None
-    assert held_state.next == ()
+    assert (held_state.next, held_state.interrupts) == ((), ())
     assert claim_of(client, "CLM-1021-E1")["status"] == "left_for_handler"
 
     evaluation = get_evaluation(client, listed["run_id"])

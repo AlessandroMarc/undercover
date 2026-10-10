@@ -172,23 +172,26 @@ def flags():
 
 class Surroundings(TypedDict, total=False):
     """What a test may give a claim agent in place of what it has by default: a
-    check of its own, a route, and a memory of each customer."""
+    check of its own, a route, a memory of each customer, and whether it pauses for
+    a handler, as an evaluation's doesn't."""
 
     screener: BaseChatModel
     route: Route
-    store: BaseStore
+    store: BaseStore | None
+    pauses: bool
 
 
 def agent_on(model, saver=None, version=VERSION, **given: Unpack[Surroundings]):
     """A claim agent of a version of the configuration, on a stub model, saving its
-    progress in memory, after a check that passes every claim, on the direct route
-    and with no memory, unless the test gives it a check, a route or a memory."""
+    progress in memory, after a check that passes every claim, on the direct route,
+    with no memory and pausing for a handler like a dispatch's, unless the test
+    gives it a check, a route, a memory or no pause."""
     graph = harness.claim_graph(
         model,
         given.get("screener") or passes(),
         saver or InMemorySaver(),
         version["instructions"],
-        given.get("store"),
+        harness.RunTraits(given.get("store"), given.get("pauses", True)),
     )
     route = given.get("route") or direct.from_environment()
     return harness.ClaimAgent(graph, route, harness.maker_of(version))

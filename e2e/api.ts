@@ -291,3 +291,10 @@ export async function reviews(request: Request): Promise<Started[]> {
   await expect(response).toBeOK();
   return (await response.json()) as Started[];
 }
+
+// The claims the backend has asked the agent to resume, oldest first.
+export async function resumes(request: Request): Promise<string[]> {
+  const response = await request.get(`${AGENT_STAND_IN}/api/resumes`);
+  await expect(response).toBeOK();
+  return (await response.json()) as string[];
+}
