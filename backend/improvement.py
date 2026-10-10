@@ -14,7 +14,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import Connection, RowMapping, func, insert, select, update
 
 from backend import agent_service, spending, verdict
-from backend.agent_work import ask_the_agent, clear_the_way
+from backend.agent_work import clear_the_way
+from backend.asking import commit_and_ask
 from backend.database import (
     FIRST_VERSION,
     INSTRUCTIONS,
@@ -609,7 +610,7 @@ def clear_the_review(db: Connection, proposal_id: str) -> None:
 def carry_on_after(db: Connection, row: RowMapping, proposal_id: str) -> None:
     """Ask the agent to carry the round on after a review, which is cleared when
     the agent didn't take it."""
-    ask_the_agent(
+    commit_and_ask(
         db,
         partial(agent_service.carry_round_on, row["round_id"], proposal_id),
         lambda reason: clear_the_review(db, proposal_id),
@@ -939,7 +940,7 @@ def start_round(handler: StartsRounds, db: Database) -> Accepted:
     clear_the_way(db)
     refuse_while_a_round_is_open(db)
     row = new_round(db, handler)
-    ask_the_agent(
+    commit_and_ask(
         db,
         partial(agent_service.work_round, row["round_id"]),
         lambda reason: stop(db, row, None, reason),

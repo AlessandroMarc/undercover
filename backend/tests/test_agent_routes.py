@@ -3,7 +3,6 @@ with the agent's key, or its runtime on AgentCore Runtime through boto3; and wha
 the handler gets when the agent takes the work, refuses it, can't be reached, gives
 an error answer or doesn't answer in time."""
 
-import io
 import json
 
 import httpx
@@ -21,51 +20,22 @@ from botocore.exceptions import (
     ReadTimeoutError,
 )
 
-from backend import agent_service
+from backend import agent_service, runtime_calls
 from backend.agent_service import NO_ANSWER, NOT_RUNNING
+from backend.tests.agent_answers import answering, raising
 from backend.tests.claim_requests import held, sign_off
 from backend.tests.rows import newest_run
 from backend.tests.run_requests import start_dispatch
+from backend.tests.runtime_stand_in import ENDPOINT, runtime_at
 
 ARN = "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/undercover_agent-x"
-ENDPOINT = "https://bedrock-agentcore.us-east-1.amazonaws.com"
 REFUSAL = "A dispatch is running"
-
-
-class RuntimeStandIn:
-    """Stands in for boto3's client for AgentCore Runtime: it keeps each call and
-    answers with the status and body given, or raises the error given, while the
-    request is sent or as its answer is read."""
-
-    def __init__(self) -> None:
-        self.calls: list[dict] = []
-        self.answer: tuple[int, bytes] = (200, b'{"accepted": true}')
-        self.raises: Exception | None = None
-        self.cut_off: Exception | None = None
-
-    def invoke_agent_runtime(self, **call):
-        self.calls.append(call)
-        if self.raises:
-            raise self.raises
-        status, body = self.answer
-        stream = io.BytesIO(body)
-        if self.cut_off:
-            cut_off = self.cut_off
-
-            def read():
-                raise cut_off
-
-            stream.read = read  # type: ignore[method-assign]
-        return {"statusCode": status, "response": stream}
 
 
 @pytest.fixture
 def runtime(monkeypatch):
     """Send the agent's work to a stand-in for its runtime on AgentCore Runtime."""
-    monkeypatch.setenv(agent_service.RUNTIME, ARN)
-    stand_in = RuntimeStandIn()
-    monkeypatch.setattr(agent_service, "runtime_client", lambda: stand_in)
-    return stand_in
+    return runtime_at(monkeypatch, agent_service.RUNTIME, ARN)
 
 
 def test_the_laptop_route_posts_the_payload_to_invocations_with_the_key(
@@ -119,31 +89,42 @@ def test_the_runtime_route_sends_the_payload_to_the_runtime_with_no_key(
     assert agent_calls == []
 
 
-def test_the_runtime_client_makes_one_attempt_and_waits_5_seconds_and_20():
-    agent_service.runtime_client.cache_clear()
+FOUR_OPERATIONS = [
+    {"operation": "work_run", "run_id": "run-1"},
+    {"operation": "work_round", "round_id": "round-1"},
+    {"operation": "carry_round_on", "round_id": "round-1", "proposal_id": "proposal-1"},
+    {"operation": "resume_claim", "claim_id": "CLM-1001"},
+]
+
+
+def ask_all_four():
+    agent_service.work_run("run-1")
+    agent_service.work_round("round-1")
+    agent_service.carry_round_on("round-1", "proposal-1")
+    agent_service.resume_claim("CLM-1001")
+
+
+def test_the_agents_four_operations_on_the_laptop(agent_calls):
+    ask_all_four()
+    assert agent_calls == FOUR_OPERATIONS
+
+
+def test_the_agents_four_operations_on_runtime_each_in_a_new_session(runtime):
+    ask_all_four()
+    assert [json.loads(call["payload"]) for call in runtime.calls] == FOUR_OPERATIONS
+    assert len({call["runtimeSessionId"] for call in runtime.calls}) == 4
+
+
+def test_the_runtime_client_makes_one_attempt_and_waits_2_seconds_and_20():
+    runtime_calls.runtime_client.cache_clear()
     try:
-        made = agent_service.runtime_client()
+        made = runtime_calls.runtime_client()
         assert made.meta.service_model.service_name == "bedrock-agentcore"
         config = made.meta.config
         assert config.retries["total_max_attempts"] == 1
-        assert (config.connect_timeout, config.read_timeout) == (5, 20)
+        assert (config.connect_timeout, config.read_timeout) == (2, 20)
     finally:
-        agent_service.runtime_client.cache_clear()
-
-
-def on_laptop(agent_answers, answer):
-    agent_answers(answer)
-
-
-def raising(error):
-    def answer(request):
-        raise error
-
-    return answer
-
-
-def answering(status, body):
-    return lambda request: httpx.Response(status, content=body)
+        runtime_calls.runtime_client.cache_clear()
 
 
 @pytest.mark.parametrize(

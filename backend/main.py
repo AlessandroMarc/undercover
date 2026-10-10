@@ -17,10 +17,11 @@ from backend.calculation import (
     keep_calculation,
 )
 from backend.configuration import router as configuration
+from backend.copilot import router as copilot
+from backend.customers import router as customers_router
 from backend.database import (
     claim_view,
     claims,
-    customers,
     decisions,
     engine,
     is_seeded,
@@ -44,7 +45,15 @@ from backend.dependencies import (
 )
 from backend.documents import manual_version
 from backend.improvement import router as improvement
-from backend.lookups import CLAIM_NOT_FOUND, current_settings, run_row
+from backend.lookups import (
+    A_COPY,
+    CLAIM_NOT_FOUND,
+    NOT_WAITING_FOR_SIGN_OFF,
+    current_settings,
+    customer_record,
+    find_claim,
+    run_row,
+)
 from backend.models import (
     Claim,
     ClaimSummary,
@@ -59,6 +68,7 @@ from backend.models import (
     PaymentRequest,
     Payout,
     PayoutRequest,
+    PayoutsOverTheLimit,
     Plans,
     Policy,
     PreviousClaim,
@@ -86,9 +96,7 @@ NOT_STARTED = "Claim {claim_id} has not been started"
 NOT_IN_PROGRESS = "Claim {claim_id} is not in progress"
 ALREADY_DECIDED = "Claim {claim_id} has already been decided"
 NOT_WAITING = "Claim {claim_id} is not waiting"
-NOT_WAITING_FOR_SIGN_OFF = "Claim {claim_id} is not waiting for sign-off"
 NOT_SENT_BACK = "Claim {claim_id} isn't sent back"
-A_COPY = "Claim {claim_id} is a copy in an evaluation and can't be {answered}"
 
 log = logging.getLogger(__name__)
 
@@ -105,6 +113,8 @@ app = FastAPI(title="UnderCover", lifespan=lifespan)
 app.include_router(runs)
 app.include_router(configuration)
 app.include_router(improvement)
+app.include_router(copilot)
+app.include_router(customers_router)
 
 SignsOffOverTheLimit = Annotated[Handler, Depends(senior("sign this off"))]
 SendsBack = Annotated[Handler, Depends(senior("send this back"))]
@@ -119,15 +129,6 @@ def approval_limit(db: Connection) -> float:
 def plans(db: Connection) -> Plans:
     """Return the plans and add-ons, and the benefits the deductible applies to."""
     return Plans(**db.execute(select(payout_rules.c.plans)).scalar_one())
-
-
-def find_claim(db: Connection, claim_id: str) -> RowMapping:
-    """Return one claim's row, or raise a 404."""
-    query = claim_view.where(claims.c.claim_id == claim_id)
-    row = db.execute(query).mappings().first()
-    if row is None:
-        raise HTTPException(404, CLAIM_NOT_FOUND.format(claim_id=claim_id))
-    return row
 
 
 def claim_in_full(db: Connection, claim_id: str) -> Claim:
@@ -291,10 +292,7 @@ def get_policy(policy_id: str, db: Database) -> Policy:
 )
 def get_claim_history(customer_id: str, db: Database) -> list[PreviousClaim]:
     """Get a customer's earlier claims, with the outcome and the amount paid."""
-    query = select(customers.c.record).where(customers.c.customer_id == customer_id)
-    record = db.execute(query).scalar_one_or_none()
-    if record is None:
-        raise HTTPException(404, f"Customer {customer_id} not found")
+    record = customer_record(db, customer_id)
     return [PreviousClaim(**claim) for claim in record["previous_claims"]]
 
 
@@ -306,6 +304,30 @@ def get_claim_history(customer_id: str, db: Database) -> list[PreviousClaim]:
 def get_agent_api() -> dict[str, Any]:
     """Get the OpenAPI document of the claim agent's own operations, for the Gateway."""
     return agent_api.document(app)
+
+
+@app.get(
+    "/api/payouts/over-limit",
+    operation_id="count_payouts_over_limit",
+    dependencies=[SignedInHandler],
+)
+def count_payouts_over_limit(db: Database) -> PayoutsOverTheLimit:
+    """Count the queue's payouts over their decision's limit, and those signed off."""
+    query = (
+        select(decisions.c.signed_off_by)
+        .select_from(claims)
+        .join(decisions, decisions.c.claim_id == claims.c.claim_id)
+        .join(payments, payments.c.claim_id == claims.c.claim_id)
+        .where(
+            claims.c.evaluation_id.is_(None),
+            payments.c.amount > decisions.c.approval_limit,
+        )
+    )
+    signed_off_by = list(db.execute(query).scalars())
+    return PayoutsOverTheLimit(
+        paid_over_the_limit=len(signed_off_by),
+        signed_off=sum(1 for name in signed_off_by if name),
+    )
 
 
 @app.get("/api/me", operation_id="get_signed_in_handler")

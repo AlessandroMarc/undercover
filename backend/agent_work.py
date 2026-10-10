@@ -1,16 +1,13 @@
 """What the app knows of the agent's work: one piece of it at a time, a dispatch, an
 evaluation or a round of the improver while it works, and when the agent last spoke
 of it. A start takes the lock, marks quiet work stopped, refuses while other work is
-going, and then asks the agent, undoing what it did when the agent didn't take the
-work."""
+going, and then the app asks the agent."""
 
-from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import Connection, RowMapping, select, update
 
-from backend import agent_service
 from backend.database import AGENTS_WORK, locks, now, rounds, runs, stamp
 from backend.models import RoundStatus, RunKind, RunStatus
 from backend.round_state import stop, waiting_proposal
@@ -88,19 +85,3 @@ def clear_the_way(db: Connection) -> None:
     db.commit()
     take_the_lock(db)
     refuse_while_work_goes_on(db)
-
-
-def ask_the_agent(
-    db: Connection, ask: Callable[[], None], undo: Callable[[str], object]
-) -> None:
-    """Commit what the app did for the work, so the agent sees it, then ask the
-    agent to take it. When the agent didn't, undo it with the reason and commit
-    the undo before passing on the refusal; when it may have started, change
-    nothing."""
-    db.commit()
-    try:
-        ask()
-    except agent_service.NotTaken as refusal:
-        undo(refusal.detail)
-        db.commit()
-        raise

@@ -24,6 +24,7 @@ from sqlalchemy import (
     MetaData,
     Table,
     Text,
+    UniqueConstraint,
     create_engine,
     insert,
     inspect,
@@ -394,6 +395,73 @@ work_times = Table(
 )
 
 
+# The Copilot's conversations, each its handler's, with how many turns it has, which
+# a new turn moves on from n to n + 1 with a conditional update, so a conversation
+# takes one message at a time.
+conversations = Table(
+    "conversations",
+    metadata,
+    Column("conversation_id", Text, primary_key=True),
+    Column("handler_id", Text, ForeignKey("handlers.handler_id"), nullable=False),
+    Column("title", Text, nullable=False),
+    Column("turns", Integer, nullable=False),
+    Column("created_at", Text, nullable=False),
+)
+# Each message to the Copilot and its answer: where the turn stands, how it ended,
+# and the card of a sign-off waiting for the handler's confirmation, with the held
+# decision's decided_at, and the handler's answer.
+copilot_turns = Table(
+    "copilot_turns",
+    metadata,
+    Column("turn_id", Text, primary_key=True),
+    Column(
+        "conversation_id",
+        Text,
+        ForeignKey("conversations.conversation_id"),
+        nullable=False,
+    ),
+    Column("number", Integer, nullable=False),
+    Column("message", Text, nullable=False),
+    Column("status", Text, nullable=False),
+    Column("started_at", Text, nullable=False),
+    Column("paused_at", Text),
+    Column("answered_at", Text),
+    Column("finished_at", Text),
+    Column("answer", Text),
+    Column("model_calls", Integer),
+    Column("cost", Float),
+    Column("failure", Text),
+    Column("confirmation", JSON),
+    Column("confirmation_answer", Text),
+    Column("canceled_because", Text),
+    UniqueConstraint("conversation_id", "number"),
+)
+# The cards of a turn: each tool the Copilot called, what was asked and what came
+# back.
+copilot_steps = Table(
+    "copilot_steps",
+    metadata,
+    Column("step_id", Integer, primary_key=True),
+    Column(
+        "turn_id",
+        Text,
+        ForeignKey("copilot_turns.turn_id"),
+        nullable=False,
+        index=True,
+    ),
+    Column("tool", Text, nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("input", Text, nullable=False),
+    Column("asked", Text, nullable=False),
+    Column("status", Text, nullable=False),
+    Column("answer", Text),
+    Column("reason", Text),
+    Column("sources", JSON, nullable=False),
+    Column("started_at", Text, nullable=False),
+    Column("finished_at", Text),
+)
+
+
 class LabeledSet(NamedTuple):
     """A set of claims our handlers have decided: the table its claims are kept in,
     and the file in data/evals/ with the handlers' decisions, which only seeding
@@ -450,6 +518,17 @@ def stamp(moment: datetime) -> str:
 def now() -> str:
     """Return the current time in UTC, to the second."""
     return stamp(datetime.now(UTC))
+
+
+def stamp_precisely(moment: datetime) -> str:
+    """Write a moment in UTC to the millisecond, as the Copilot's turns and cards
+    have it, since many of them take less than a second."""
+    return moment.isoformat(timespec="milliseconds")
+
+
+def now_precisely() -> str:
+    """Return the current time in UTC, to the millisecond."""
+    return stamp_precisely(datetime.now(UTC))
 
 
 def database_url() -> URL:

@@ -1,11 +1,12 @@
 """The FastAPI dependencies the backend's routers share: the database, the gates on
 who may call each route (the agent with its key, a signed-in handler, or either),
-the handler signed in, and the senior handler an action needs."""
+the handler signed in and their own sign-in, and the senior handler an action
+needs."""
 
 from collections.abc import Callable, Generator
 from typing import Annotated
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, Header, HTTPException
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import Connection, select
 
@@ -19,6 +20,9 @@ SIGN_IN_OUT_OF_REACH = "Sign-in can't be checked: Supabase is out of reach"
 NOT_SIGNED_IN = "The sign-in isn't valid. Please sign in again."
 NEEDS_THE_KEY = "This needs the agent's API key"
 NEEDS_A_SIGN_IN_OR_THE_KEY = "Sign in, or send the agent's API key"
+THE_AGENTS_REQUEST = (
+    "A request with the agent's API key is the agent's, not a handler's"
+)
 API_KEY_HEADER = "X-API-Key"
 # The challenges a 401 carries, for a missing or bad sign-in or key.
 BEARER_CHALLENGE = {"WWW-Authenticate": "Bearer"}
@@ -67,9 +71,27 @@ def handler_with(token: str, db: Connection) -> Handler:
 def signed_in_handler(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer)],
     db: Database,
+    key: Annotated[
+        str | None, Header(alias=API_KEY_HEADER, include_in_schema=False)
+    ] = None,
 ) -> Handler:
-    """Return the handler signed in with the request's token."""
-    return handler_with(credentials.credentials, db)
+    """Return the handler signed in with the request's token. A request that also
+    carries the agent's key is the agent's, and is refused with a 403, so the key
+    never stands in for a handler, whatever else the request carries. A handler's
+    route doesn't offer the key in the API document."""
+    handler = handler_with(credentials.credentials, db)
+    if api_key.is_the_agents(key):
+        raise HTTPException(403, THE_AGENTS_REQUEST)
+    return handler
+
+
+def sign_in_of(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer)],
+    handler: Annotated[Handler, Depends(signed_in_handler)],
+) -> str:
+    """Return the signed-in handler's own access token, which the app passes on to
+    the Copilot, so it works as the handler signed in."""
+    return credentials.credentials
 
 
 def the_agent(key: AgentKeyHeader) -> None:
@@ -102,6 +124,8 @@ AgentKey = Depends(the_agent)
 HandlerOrAgent = Depends(handler_or_agent)
 SignedInHandler = Depends(signed_in_handler)
 SignedIn = Annotated[Handler, Depends(signed_in_handler)]
+# The signed-in handler's own token, for a route that passes it on to the Copilot.
+SignIn = Annotated[str, Depends(sign_in_of)]
 
 
 def senior(action: str) -> Callable[[Handler, Connection], Handler]:

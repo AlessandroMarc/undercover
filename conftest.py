@@ -14,7 +14,7 @@ from agent import identity
 from agent.direct import CONTEXT_URL
 from agent.gateway import GATEWAY_URL
 from agent.memory import MEMORY_ID
-from backend import agent_service, auth, judge
+from backend import agent_service, auth, copilot_service, judge
 from backend.dashboard import DashboardFiles
 from backend.dashboard import mount as dashboard_mount
 from backend.database import engine, seed
@@ -58,7 +58,7 @@ def database(seeded, tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def no_aws(tmp_path, monkeypatch):
     """Keep every test away from AWS, a Gateway and the servers running on the
-    laptop: no Gateway, context layer, memory or agent's runtime from the
+    laptop: no Gateway, context layer, memory, Copilot or runtime from the
     environment, never as if on AgentCore Runtime, and stand-in AWS credentials and
     a region in place of the AWS CLI's."""
     ours = (
@@ -67,6 +67,8 @@ def no_aws(tmp_path, monkeypatch):
         MEMORY_ID,
         agent_service.AGENT,
         agent_service.RUNTIME,
+        copilot_service.COPILOT,
+        copilot_service.RUNTIME,
     )
     on_runtime = [name for name in os.environ if name.startswith(identity.PREFIX)]
     for name in (*ours, *on_runtime, "AWS_PROFILE", "AWS_SESSION_TOKEN", "AWS_REGION"):
@@ -152,6 +154,34 @@ def agent_calls(agent_answers):
         return httpx.Response(200, json={"accepted": True})
 
     agent_answers(accept)
+    return calls
+
+
+@pytest.fixture
+def copilot_answers(monkeypatch):
+    """Answer the backend's calls to the Copilot on the laptop with a handler of
+    the test's own, in place of the Copilot."""
+
+    def answer_with(handler):
+        transport = httpx.MockTransport(handler)
+        monkeypatch.setattr(
+            copilot_service, "copilot", httpx.Client(transport=transport)
+        )
+
+    return answer_with
+
+
+@pytest.fixture(autouse=True)
+def copilot_calls(copilot_answers):
+    """Stand in for the Copilot on the laptop, taking each turn and answer the
+    payload asks for and keeping the payload."""
+    calls: list[object] = []
+
+    def accept(request: httpx.Request) -> httpx.Response:
+        calls.append(json.loads(request.content))
+        return httpx.Response(200, json={"accepted": True})
+
+    copilot_answers(accept)
     return calls
 
 

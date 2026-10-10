@@ -5,7 +5,15 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import Table, func, select, update
 
 from backend.calculation import keep_calculation
-from backend.database import claim_view, claims, engine, rounds, runs, stamp
+from backend.database import (
+    claim_view,
+    claims,
+    engine,
+    metadata,
+    rounds,
+    runs,
+    stamp,
+)
 from backend.models import CalculationStep, Payout
 
 
@@ -66,3 +74,12 @@ def newest_run() -> str:
 
 def newest_round() -> str:
     return newest(rounds, "round_id")
+
+
+def everything_recorded():
+    """Every row of every table, to show that a request changed nothing."""
+    with engine().connect() as db:
+        return {
+            table.name: [dict(row) for row in db.execute(select(table)).mappings()]
+            for table in metadata.sorted_tables
+        }

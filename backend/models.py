@@ -904,3 +904,184 @@ class Improvement(BaseModel):
     first_version: VersionPoint
     versions_tried: list[VersionPoint]
     recipes: list[RecipeSummary]
+
+
+# The Copilot's conversations and what the Copilot records of them.
+
+MESSAGE_LENGTH = 4000
+Message = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=MESSAGE_LENGTH),
+]
+
+
+class TurnStatus(StrEnum):
+    """Where one of the Copilot's turns stands. A turn reads as stopped when it has
+    been working too long; it is never recorded as stopped."""
+
+    WORKING = "working"
+    WAITING_FOR_CONFIRMATION = "waiting_for_confirmation"
+    DONE = "done"
+    FAILED = "failed"
+    STOPPED = "stopped"
+
+
+class CardKind(StrEnum):
+    """What a card's tool does: looks up claims, customers and policies or the
+    context layer, works with the agent's work or the memory, or acts."""
+
+    CLAIMS = "claims"
+    CUSTOMERS = "customers"
+    CONTEXT = "context"
+    WORK = "work"
+    MEMORY = "memory"
+    ACTION = "action"
+
+
+class CardStatus(StrEnum):
+    WORKING = "working"
+    DONE = "done"
+    REFUSED = "refused"
+    FAILED = "failed"
+
+
+class ConfirmationAnswer(StrEnum):
+    SIGN_OFF = "sign_off"
+    CANCEL = "cancel"
+
+
+class MessageRequest(BaseModel):
+    message: Message = Field(description="The handler's message to the Copilot")
+
+
+class ConfirmationRequest(BaseModel):
+    turn_id: str = Field(description="The turn whose confirmation card was shown")
+    answer: ConfirmationAnswer
+
+
+class Confirmation(BaseModel):
+    """A sign-off waiting for the handler's confirmation, from the app's records."""
+
+    claim_id: str
+    customer_name: str
+    payout: float
+    reason: str
+
+
+class CopilotStep(BaseModel):
+    """A card: one tool the Copilot called, what was asked and what came back."""
+
+    step_id: int
+    tool: str
+    kind: CardKind
+    input: str = Field(description="The tool's main input, such as CLM-1012")
+    asked: str
+    status: CardStatus
+    answer: str | None
+    reason: str | None
+    sources: list[Source]
+    started_at: str
+    finished_at: str | None
+    seconds: float = Field(description="So far, while it works")
+
+
+class CopilotTurn(BaseModel):
+    turn_id: str
+    number: int
+    message: str
+    status: TurnStatus
+    started_at: str
+    paused_at: str | None
+    answered_at: str | None
+    finished_at: str | None
+    seconds: float | None = Field(
+        description="Once it has finished, leaving out the wait for the handler"
+    )
+    answer: str | None
+    model_calls: int | None
+    cost: float | None
+    failure: str | None
+    confirmation: Confirmation | None
+    confirmation_answer: ConfirmationAnswer | None
+    canceled_because: str | None
+    steps: list[CopilotStep]
+
+
+class ConversationSummary(BaseModel):
+    conversation_id: str
+    title: str = Field(description="The first message")
+    created_at: str
+
+
+class Conversation(ConversationSummary):
+    turns: list[CopilotTurn]
+
+
+class CopilotModel(BaseModel):
+    """The model the Copilot runs on."""
+
+    model: str
+    reasoning_effort: str
+
+
+class CopilotStepRequest(BaseModel):
+    tool: str = Field(min_length=1)
+    kind: CardKind
+    input: str = Field(description="The tool's main input, or nothing")
+    asked: str = Field(description="What the tool was asked")
+
+
+class CopilotStepResult(BaseModel):
+    status: Literal[CardStatus.DONE, CardStatus.REFUSED, CardStatus.FAILED]
+    answer: str | None = Field(description="What came back, or null")
+    reason: str | None = Field(description="Why it was refused or failed, or null")
+    sources: list[Source] = Field(
+        description="The context files an answer came from, and none otherwise"
+    )
+
+
+class TurnFinishRequest(BaseModel):
+    answer: str = Field(min_length=1)
+    model_calls: int = Field(ge=0)
+    cost: float = Field(ge=0, description="In US dollars, as OpenRouter reports it")
+
+
+class PauseRequest(BaseModel):
+    claim_id: str = Field(description="The claim the sign-off waits on")
+
+
+class TurnFailureRequest(BaseModel):
+    reason: str = Field(min_length=1, description="What went wrong")
+
+
+# Customers, as the Copilot finds them.
+
+
+class CustomerMatch(BaseModel):
+    customer_id: str
+    name: str
+
+
+class Customer(CustomerMatch):
+    """Who a customer is, without their contact details or date of birth, their
+    policies, their earlier claims and their claims in our queue."""
+
+    customer_since: str
+    policies: list[Policy]
+    earlier_claims: list[PreviousClaim]
+    claims_in_the_queue: list[ClaimSummary]
+
+
+class PayoutsOverTheLimit(BaseModel):
+    """The queue's claims paid more than the approval limit on their decision, and
+    how many of those a handler signed off."""
+
+    paid_over_the_limit: int
+    signed_off: int
+
+
+class RunStarted(Accepted):
+    """A dispatch or an evaluation a handler started, which the agent works."""
+
+    run_id: str
+    number: int

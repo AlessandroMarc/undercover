@@ -15,7 +15,11 @@ from backend.tests.run_requests import (
 def test_start_a_dispatch(client, agent_calls):
     response = start_dispatch(client, 7)
     assert response.status_code == 202
-    assert response.json() == {"status": "accepted"}
+    assert response.json() == {
+        "status": "accepted",
+        "run_id": newest_run(),
+        "number": 1,
+    }
     assert agent_calls == [{"operation": "work_run", "run_id": newest_run()}]
     dispatch = latest_dispatch(client)
     assert (dispatch["status"], dispatch["agents"], dispatch["version"]) == (
@@ -36,6 +40,7 @@ def test_start_an_evaluation(client, agent_calls):
     response = start_evaluation(client, "evaluation", False, 25)
     assert response.status_code == 202
     run_id = newest_run()
+    assert response.json() == {"status": "accepted", "run_id": run_id, "number": 1}
     assert agent_calls == [{"operation": "work_run", "run_id": run_id}]
     evaluation = client.get(f"/api/runs/{run_id}").json()
     assert (evaluation["kind"], evaluation["status"], evaluation["agents"]) == (

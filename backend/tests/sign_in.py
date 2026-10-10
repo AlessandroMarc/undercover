@@ -8,6 +8,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from jwt.algorithms import ECAlgorithm
 
 from backend.auth import AUDIENCE
+from backend.dependencies import API_KEY_HEADER
 
 # The Supabase project the tests stand in for.
 SUPABASE_URL = "https://supabase.test"
@@ -49,6 +50,13 @@ def token(
     return jwt.encode(claims, key, algorithm="ES256", headers={"kid": KEY_ID})
 
 
+def bearer(access_token: str) -> dict[str, str]:
+    """The headers of a request a handler's browser sends with its access token,
+    which carry no agent's key, as a browser's never do, even when the test's
+    client sends the key by default."""
+    return {"Authorization": f"Bearer {access_token}", API_KEY_HEADER: ""}
+
+
 def signed_in(email: str = DANA, **options) -> dict[str, str]:
     """The headers of a request from the handler with this email."""
-    return {"Authorization": f"Bearer {token(email, **options)}"}
+    return bearer(token(email, **options))

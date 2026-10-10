@@ -24,6 +24,7 @@ from backend.tests.gates import (
 )
 from backend.tests.round_requests import create_round, propose_change, review
 from backend.tests.rows import count
+from backend.tests.run_requests import create_dispatch
 from backend.tests.sign_in import signed_in
 
 WRONG_KEY = {API_KEY_HEADER: "not-the-agents-key"}
@@ -96,6 +97,7 @@ def test_every_agent_operation_refuses_a_request_without_the_key(
 
 @pytest.mark.parametrize("path", SHARED_READS.values(), ids=SHARED_READS.keys())
 def test_a_shared_read_takes_the_key_or_a_sign_in(client, dashboard, path):
+    path = path.format(run_id=create_dispatch(client).json()["run_id"])
     assert client.get(path).status_code == 200
     assert read(dashboard, path).status_code == 200
     for headers in ({}, WRONG_KEY):

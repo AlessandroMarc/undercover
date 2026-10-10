@@ -12,7 +12,8 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import Connection, RowMapping, delete, func, insert, select, update
 
 from backend import agent_service, judge, spending
-from backend.agent_work import ask_the_agent, clear_the_way
+from backend.agent_work import clear_the_way
+from backend.asking import commit_and_ask
 from backend.database import (
     LABELED_SETS,
     claims,
@@ -23,7 +24,7 @@ from backend.database import (
     runs,
     waiting_claim,
 )
-from backend.dependencies import AgentKey, Database, SignedInHandler
+from backend.dependencies import AgentKey, Database, HandlerOrAgent, SignedInHandler
 from backend.free_models import free_model
 from backend.lookups import (
     CLAIM_NOT_FOUND,
@@ -36,7 +37,6 @@ from backend.lookups import (
     version_row,
 )
 from backend.models import (
-    Accepted,
     ClaimGrade,
     DecisionKind,
     DispatchSummary,
@@ -49,6 +49,7 @@ from backend.models import (
     Run,
     RunClaimsRequest,
     RunKind,
+    RunStarted,
     RunStatus,
     ScoredEvaluation,
     StartDispatchRequest,
@@ -428,9 +429,9 @@ def finish_run(run_id: str, db: Database) -> Run:
     return find_run(db, run_id)
 
 
-@router.get("/api/runs/{run_id}", operation_id="get_run", dependencies=[AgentKey])
+@router.get("/api/runs/{run_id}", operation_id="get_run", dependencies=[HandlerOrAgent])
 def get_run(run_id: str, db: Database) -> Run:
-    """Get a run with its claims, for the agent to work it."""
+    """Get a run with its claims, for the agent to work it or a handler to follow it."""
     return find_run(db, run_id)
 
 
@@ -459,7 +460,7 @@ def fail_run(run_id: str, request: FailureRequest, db: Database) -> Run:
 def ask_to_work(db: Connection, run_id: str) -> None:
     """Ask the agent to work a run the app created, which is stopped with the
     reason when the agent didn't take it."""
-    ask_the_agent(
+    commit_and_ask(
         db,
         partial(agent_service.work_run, run_id),
         lambda reason: stop_runs(db, reason, runs.c.run_id == run_id),
@@ -489,13 +490,13 @@ def get_latest_dispatch(db: Database) -> Run | None:
     status_code=202,
     dependencies=[SignedInHandler],
 )
-def start_dispatch(request: StartDispatchRequest, db: Database) -> Accepted:
+def start_dispatch(request: StartDispatchRequest, db: Database) -> RunStarted:
     """Start a dispatch with up to N claim agents at once, which the agent works."""
     clear_the_way(db)
     current = version_row(db, current_version_number(db))
     row = new_run(db, RunKind.DISPATCH, request.model_dump(), current)
     ask_to_work(db, row["run_id"])
-    return Accepted()
+    return RunStarted(run_id=row["run_id"], number=row["number"])
 
 
 @router.get(
@@ -531,10 +532,10 @@ def get_evaluation(run_id: str, db: Database) -> ScoredEvaluation:
     status_code=202,
     dependencies=[SignedInHandler],
 )
-def start_evaluation(request: StartEvaluationRequest, db: Database) -> Accepted:
+def start_evaluation(request: StartEvaluationRequest, db: Database) -> RunStarted:
     """Start an evaluation with up to N claim agents at once, which the agent works."""
     clear_the_way(db)
     current = version_row(db, current_version_number(db))
     run = evaluation_of(db, request.model_dump(), current)
     ask_to_work(db, run.run_id)
-    return Accepted()
+    return RunStarted(run_id=run.run_id, number=run.number)

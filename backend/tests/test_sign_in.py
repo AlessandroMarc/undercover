@@ -6,10 +6,11 @@ import pytest
 from sqlalchemy import select
 
 from backend import auth
-from backend.database import engine, handlers, load, metadata
+from backend.database import engine, handlers, load
 from backend.tests.claim_requests import decide, start
 from backend.tests.gates import HANDLER_OPERATIONS
-from backend.tests.sign_in import DANA, OTHER_KEY, SUPABASE_URL, signed_in
+from backend.tests.rows import everything_recorded
+from backend.tests.sign_in import DANA, OTHER_KEY, SUPABASE_URL, signed_in, token
 
 NOT_SIGNED_IN = {
     "no token": {},
@@ -18,15 +19,6 @@ NOT_SIGNED_IN = {
     "another audience": signed_in(DANA, audience="anon"),
     "not a token": {"Authorization": "Bearer not-a-token"},
 }
-
-
-def everything_recorded():
-    """Every row of every table, to show that a request changed nothing."""
-    with engine().connect() as db:
-        return {
-            table.name: [dict(row) for row in db.execute(select(table)).mappings()]
-            for table in metadata.sorted_tables
-        }
 
 
 def test_the_signed_in_handler(client):
@@ -39,6 +31,11 @@ def test_the_signed_in_handler(client):
         "email": DANA,
         "can_approve_over_limit": True,
     }
+
+
+def test_a_browsers_request_with_no_key_header_at_all_is_the_handlers(dashboard):
+    headers = {"Authorization": f"Bearer {token(DANA)}"}
+    assert dashboard.get("/api/me", headers=headers).status_code == 200
 
 
 def test_a_sign_in_issued_a_little_ahead_of_our_clock_is_fine(client):
