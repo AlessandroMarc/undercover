@@ -25,7 +25,8 @@ USAGE = {"prompt_tokens": 1200, "completion_tokens": 300, "cost": 0.0042}
 
 class StubModel(GenericFakeChatModel):
     """A chat model that gives scripted replies, with OpenRouter's token usage, or
-    raises a scripted error, and keeps the prompts it was sent."""
+    a reply worked out from its prompt, or raises a scripted error, and keeps the
+    prompts it was sent."""
 
     prompts: list[list[BaseMessage]] = []
     # The tools each binding gave the model, and the settings it asked for, such as
@@ -44,6 +45,8 @@ class StubModel(GenericFakeChatModel):
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
         self.prompts.append(messages)
         reply = self.next_reply(messages)
+        if callable(reply):
+            reply = reply(messages)
         if isinstance(reply, BaseException):
             raise reply
         message = AIMessage(content=reply) if isinstance(reply, str) else reply

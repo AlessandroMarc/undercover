@@ -12,12 +12,11 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.store.base import BaseStore
 from langgraph.types import Command, StateSnapshot
 
 from agent import tool_route
 from agent.console import describe
-from agent.copilot import app_api
+from agent.copilot import app_api, memory
 from agent.copilot.graph import CopilotGraph, copilot_graph
 from agent.copilot.tools import CopilotContext
 from agent.openrouter import chat_model
@@ -110,16 +109,12 @@ def tell_the_app(turn: Turn, saved: StateSnapshot) -> None:
     )
 
 
-def work(
-    turn: Turn,
-    start: Start,
-    saver: BaseCheckpointSaver[Any],
-    store: BaseStore | None,
-) -> None:
+def work(turn: Turn, start: Start, saver: BaseCheckpointSaver[Any]) -> None:
     """Run the graph on the conversation's thread from a start, saving every step,
-    then tell the app how the turn ended. A turn that raises is failed with the
-    error in one line."""
+    with the memory the environment names, read now, then tell the app how the
+    turn ended. A turn that raises is failed with the error in one line."""
     try:
+        store = memory.memory_store()
         graph = copilot_graph(copilot_model(turn.sign_in), saver, store)
         config = thread_of(turn.conversation_id)
         context = CopilotContext(
@@ -136,9 +131,7 @@ def work(
         app_api.fail_turn(turn.sign_in, turn.turn_id, describe(error))
 
 
-def take_turn(
-    turn: Turn, saver: BaseCheckpointSaver[Any], store: BaseStore | None
-) -> None:
+def take_turn(turn: Turn, saver: BaseCheckpointSaver[Any]) -> None:
     """Work a turn's message, after closing any tool call a stopped turn left open,
     in the same input."""
 
@@ -146,7 +139,7 @@ def take_turn(
         message = HumanMessage(turn.record["message"])
         return {"messages": [*left_open(graph, config), message]}
 
-    work(turn, start, saver, store)
+    work(turn, start, saver)
 
 
 def resume_of(record: dict[str, Any]) -> dict[str, Any]:
@@ -159,9 +152,7 @@ def resume_of(record: dict[str, Any]) -> dict[str, Any]:
     return answer
 
 
-def answer_confirmation(
-    turn: Turn, saver: BaseCheckpointSaver[Any], store: BaseStore | None
-) -> None:
+def answer_confirmation(turn: Turn, saver: BaseCheckpointSaver[Any]) -> None:
     """Carry a paused turn on with the handler's answer to its confirmation."""
 
     def start(graph: CopilotGraph, config: RunnableConfig) -> Command:
@@ -169,4 +160,4 @@ def answer_confirmation(
             raise NotThisTurn(NOTHING_TO_RESUME)
         return Command(resume=resume_of(turn.record))
 
-    work(turn, start, saver, store)
+    work(turn, start, saver)

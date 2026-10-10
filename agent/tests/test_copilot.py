@@ -243,6 +243,7 @@ def test_the_copilots_tools(copilot: Copilot):
         "list_claims",
         "get_claim",
         "list_steps",
+        "what_needs_a_handler",
         "find_customers",
         "get_customer",
         "get_policy",
@@ -256,16 +257,42 @@ def test_the_copilots_tools(copilot: Copilot):
         "get_latest_dispatch",
         "list_evaluations",
         "get_settings",
+        "wait_for_run",
         "start_dispatch",
         "start_evaluation",
         "send_back_claim",
+        "check_success_criteria",
         "sign_off_claim",
     ]
     for tool in COPILOT_TOOLS:
         assert tool.description, tool.name
         assert "\n" not in tool.description, tool.name
-        assert tool.name in KINDS
-    assert KINDS["sign_off_claim"] == "action"
+    assert KINDS == {
+        "list_claims": "claims",
+        "get_claim": "claims",
+        "list_steps": "claims",
+        "what_needs_a_handler": "claims",
+        "find_customers": "customers",
+        "get_customer": "customers",
+        "get_policy": "customers",
+        "lookup_term": "context",
+        "describe_fields": "context",
+        "get_plan": "context",
+        "get_claim_rules": "context",
+        "search_reference_data": "context",
+        "search_documents": "context",
+        "read_section": "context",
+        "get_latest_dispatch": "work",
+        "list_evaluations": "work",
+        "get_settings": "work",
+        "wait_for_run": "work",
+        "search_memory": "memory",
+        "start_dispatch": "action",
+        "start_evaluation": "action",
+        "send_back_claim": "action",
+        "sign_off_claim": "action",
+        "check_success_criteria": "action",
+    }
 
 
 def test_the_lookups_each_with_a_card(client, copilot: Copilot):

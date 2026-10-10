@@ -1,8 +1,12 @@
 """The Copilot's graph, written by hand: a node that asks the model, LangGraph's
 ToolNode, and the loop between them. A sign-off is checked in code, paused for the
-handler's confirmation in a node of its own, and signed off or canceled in code.
-The graph saves its state after every step on the conversation's thread."""
+handler's confirmation in a node of its own, and signed off or canceled in code;
+the success criteria's answer is written in code; and with a memory, the
+handler's memories are searched as a turn starts and its message and answer saved
+as it ends. The graph saves its state after every step on the conversation's
+thread."""
 
+import logging
 import operator
 from collections.abc import Callable
 from functools import partial
@@ -15,6 +19,7 @@ from langchain_core.messages import (
     AIMessage,
     AnyMessage,
     BaseMessage,
+    HumanMessage,
     SystemMessage,
     ToolCall,
     ToolMessage,
@@ -31,13 +36,15 @@ from langgraph.store.base import BaseStore
 from langgraph.types import Command, Overwrite, interrupt
 from pydantic import ValidationError
 
+from agent.agentcore_memory import UNREACHABLE
 from agent.console import describe
 from agent.context_tools import Sources
-from agent.copilot import app_api, cards
+from agent.copilot import app_api, cards, memory
 from agent.copilot.instructions import instructions_for
 from agent.copilot.tools import (
     COPILOT_TOOLS,
     KINDS,
+    SEARCH_MEMORY,
     SIGN_OFF,
     CopilotContext,
     SignOffClaim,
@@ -46,8 +53,13 @@ from agent.json_text import as_json
 from agent.openrouter import usage_of
 from agent.routes import GatewayRefused
 
+log = logging.getLogger(__name__)
+
 TURN_MODEL_CALLS = 25
 BEGIN = "begin"
+RECALL = "recall"
+REMEMBER = "remember"
+REPORT_CRITERIA = "report_criteria"
 AGENT = "agent"
 TOOLS = "tools"
 CHECK_SIGN_OFF = "check_sign_off"
@@ -69,6 +81,8 @@ CLAIM_CHANGED = (
     "without making a payment. Please ask again."
 )
 SIGN_OFF_ANSWER = "sign_off"
+FOUND_NOTHING = "Nothing remembered that bears on this"
+MEMORY_UNREACHABLE = "The memory can't be reached. {error}"
 # The app's, the Gateway's and a tool's own refusals, which go back to the model.
 REFUSALS = (app_api.Refused, GatewayRefused, ToolException)
 
@@ -83,23 +97,86 @@ class TooManyModelCalls(Exception):
 class CopilotState(TypedDict):
     """What the graph keeps for a conversation, saved after every step: its
     messages, the turn's model calls and their cost, the claim a sign-off asks
-    about this turn, and the handler's answer to its confirmation."""
+    about this turn, the handler's answer to its confirmation, what the memory
+    found, and the success criteria's answer once a tool has written it."""
 
     messages: Annotated[list[AnyMessage], add_messages]
     model_calls: Annotated[int, operator.add]
     cost: Annotated[float, operator.add]
     confirming: str
     confirmation: dict[str, Any]
+    remembered: list[str]
+    criteria: str
 
 
 def begin(state: CopilotState) -> dict[str, Any]:
-    """Start a turn's counts again from zero, with no sign-off asked about."""
+    """Start a turn's counts again from zero, with no sign-off asked about, nothing
+    remembered and no answer on the success criteria."""
     return {
         "model_calls": Overwrite(0),
         "cost": Overwrite(0.0),
         "confirming": "",
         "confirmation": {},
+        "remembered": [],
+        "criteria": "",
     }
+
+
+def message_of(state: CopilotState) -> str:
+    """The handler's message this turn answers."""
+    return next(
+        m for m in reversed(state["messages"]) if isinstance(m, HumanMessage)
+    ).text
+
+
+def what_was_found(found: list[str]) -> str:
+    """What a search of the memory found, as its card shows it."""
+    return "\n".join(f"- {text}" for text in found) or FOUND_NOTHING
+
+
+def recall(state: CopilotState, runtime: Runtime[CopilotContext]) -> dict[str, Any]:
+    """Search the handler's memories for what bears on their message, with a card
+    of what it found, and keep it for the instructions. A memory that can't be
+    reached refuses the card, and the turn goes on without it."""
+    context, message = runtime.context, message_of(state)
+    card = cards.start(context, SEARCH_MEMORY, {"query": message})
+    store = cast(BaseStore, runtime.store)
+    try:
+        found = memory.recall(store, context.handler["handler_id"], message)
+    except UNREACHABLE as error:
+        cards.refused(context, card, MEMORY_UNREACHABLE.format(error=error))
+        return {"remembered": []}
+    cards.done(context, card, what_was_found(found))
+    return {"remembered": found}
+
+
+def remember(state: CopilotState, runtime: Runtime[CopilotContext]) -> None:
+    """Save the handler's message and the turn's answer to the handler's memory,
+    and nothing else. A memory that can't be reached is logged as a warning, and
+    the turn is still answered."""
+    context = runtime.context
+    try:
+        memory.remember(
+            cast(BaseStore, runtime.store),
+            context.handler["handler_id"],
+            context.conversation_id,
+            message_of(state),
+            state["messages"][-1].text,
+        )
+    except UNREACHABLE as error:
+        log.warning("The Copilot's memory wasn't saved: %s", describe(error))
+
+
+def report_criteria(state: CopilotState) -> dict[str, Any]:
+    """End the turn with the success criteria's answer as it was written in code,
+    with no model call."""
+    return {"messages": [AIMessage(state["criteria"])]}
+
+
+def after_tools(state: CopilotState) -> str:
+    """End the turn with the success criteria's answer once a tool has written it,
+    or go back to the model."""
+    return REPORT_CRITERIA if state["criteria"] else AGENT
 
 
 def call_model(
@@ -114,7 +191,9 @@ def call_model(
     if calls >= TURN_MODEL_CALLS:
         message = f"The Copilot made {calls} model calls without finishing"
         raise TooManyModelCalls(message)
-    system = SystemMessage(instructions_for(runtime.context.handler, []))
+    system = SystemMessage(
+        instructions_for(runtime.context.handler, state["remembered"])
+    )
     reply = llm.invoke([system, *state["messages"]])
     return {"messages": [reply], "model_calls": 1, "cost": usage_of(reply).cost}
 
@@ -327,7 +406,10 @@ def copilot_graph(
     llm: BaseChatModel, saver: BaseCheckpointSaver[Any], store: BaseStore | None
 ) -> CopilotGraph:
     """Build the Copilot's graph on its model, which saves its state after every
-    step with the saver given."""
+    step with the saver given. With a memory, a turn starts by searching the
+    handler's memories and ends by saving its message and answer."""
+    remembers = store is not None
+    answered = REMEMBER if remembers else END
     tools = ToolNode(COPILOT_TOOLS, handle_tool_errors=False, wrap_tool_call=with_card)
     bound = llm.bind_tools([*COPILOT_TOOLS, SignOffClaim], parallel_tool_calls=False)
     builder = StateGraph(CopilotState, context_schema=CopilotContext)
@@ -338,10 +420,23 @@ def copilot_graph(
     builder.add_node(CONFIRM, confirm, destinations=(SIGN_OFF_NODE, CANCELLED))
     builder.add_node(SIGN_OFF_NODE, sign_off)
     builder.add_node(CANCELLED, cancelled)
+    builder.add_node(REPORT_CRITERIA, report_criteria)
     builder.add_edge(START, BEGIN)
-    builder.add_edge(BEGIN, AGENT)
-    builder.add_conditional_edges(AGENT, after_agent, [TOOLS, CHECK_SIGN_OFF, END])
-    builder.add_edge(TOOLS, AGENT)
+    if remembers:
+        builder.add_node(RECALL, recall)
+        builder.add_node(REMEMBER, remember)
+        builder.add_edge(BEGIN, RECALL)
+        builder.add_edge(RECALL, AGENT)
+        builder.add_edge(REMEMBER, END)
+    else:
+        builder.add_edge(BEGIN, AGENT)
+    builder.add_conditional_edges(
+        AGENT,
+        after_agent,
+        {TOOLS: TOOLS, CHECK_SIGN_OFF: CHECK_SIGN_OFF, END: answered},
+    )
+    builder.add_conditional_edges(TOOLS, after_tools, [AGENT, REPORT_CRITERIA])
     builder.add_edge(SIGN_OFF_NODE, AGENT)
-    builder.add_edge(CANCELLED, END)
+    builder.add_edge(CANCELLED, answered)
+    builder.add_edge(REPORT_CRITERIA, answered)
     return builder.compile(checkpointer=saver, store=store)

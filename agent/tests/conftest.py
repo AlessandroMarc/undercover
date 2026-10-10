@@ -10,6 +10,7 @@ from langchain_core.callbacks import BaseCallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 
 from agent import connection, dispatcher, entrypoint, harness, improver, work
+from agent.copilot import memory as copilot_memory
 from agent.copilot import turns
 from agent.direct import CONTEXT_URL
 from agent.tests.copilot_driver import Copilot
@@ -200,4 +201,5 @@ def copilot(dashboard, copilot_calls, monkeypatch):
     gives it, saving its state in memory."""
     driver = Copilot(dashboard, copilot_calls)
     monkeypatch.setattr(turns, "copilot_model", driver.model_for)
+    monkeypatch.setattr(copilot_memory, "memory_store", lambda: driver.store)
     return driver

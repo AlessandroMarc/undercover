@@ -65,6 +65,26 @@ The claim agent's instructions, model and reasoning effort make up one configura
 - The improvement rounds as they happen: where a round has got to, a proposal waiting with its change shown as a diff, the rounds so far with the held-out scores before and after, the verdict and why, who approved or rejected what and when, and the cost, a chart of each version tried, and the recipe's versions.
 - The platform's settings: the approval limit, our objectives, the noise and tolerance, the spending limit for each round and the claim agents at once in its evaluations, with who changed them and when, and the models the claim agent may use.
 
+## The success criteria we agreed
+
+When we started the pilot we agreed three success criteria:
+
+1. **Straight through:** at least 70% of claims handled straight through on the whole held-out set, measured by the straight-through share our evaluations record.
+2. **Accuracy:** the accuracy our evaluations record on the whole held-out set at or above our accuracy objective in Settings.
+3. **Over the limit:** every payout over the approval limit approved by a person: every claim in our queue paid more than the approval limit on its decision has a handler's sign-off on its payment. When none has been paid over the limit yet, this one is met.
+
+## The Copilot
+
+The UnderCover Copilot is an agent for our handlers, in a sidebar on every page of the dashboard. A handler asks in plain English, and it answers and does the work for them:
+
+- It works as the handler who asked, with their own sign-in, so it can see and do exactly what they can, and our records name them. It never uses the agent's API key, and a handler who can't sign off over the limit can't sign off through it either.
+- It looks things up in our records (the queue, a claim in full, the agent's steps on a claim, customers by name or id, policies, the latest dispatch, the evaluations and our settings) and in the context layer, on the same route as the agent. It never sees our handlers' decisions on the labeled sets.
+- It starts a dispatch or an evaluation, sends a held decision back to the agent with a note, and signs off a held payout once the handler has confirmed on a card showing the claim, the customer, the amount and the agent's reason, all from our records. Nothing is paid until the handler presses Sign off and pay.
+- When a handler wants to know how a dispatch or an evaluation went, it waits for the work in code and says what needs a handler afterwards: the payouts held for sign-off, the claims referred or left for a handler, and any claim sent back that the agent hasn't taken up.
+- Asked whether we're meeting the success criteria, it runs an evaluation of the whole held-out set and answers with a table of the three criteria, their targets and figures and whether each is met, and one line on all three, every figure worked out in code from our records.
+- Each step it takes shows as a card in the sidebar as it happens. Conversations are kept, each its handler's alone, so a handler picks one up later, a waiting sign-off included.
+- With its memory on, it remembers each handler's preferences and the facts they tell it, apart from the agent's memory of customers.
+
 ## Rules
 
 - Our handlers sign in with their email and password. Every page needs a signed-in handler, and the system checks the handler on every action they take.

@@ -279,7 +279,7 @@ def test_a_malformed_sign_off_goes_back_to_the_model(client, copilot: Copilot):
 
 def test_an_answer_with_no_sign_off_waiting_fails_the_turn(copilot: Copilot):
     conversation_id = started(copilot.dashboard)["conversation_id"]
-    turns.answer_confirmation(copilot.turn(), copilot.saver, None)
+    turns.answer_confirmation(copilot.turn(), copilot.saver)
     [turn] = copilot.read(conversation_id)["turns"]
     assert (turn["status"], turn["failure"]) == (
         "failed",

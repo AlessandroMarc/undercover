@@ -329,22 +329,22 @@ Move the shared parts out of the claim agent's modules: `checkpoints.py`, `tool_
 
 Add `waiting.py`, `needs_a_handler.py`, `criteria.py` and `copilot/memory.py`, the tools `wait_for_run`, `what_needs_a_handler` and `check_success_criteria`, the state's `criteria`, and the `report_criteria`, `recall` and `remember` nodes. Add the three criteria to `docs/SPEC.md`.
 
-- [ ] Stub test (the wait for a dispatch): "Work the queue with 10 agents and tell me what needs me": the stub calls `start_dispatch` with 10, then `wait_for_run` with the id it got; a thread plays the dispatch out through the app as the agent, holding CLM-1003, referring CLM-1018 and finishing the run; the wait reads `get_run` with Dana's sign-in each interval, makes no model call, and answers with the summary and what needs a handler: CLM-1003's held payout, the referral and nothing else; its card is working until then
-- [ ] Stub test: a sent-back claim the agent hasn't taken and a claim left for a handler are in what needs a handler; a decided approval isn't
-- [ ] pytest: the Copilot's tools are now exactly the table's, each with its kind and a one-line description
-- [ ] Stub test: a run still going after `WAIT` gets "still going" and where to follow it, and a stopped run gets why
-- [ ] Stub test (the success criteria): `check_success_criteria` starts one evaluation of the whole held-out set with the settings' 25 claim agents; a thread finishes it with copies decided so its straight-through share is 80% and its accuracy 88%; with one payout over the limit signed off, the table says 80% against at least 70%, 88% against the 60% objective in Settings, "1 of 1 signed off", Yes three times, and "All three are met"
-- [ ] Stub test (the answer written in code): after `check_success_criteria`, the turn's answer is exactly the table and its verdict line as `criteria.py` built them; the stub isn't called after the tool, its calls stopping at the one that asked for it; the app records that answer, and the memory stand-in saves the same answer; a later turn in the conversation that doesn't check the criteria answers from the model as usual
-- [ ] Stub test: with none paid over the limit, the third is met and says "None paid over the limit yet"; with a payment over its decision's limit and no sign-off written into the tables beside one signed off, it says "1 of 2 signed off", "No", and the line says two of the three are met
-- [ ] Stub test: an evaluation that fails gives no figures for the first two and says why, and still reports the third; so does one still going after `WAIT`; so does a start the app refuses, with its reason
-- [ ] Stub test: with the accuracy objective changed in Settings to 90%, the same evaluation fails the second, "No", and the line says two of the three are met
-- [ ] Stub test (the memory): with the memory stand-in holding "Dana likes amounts first, in short bullet points" under `/handlers/HND-01/preferences/`, the turn's first card is `search_memory` with what it found, and the model's system message holds it; after the turn the stand-in has two events for actor HND-01 in the conversation's session, the message and the answer, and no tool call, tool result or token
-- [ ] Stub test: Marcus's turn searches only `("handlers", "HND-02")` and finds nothing of Dana's
-- [ ] Stub test: a turn paused for a confirmation saves to memory once, after its answer
-- [ ] Stub test: with memory off there's no `search_memory` card and no save; a memory that can't be reached gives a refused card, and the turn is still answered, with the save's failure logged as a warning
-- [ ] The boundaries test: `copilot/memory` uses only `agentcore_memory`, and `grep -rln "UNDERCOVER_COPILOT_MEMORY_ID" agent` finds only `agent/copilot/memory.py` and tests
-- [ ] `docs/SPEC.md` holds the three success criteria and what the Copilot does
-- [ ] `npm run check` passes with `.env` moved out of the way
+- [x] Stub test (the wait for a dispatch): "Work the queue with 10 agents and tell me what needs me": the stub calls `start_dispatch` with 10, then `wait_for_run` with the id it got; a thread plays the dispatch out through the app as the agent, holding CLM-1003, referring CLM-1018 and finishing the run; the wait reads `get_run` with Dana's sign-in each interval, makes no model call, and answers with the summary and what needs a handler: CLM-1003's held payout, the referral and nothing else; its card is working until then
+- [x] Stub test: a sent-back claim the agent hasn't taken and a claim left for a handler are in what needs a handler; a decided approval isn't
+- [x] pytest: the Copilot's tools are now exactly the table's, each with its kind and a one-line description
+- [x] Stub test: a run still going after `WAIT` gets "still going" and where to follow it, and a stopped run gets why
+- [x] Stub test (the success criteria): `check_success_criteria` starts one evaluation of the whole held-out set with the settings' 25 claim agents; a thread finishes it with copies decided so its straight-through share is 80% and its accuracy 88%; with one payout over the limit signed off, the table says 80% against at least 70%, 88% against the 60% objective in Settings, "1 of 1 signed off", Yes three times, and "All three are met"
+- [x] Stub test (the answer written in code): after `check_success_criteria`, the turn's answer is exactly the table and its verdict line as `criteria.py` built them; the stub isn't called after the tool, its calls stopping at the one that asked for it; the app records that answer, and the memory stand-in saves the same answer; a later turn in the conversation that doesn't check the criteria answers from the model as usual
+- [x] Stub test: with none paid over the limit, the third is met and says "None paid over the limit yet"; with a payment over its decision's limit and no sign-off written into the tables beside one signed off, it says "1 of 2 signed off", "No", and the line says two of the three are met
+- [x] Stub test: an evaluation that fails gives no figures for the first two and says why, and still reports the third; so does one still going after `WAIT`; so does a start the app refuses, with its reason
+- [x] Stub test: with the accuracy objective changed in Settings to 90%, the same evaluation fails the second, "No", and the line says two of the three are met
+- [x] Stub test (the memory): with the memory stand-in holding "Dana likes amounts first, in short bullet points" under `/handlers/HND-01/preferences/`, the turn's first card is `search_memory` with what it found, and the model's system message holds it; after the turn the stand-in has two events for actor HND-01 in the conversation's session, the message and the answer, and no tool call, tool result or token
+- [x] Stub test: Marcus's turn searches only `("handlers", "HND-02")` and finds nothing of Dana's
+- [x] Stub test: a turn paused for a confirmation saves to memory once, after its answer
+- [x] Stub test: with memory off there's no `search_memory` card and no save; a memory that can't be reached gives a refused card, and the turn is still answered, with the save's failure logged as a warning
+- [x] The boundaries test: `copilot/memory` uses only `agentcore_memory`, and `grep -rln "UNDERCOVER_COPILOT_MEMORY_ID" agent` finds only `agent/copilot/memory.py` and tests
+- [x] `docs/SPEC.md` holds the three success criteria and what the Copilot does
+- [x] `npm run check` passes with `.env` moved out of the way
 
 ## Phase 4: The Copilot as an AgentCore app, on the laptop and on Runtime
 

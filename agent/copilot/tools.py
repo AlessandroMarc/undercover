@@ -7,15 +7,20 @@ from dataclasses import dataclass, field
 from typing import Annotated, Any
 
 from langchain.tools import BaseTool, ToolRuntime, tool
+from langchain_core.messages import ToolMessage
+from langgraph.types import Command
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from agent.context_tools import CONTEXT_TOOLS
-from agent.copilot import app_api
+from agent.copilot import app_api, criteria, waiting
 from agent.copilot.app_api import CardKind, EvaluationSet
+from agent.copilot.needs_a_handler import needs_a_handler
 from agent.json_text import as_json
 from agent.routes import Route
 
 SIGN_OFF = "sign_off_claim"
+# The memory's lookup at the start of a turn, which the code makes, not the model.
+SEARCH_MEMORY = "search_memory"
 # A search needs a word to look for, and a note something to say.
 Words = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 Agents = Annotated[
@@ -121,6 +126,27 @@ def started(run: dict[str, Any]) -> str:
 
 
 @tool
+def what_needs_a_handler(runtime: ToolRuntime[CopilotContext]) -> str:
+    """List what in the queue needs a handler: held payouts, referrals and the rest."""
+    return as_json(needs_a_handler(app_api.list_claims(sign_in_of(runtime))))
+
+
+@tool
+def wait_for_run(run_id: str, runtime: ToolRuntime[CopilotContext]) -> str:
+    """Wait for a dispatch or evaluation you started to end, and get how it went."""
+    sign_in = sign_in_of(runtime)
+    return as_json(waiting.how_it_went(sign_in, waiting.wait_for(sign_in, run_id)))
+
+
+@tool
+def check_success_criteria(runtime: ToolRuntime[CopilotContext]) -> Command:
+    """Check the three success criteria we agreed, with an evaluation of their own."""
+    answer = criteria.check(sign_in_of(runtime))
+    message = ToolMessage(answer, tool_call_id=runtime.tool_call_id)
+    return Command(update={"messages": [message], "criteria": answer})
+
+
+@tool
 def start_dispatch(agents: Agents, runtime: ToolRuntime[CopilotContext]) -> str:
     """Start a dispatch of the queue with the claim agents at once given."""
     sign_in = sign_in_of(runtime)
@@ -156,10 +182,20 @@ def send_back_claim(
     return as_json(app_api.send_back_claim(sign_in_of(runtime), claim_id, note))
 
 
-CLAIM_TOOLS: list[BaseTool] = [list_claims, get_claim, list_steps]
+CLAIM_TOOLS: list[BaseTool] = [list_claims, get_claim, list_steps, what_needs_a_handler]
 CUSTOMER_TOOLS: list[BaseTool] = [find_customers, get_customer, get_policy]
-WORK_TOOLS: list[BaseTool] = [get_latest_dispatch, list_evaluations, get_settings]
-ACTION_TOOLS: list[BaseTool] = [start_dispatch, start_evaluation, send_back_claim]
+WORK_TOOLS: list[BaseTool] = [
+    get_latest_dispatch,
+    list_evaluations,
+    get_settings,
+    wait_for_run,
+]
+ACTION_TOOLS: list[BaseTool] = [
+    start_dispatch,
+    start_evaluation,
+    send_back_claim,
+    check_success_criteria,
+]
 COPILOT_TOOLS = CLAIM_TOOLS + CUSTOMER_TOOLS + CONTEXT_TOOLS + WORK_TOOLS + ACTION_TOOLS
 
 
@@ -178,4 +214,5 @@ KINDS = (
     | kind_of_each(names(CONTEXT_TOOLS), "context")
     | kind_of_each(names(WORK_TOOLS), "work")
     | kind_of_each([*names(ACTION_TOOLS), SIGN_OFF], "action")
+    | kind_of_each([SEARCH_MEMORY], "memory")
 )

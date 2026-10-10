@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from openrouter import OpenRouter
 
 from agent import identity
+from agent.copilot.memory import MEMORY_ID as COPILOT_MEMORY_ID
 from agent.direct import CONTEXT_URL
 from agent.gateway import GATEWAY_URL
 from agent.memory import MEMORY_ID
@@ -65,6 +66,7 @@ def no_aws(tmp_path, monkeypatch):
         GATEWAY_URL,
         CONTEXT_URL,
         MEMORY_ID,
+        COPILOT_MEMORY_ID,
         agent_service.AGENT,
         agent_service.RUNTIME,
         copilot_service.COPILOT,

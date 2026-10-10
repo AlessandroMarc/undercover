@@ -170,3 +170,10 @@ def test_identity_uses_nothing_else_in_the_agent():
 def test_the_entry_point_hands_the_work_on_and_drives_none_of_it():
     assert {"dispatcher", "heartbeat"} & imports_of("entrypoint") == set()
     assert "work" in imports_of("entrypoint")
+
+
+def test_the_copilots_memory_uses_only_agentcore_memory():
+    theirs = imports_of("copilot.memory") & (agents_modules() | copilot_modules())
+    assert theirs == {"agentcore_memory"}
+    for module in copilot_modules() - {"copilot.graph", "copilot.turns"}:
+        assert "copilot.memory" not in imports_of(module), module

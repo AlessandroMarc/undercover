@@ -14,9 +14,17 @@ CardStatus = Literal["done", "refused", "failed"]
 EvaluationSet = Literal["evaluation", "held_out"]
 # The app's refusal of a request, which each function raises.
 Refused = connection.Refused
-# Where a turn and a claim stand, as the app records them.
+# Where a turn, a claim and a run stand, and a claim's decision, as the app
+# records them.
 WORKING = "working"
 WAITING_FOR_SIGN_OFF = "waiting_for_sign_off"
+DECIDED = "decided"
+LEFT_FOR_HANDLER = "left_for_handler"
+SENT_BACK = "sent_back"
+REFER = "refer"
+RUNNING = "running"
+STOPPED = "stopped"
+DISPATCH = "dispatch"
 
 
 def get_signed_in_handler(sign_in: str) -> dict[str, Any]:
@@ -138,3 +146,7 @@ def send_back_claim(sign_in: str, claim_id: str, note: str) -> dict[str, Any]:
 
 def sign_off_claim(sign_in: str, claim_id: str) -> dict[str, Any]:
     return call_as(sign_in, "POST", f"/claims/{claim_id}/sign-off")
+
+
+def count_payouts_over_limit(sign_in: str) -> dict[str, Any]:
+    return call_as(sign_in, "GET", "/payouts/over-limit")
