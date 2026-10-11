@@ -2124,9 +2124,12 @@ fieldset.panel legend + * {
   overflow-x: auto;
 }
 
+/* A table's cells wrap between words, never inside one, which would squeeze
+   its columns down to a letter or two; one too wide for the sidebar scrolls. */
 .answer table {
   border-collapse: collapse;
   font-size: 0.82rem;
+  overflow-wrap: normal;
 }
 
 .answer th,

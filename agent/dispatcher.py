@@ -14,7 +14,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.runtime import ExecutionInfo, Runtime
 from langgraph.types import RetryPolicy, Send
 
-from agent import api, harness
+from agent import api, app_terms, harness
 from agent.connection import Refused
 from agent.console import describe
 from agent.root_run import as_root_run
@@ -24,7 +24,11 @@ log = logging.getLogger(__name__)
 LIST_CLAIMS = "list_claims"
 WORK_CLAIM = "work_claim"
 FINISH_RUN = "finish_run"
-TO_WORK = (api.Status.IN_PROGRESS, api.Status.WAITING, api.Status.SENT_BACK)
+TO_WORK = (
+    app_terms.Status.IN_PROGRESS,
+    app_terms.Status.WAITING,
+    app_terms.Status.SENT_BACK,
+)
 TAKEN_BY_A_RESUME = "{claim_id}  taken by a resume"
 
 # A rate limit or a timeout waits about 10 seconds, then about 20, on top of the
@@ -51,7 +55,10 @@ class ClaimToWork(TypedDict):
 WorkInRun = Callable[[str, str], str]
 
 # How a claim still failing after its tries is left, by the kind of run.
-LEFT = {api.DISPATCH: "left for the next dispatch", api.EVALUATION: "left in progress"}
+LEFT = {
+    app_terms.DISPATCH: "left for the next dispatch",
+    app_terms.EVALUATION: "left in progress",
+}
 
 
 @dataclass
@@ -72,7 +79,7 @@ def list_claims(state: Dispatch, runtime: Runtime[DispatchContext]) -> dict[str,
     takes each sent-back claim as it lists it, so a resume can't take it
     afterwards; one a resume took first is reported and left out."""
     run = runtime.context.run
-    if run["kind"] == api.EVALUATION:
+    if run["kind"] == app_terms.EVALUATION:
         return {"claims": [claim["claim_id"] for claim in run["claims"]]}
     queue = sorted(api.list_claims(), key=lambda c: (c["submitted_on"], c["claim_id"]))
     claims, reports = [], []
@@ -80,7 +87,7 @@ def list_claims(state: Dispatch, runtime: Runtime[DispatchContext]) -> dict[str,
         if claim["status"] not in TO_WORK or claim["resuming"]:
             continue
         claim_id = claim["claim_id"]
-        if claim["status"] == api.Status.SENT_BACK and not took(claim_id, run):
+        if claim["status"] == app_terms.Status.SENT_BACK and not took(claim_id, run):
             reports.append(TAKEN_BY_A_RESUME.format(claim_id=claim_id))
         else:
             claims.append(claim_id)
@@ -112,7 +119,7 @@ def hand_over(claim_id: str, context: DispatchContext) -> str:
     put it back in the queue."""
     run_id = context.run["run_id"]
     report = context.work(claim_id, run_id)
-    if api.get_claim(claim_id)["status"] == api.Status.WAITING:
+    if api.get_claim(claim_id)["status"] == app_terms.Status.WAITING:
         report = context.work(claim_id, run_id)
     return report
 

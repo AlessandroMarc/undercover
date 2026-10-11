@@ -11,7 +11,7 @@
 - TypeScript: ESLint, Prettier, tsc, and vitest with 80% coverage
 - Playwright end-to-end tests
 
-The checks need no network and never read `.env`: the tests use SQLite, a stub model, the real context layer on a local port, and stand-ins for the AgentCore Gateway, AgentCore Memory, AgentCore Identity, AgentCore Runtime, Langfuse, the agent, Supabase Auth and the judge. The end-to-end tests sign in through the Auth stand-in with a test password. Tables and connections on Supabase can be checked through the Supabase MCP server, which is read-only.
+The checks need no network and never read `.env`: the tests use SQLite, a stub model, the real context layer on a local port, and stand-ins for the AgentCore Gateway, AgentCore Memory, AgentCore Identity, AgentCore Runtime, Langfuse, the agent, the Copilot, Supabase Auth and the judge. The end-to-end tests sign in through the Auth stand-in with a test password. Tables and connections on Supabase can be checked through the Supabase MCP server, which is read-only.
 
 The pre-commit hook runs the format, lint, type and unit test checks on every commit.
 
@@ -48,7 +48,7 @@ The checks show that the code works, but not that it is fit to merge. Every code
 
 - Add tests with each change. Tests never call a model; use a stub model.
 - Every page needs a signed-in handler. For browser checks with the Playwright MCP server, sign in on `/sign-in` with a handler's email from `data/handlers.json` and `HANDLER_PASSWORD` from `.env`: Dana Whitfield to act, Marcus Oyelaran to see what a handler who can't sign off over the limit sees.
-- Before the live runs with the real model, reseed once with `npm run seed`. Evaluations work their own copies and need no reseed. Keep to the runs the plan asks for: for the context layer, memory and the Gateway, on the direct route with memory off, `uv run -m agent CLM-1001`, then `CLM-1005` and `CLM-1006`, a dispatch at N=25 on the queue page and an evaluation of the evaluation set's five tiny claims, then CLM-1005's and CLM-1006's pages in light and dark mode, and report what they spent from the backend's records and the OpenRouter key's usage.
+- Before the live runs with the real model, reseed once with `npm run seed`. Evaluations work their own copies and need no reseed. Keep to the runs the plan asks for: for the context layer, memory and the Gateway, on the direct route with memory off, `uv run -m agent CLM-1001`, then `CLM-1005` and `CLM-1006`, a dispatch at N=25 on the queue page and an evaluation of the evaluation set's five tiny claims, then CLM-1005's and CLM-1006's pages in light and dark mode; for the Copilot, the conversation in `docs/PLAN_COPILOT.md`'s last phase. Report what they spent from the backend's records and the OpenRouter key's usage.
 - Outside a plan, commit each change once you have checked and reviewed it.
 - Outside a plan, run `npm run check` before you hand work over.
 - Never use `git commit --no-verify`.

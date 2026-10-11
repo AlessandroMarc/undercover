@@ -307,9 +307,9 @@ it("says Signed off and paid only once the sign-off is done", async () => {
   }
 });
 
-it("shows a refused answer on the card that was answered, and no other", async () => {
+it("shows a refused answer on the card that was answered, and no other, and reads the conversation again", async () => {
   openedBefore();
-  stubApi({
+  const fetchMock = stubApi({
     [`GET ${CONVERSATION_PATH}`]: conversation(
       waiting({
         turn_id: "turn-0",
@@ -336,4 +336,7 @@ it("shows a refused answer on the card that was answered, and no other", async (
     await within(waitingCard).findByText("The claim changed"),
   ).toBeDefined();
   expect(within(earlier).queryByText("The claim changed")).toBeNull();
+  await waitFor(() => {
+    expect(sent(fetchMock, `GET ${CONVERSATION_PATH}`)).toHaveLength(2);
+  });
 });

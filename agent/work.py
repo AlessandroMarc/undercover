@@ -12,7 +12,7 @@ from typing import Any
 from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
-from agent import api, improver, improver_api
+from agent import api, app_terms, improver, improver_api
 from agent.connection import Refused
 from agent.console import describe
 from agent.dispatcher import WorkInRun, work_run
@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 # How to build the claim agents of a version of the claim agent for a kind of run,
 # or for no run, each with a saver of its own.
-ClaimAgents = Callable[[dict[str, Any], api.RunKind | None], NewAgent]
+ClaimAgents = Callable[[dict[str, Any], app_terms.RunKind | None], NewAgent]
 
 
 @dataclass

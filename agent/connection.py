@@ -8,6 +8,8 @@ from typing import Any
 
 import httpx
 
+from agent.refusals import REFUSED
+
 BACKEND_URL = os.getenv("UNDERCOVER_API", "http://127.0.0.1:8000")
 API_KEY_HEADER = "X-API-Key"
 MISSING_KEY = "UNDERCOVER_API_KEY is missing. Add it to .env"
@@ -30,7 +32,7 @@ class Refused(Exception):
     @property
     def answer(self) -> str:
         """The refusal as a model is answered with it."""
-        return f"Refused: {self.detail}"
+        return REFUSED.format(reason=self.detail)
 
 
 def api_key() -> str:

@@ -156,14 +156,16 @@ def test_the_runtime_route_sends_each_turn_in_the_conversations_session(
     assert copilot_calls == []
 
 
-def test_a_conflict_is_retried_after_1_and_2_seconds_then_isnt_running(
+def test_a_conflict_is_retried_after_1_2_and_4_seconds_then_isnt_running(
     dashboard, runtime
 ):
     runtime.conflicts = 10
+    # Each conflict comes back after a fifth of a second, as Runtime's do.
+    runtime.conflict_delay = 0.2
     response = start_conversation(dashboard)
     assert (response.status_code, response.json()["detail"]) == (503, NOT_RUNNING)
-    assert len(runtime.calls) == 3
-    assert runtime.clock.waits == [1, 2]
+    assert len(runtime.calls) == 4
+    assert runtime.clock.waits == [1, 2, 4]
 
 
 def test_a_conflict_then_an_answer_takes_the_turn(dashboard, runtime):
@@ -172,7 +174,7 @@ def test_a_conflict_then_an_answer_takes_the_turn(dashboard, runtime):
     assert len(runtime.calls) == 2
 
 
-@pytest.mark.parametrize(("delay", "tries"), [(0, 3), (2, 2), (5, 1)])
+@pytest.mark.parametrize(("delay", "tries"), [(0.2, 4), (2, 3), (5, 2), (9, 1)])
 def test_conflicts_stop_once_another_try_would_pass_the_budget(
     dashboard, runtime, delay, tries
 ):

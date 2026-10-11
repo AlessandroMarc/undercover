@@ -2,16 +2,13 @@
 function for each operation they use. It has no way to the scores, the settings,
 the rounds or the handlers' decisions."""
 
-from enum import StrEnum
 from typing import Any, Literal, TypedDict, Unpack
 
 from pydantic import BaseModel, Field
 
+from agent.app_terms import DecisionKind
 from agent.connection import call
 
-DecisionKind = Literal["approve", "decline", "refer"]
-APPROVE: DecisionKind = "approve"
-REFER: DecisionKind = "refer"
 StepKind = Literal[
     "screening",
     "tool_call",
@@ -24,10 +21,6 @@ StepKind = Literal[
 ]
 # The context files a lookup came from, each with its system, owner and review date.
 Sources = list[dict[str, str]]
-RunKind = Literal["dispatch", "evaluation"]
-RUNNING = "running"
-DISPATCH: RunKind = "dispatch"
-EVALUATION: RunKind = "evaluation"
 Benefit = Literal[
     "trip_cancellation",
     "trip_interruption",
@@ -37,17 +30,6 @@ Benefit = Literal[
     "passport",
     "emergency_medical",
 ]
-
-
-class Status(StrEnum):
-    """Where a claim stands."""
-
-    WAITING = "waiting"
-    IN_PROGRESS = "in_progress"
-    WAITING_FOR_SIGN_OFF = "waiting_for_sign_off"
-    SENT_BACK = "sent_back"
-    DECIDED = "decided"
-    LEFT_FOR_HANDLER = "left_for_handler"
 
 
 LineKind = Literal[

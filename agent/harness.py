@@ -33,12 +33,13 @@ from langgraph.runtime import Runtime
 from langgraph.store.base import BaseStore
 from langgraph.types import Command, Overwrite, RetryPolicy, interrupt
 
-from agent import api, handler_answer, memory, tool_route
+from agent import api, app_terms, handler_answer, memory, tool_route
 from agent.checkpoints import Pool
 from agent.connection import Refused
 from agent.console import describe
 from agent.json_text import as_json
 from agent.openrouter import chat_model, usage_of
+from agent.refusals import REFUSED
 from agent.root_run import as_root_run
 from agent.routes import GatewayRefused, Route, Target
 from agent.screening import screen
@@ -106,7 +107,7 @@ SCREEN_RETRY = RetryPolicy(max_attempts=3, retry_on=UnreadableScreening)
 
 def model(named: dict[str, Any]) -> ChatOpenAI:
     """Return the model a version or get_screening names, at its reasoning effort."""
-    return chat_model(named["model"], named["reasoning_effort"], timeout=120)
+    return chat_model(named["model"], named["reasoning_effort"])
 
 
 def refusal(error: Exception) -> str:
@@ -117,7 +118,7 @@ def refusal(error: Exception) -> str:
     if isinstance(error, GatewayRefused):
         return error.answer
     if isinstance(error, ToolException):
-        return f"Refused: {error}"
+        return REFUSED.format(reason=error)
     raise error
 
 
@@ -189,7 +190,7 @@ def refer(state: ClaimState, runtime: Runtime[ClaimContext]) -> dict[str, Any]:
     reason = state["screening"]["reason"]
     claim = api.record_decision(
         runtime.context.claim_id,
-        decision=api.REFER,
+        decision=app_terms.REFER,
         payout=0,
         section=SECURITY_CHECK,
         reason=reason,
@@ -256,9 +257,12 @@ def after_tools(state: ClaimState) -> str:
     decision, status = state["decision"], state["status"]
     if not decision:
         return AGENT
-    if status == api.Status.WAITING_FOR_SIGN_OFF:
+    if status == app_terms.Status.WAITING_FOR_SIGN_OFF:
         return HELD
-    if decision["decision"] == api.APPROVE and status == api.Status.IN_PROGRESS:
+    if (
+        decision["decision"] == app_terms.APPROVE
+        and status == app_terms.Status.IN_PROGRESS
+    ):
         return PAY
     return END
 
@@ -266,7 +270,7 @@ def after_tools(state: ClaimState) -> str:
 def after_pay(state: ClaimState) -> str:
     """Hold a payment the Gateway refused for a handler's sign-off, or end the claim
     agent's work on a claim that is paid."""
-    return HELD if state["status"] == api.Status.WAITING_FOR_SIGN_OFF else END
+    return HELD if state["status"] == app_terms.Status.WAITING_FOR_SIGN_OFF else END
 
 
 def wait_for_handler(
@@ -313,11 +317,11 @@ class RunTraits:
     pauses: bool
 
 
-def traits_of(kind: api.RunKind | None) -> RunTraits:
+def traits_of(kind: app_terms.RunKind | None) -> RunTraits:
     """An evaluation's claim graphs have no memory, so its scores don't depend on
     it, and don't pause, since nobody signs off a copy. Any other's have the memory
     the environment names, read now, and pause."""
-    if kind == api.EVALUATION:
+    if kind == app_terms.EVALUATION:
         return RunTraits(store=None, pauses=False)
     return RunTraits(store=memory.memory_store(), pauses=True)
 
@@ -395,7 +399,7 @@ def maker_of(version: dict[str, Any]) -> str:
 
 
 def claim_graphs(
-    version: dict[str, Any], kind: api.RunKind | None, pool: Pool
+    version: dict[str, Any], kind: app_terms.RunKind | None, pool: Pool
 ) -> NewAgent:
     """Return how to build a version's claim agent for a kind of run, or none: a
     claim graph with a saver of its own on the pool, since a saver lets one claim
@@ -462,14 +466,14 @@ def begin(claim_id: str) -> Messages:
 def report(claim: dict[str, Any], reason: str) -> str:
     """Say in one line how a claim ended: its decision and payout, or why it failed."""
     claim_id, status, decision = claim["claim_id"], claim["status"], claim["decision"]
-    if status == api.Status.WAITING:
+    if status == app_terms.Status.WAITING:
         return f"{claim_id}  failed: {reason}, back in the queue"
-    if status == api.Status.LEFT_FOR_HANDLER:
+    if status == app_terms.Status.LEFT_FOR_HANDLER:
         return f"{claim_id}  failed: {reason}, left for a handler"
     line = f"{claim_id}  {decision['decision']}  ${decision['payout']:,.2f}"
-    if status == api.Status.WAITING_FOR_SIGN_OFF:
+    if status == app_terms.Status.WAITING_FOR_SIGN_OFF:
         return f"{line}, waiting for sign-off"
-    if decision["decision"] == api.APPROVE and claim["payment"] is None:
+    if decision["decision"] == app_terms.APPROVE and claim["payment"] is None:
         return f"{line}, not paid yet"
     return line
 
@@ -504,7 +508,7 @@ def settle(claim_id: str, error: str | None) -> str:
     error after the decision is logged, and the claim keeps its decision."""
     claim = api.get_claim(claim_id)
     reason = error or NO_DECISION
-    if claim["status"] == api.Status.IN_PROGRESS and claim["decision"] is None:
+    if claim["status"] == app_terms.Status.IN_PROGRESS and claim["decision"] is None:
         claim = api.fail_claim(claim_id, reason)
     elif error:
         log.warning("%s  %s", claim_id, error)
@@ -587,6 +591,6 @@ def work_in_run(
     waiting, and report how it ended, with any tags for its trace beside the
     run's."""
     agent = new_agent()
-    if api.get_claim(claim_id)["status"] == api.Status.IN_PROGRESS:
+    if api.get_claim(claim_id)["status"] == app_terms.Status.IN_PROGRESS:
         return carry_on(claim_id, run_id, agent, tags)
     return work_claim(claim_id, run_id, agent, tags)

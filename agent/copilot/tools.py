@@ -11,9 +11,10 @@ from langchain_core.messages import ToolMessage
 from langgraph.types import Command
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from agent.app_terms import EvaluationSet
 from agent.context_tools import CONTEXT_TOOLS
 from agent.copilot import app_api, criteria, waiting
-from agent.copilot.app_api import CardKind, EvaluationSet
+from agent.copilot.app_api import CardKind
 from agent.copilot.needs_a_handler import needs_a_handler
 from agent.json_text import as_json
 from agent.routes import Route

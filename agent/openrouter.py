@@ -15,7 +15,14 @@ NO_REASONING_EFFORT = "default"
 RETRIES = 5
 
 
-def chat_model(model: str, reasoning_effort: str, timeout: int) -> ChatOpenAI:
+# How long a claim agent's or the Copilot's model call may take before it's given
+# up and retried; the improver's calls, which think for longer, take their own.
+MODEL_TIMEOUT = 120
+
+
+def chat_model(
+    model: str, reasoning_effort: str, timeout: int = MODEL_TIMEOUT
+) -> ChatOpenAI:
     """A model on OpenRouter at a reasoning effort, giving up on a call after the
     timeout in seconds and retrying it RETRIES times."""
     return ChatOpenAI(

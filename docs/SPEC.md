@@ -107,4 +107,7 @@ Everything is in `data/`, described in `data/README.md`: the claims queue, the p
 - No real payments.
 - No messages to customers.
 - Memory in evaluations.
+- The Copilot streaming its answers word by word, stopping a turn partway, and sharing, renaming or deleting conversations.
+- The Copilot reading the agent's memory of customers, or changing settings, the configuration or improvement rounds; it says where on the dashboard to do those.
+- Langfuse tracing for the Copilot.
 - Masking personal fields for the agent, and requesting documents from customers.

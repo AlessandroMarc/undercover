@@ -12,7 +12,7 @@ from langgraph.graph.message import add_messages
 from langgraph.store.base import BaseStore
 from langgraph.types import Command
 
-from agent import api, memory
+from agent import api, app_terms, memory
 from agent.agentcore_memory import UNREACHABLE
 from agent.context_tools import CONTEXT_TOOLS, Query
 from agent.json_text import as_json
@@ -144,7 +144,7 @@ def calculate_payout(
 
 @tool
 def record_decision(
-    decision: api.DecisionKind,
+    decision: app_terms.DecisionKind,
     payout: Annotated[float, "In US dollars, and 0 for a decline or a referral"],
     section: Annotated[str, "The sections of the wording and the manual relied on"],
     reason: Annotated[str, "Two or three plain sentences for a colleague"],

@@ -213,6 +213,27 @@ it("sends a second message in the conversation, showing it working at once", asy
   expect(box.disabled).toBe(true);
 });
 
+it("reads the conversation again when a message is refused, to show its failed turn", async () => {
+  openedBefore();
+  const fetchMock = stubApi({
+    [`GET ${CONVERSATION_PATH}`]: conversation(turn()),
+    [`POST ${CONVERSATION_PATH}/messages`]: new Refusal(
+      503,
+      "The Copilot isn't running",
+    ),
+  });
+  renderAt("/settings");
+  const copilot = await openSidebar();
+  await copilot.findByText("Nothing needs you today.");
+  const box = copilot.getByRole("textbox", { name: ASK });
+  fireEvent.change(box, { target: { value: "And tomorrow?" } });
+  fireEvent.keyDown(box, { key: "Enter" });
+  expect(await copilot.findByText("The Copilot isn't running")).toBeDefined();
+  await waitFor(() => {
+    expect(sent(fetchMock, `GET ${CONVERSATION_PATH}`)).toHaveLength(2);
+  });
+});
+
 it("keeps a refused message in the box, with the app's reason", async () => {
   stubApi({
     [`POST ${CONVERSATIONS}`]: new Refusal(422, "The message is too long"),

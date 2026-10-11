@@ -7,10 +7,10 @@ three are met. Every figure is worked out here, never by the model."""
 import math
 from typing import Any, NamedTuple
 
+from agent.app_terms import HELD_OUT
 from agent.copilot import app_api, waiting
 
 STRAIGHT_THROUGH_TARGET = 0.70
-HELD_OUT = "held_out"
 COULDNT_START = "The evaluation couldn't start: {reason}"
 STOPPED_PARTWAY = "The evaluation stopped: {reason}"
 NONE_PAID = "None paid over the limit yet"

@@ -16,7 +16,7 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from pydantic import Field, TypeAdapter
 from starlette.exceptions import HTTPException
 
-from agent import api, identity, improver, improver_api
+from agent import api, app_terms, identity, improver, improver_api
 from agent.agentcore_app import (
     ACCEPTED,
     HEALTHY,
@@ -135,7 +135,7 @@ def take_run(request: WorkRun, workers: Workers) -> None:
     """Work a dispatch or an evaluation the app created, refusing one that isn't
     running."""
     run = api.get_run(request.run_id)
-    if run["status"] != api.RUNNING:
+    if run["status"] != app_terms.RUNNING:
         raise Refusal(RUN_NOT_RUNNING.format(run_id=request.run_id))
     in_background(app, "run", partial(work_the_run, run, workers.claim_agents))
 

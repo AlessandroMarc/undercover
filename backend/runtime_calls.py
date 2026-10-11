@@ -28,7 +28,7 @@ from fastapi import HTTPException
 INVOCATIONS = "/invocations"
 LAPTOP_TIMEOUT = 10
 CONNECT_TIMEOUT = 2
-READ_TIMEOUT = 20
+READ_TIMEOUT = 15
 ACCEPTED = {"accepted": True}
 # While Runtime starts or stops a session, a call to it gets a conflict before it
 # reaches the app, so it is safe to retry, after each of these waits in turn.
@@ -36,7 +36,9 @@ CONFLICT = "ConflictException"
 CONFLICT_WAITS = (1, 2, 4)
 # The longest a call to Runtime may take, inside the app's 30 seconds on Lambda: a
 # conflict is retried only while the time spent, the wait and a whole try, its
-# connection and its read, still fit it, so a call makes three tries at most.
+# connection and its read, still fit it. A try's read is short enough that all
+# three waits fit when conflicts come back quickly, so a call makes four tries at
+# most, over about seven seconds.
 BUDGET = 25
 LONGEST_TRY = CONNECT_TIMEOUT + READ_TIMEOUT
 

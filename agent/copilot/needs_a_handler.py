@@ -4,7 +4,7 @@ and any claim sent back that the agent hasn't taken up."""
 
 from typing import Any
 
-from agent.copilot import app_api
+from agent.app_terms import REFER, Status
 
 
 def needs_a_handler(queue: list[dict[str, Any]]) -> dict[str, Any]:
@@ -13,17 +13,17 @@ def needs_a_handler(queue: list[dict[str, Any]]) -> dict[str, Any]:
         "held_for_sign_off": [
             {"claim_id": c["claim_id"], "payout": c["payout"]}
             for c in queue
-            if c["status"] == app_api.WAITING_FOR_SIGN_OFF
+            if c["status"] == Status.WAITING_FOR_SIGN_OFF
         ],
         "referred": [
             c["claim_id"]
             for c in queue
-            if c["status"] == app_api.DECIDED and c["decision"] == app_api.REFER
+            if c["status"] == Status.DECIDED and c["decision"] == REFER
         ],
         "left_for_a_handler": [
-            c["claim_id"] for c in queue if c["status"] == app_api.LEFT_FOR_HANDLER
+            c["claim_id"] for c in queue if c["status"] == Status.LEFT_FOR_HANDLER
         ],
         "sent_back_not_taken_up": [
-            c["claim_id"] for c in queue if c["status"] == app_api.SENT_BACK
+            c["claim_id"] for c in queue if c["status"] == Status.SENT_BACK
         ],
     }

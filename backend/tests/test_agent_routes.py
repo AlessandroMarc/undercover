@@ -115,14 +115,14 @@ def test_the_agents_four_operations_on_runtime_each_in_a_new_session(runtime):
     assert len({call["runtimeSessionId"] for call in runtime.calls}) == 4
 
 
-def test_the_runtime_client_makes_one_attempt_and_waits_2_seconds_and_20():
+def test_the_runtime_client_makes_one_attempt_and_waits_2_seconds_and_15():
     runtime_calls.runtime_client.cache_clear()
     try:
         made = runtime_calls.runtime_client()
         assert made.meta.service_model.service_name == "bedrock-agentcore"
         config = made.meta.config
         assert config.retries["total_max_attempts"] == 1
-        assert (config.connect_timeout, config.read_timeout) == (2, 20)
+        assert (config.connect_timeout, config.read_timeout) == (2, 15)
     finally:
         runtime_calls.runtime_client.cache_clear()
 

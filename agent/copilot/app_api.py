@@ -6,25 +6,16 @@ decisions on the labeled sets, the rounds or anything only the agent may do."""
 from typing import Any, Literal, TypedDict
 
 from agent import connection
+from agent.app_terms import EvaluationSet
 from agent.connection import call_as
 from agent.context_tools import Sources
 
 CardKind = Literal["claims", "customers", "context", "work", "memory", "action"]
 CardStatus = Literal["done", "refused", "failed"]
-EvaluationSet = Literal["evaluation", "held_out"]
 # The app's refusal of a request, which each function raises.
 Refused = connection.Refused
-# Where a turn, a claim and a run stand, and a claim's decision, as the app
-# records them.
+# A turn the Copilot is still working on, as the app records it.
 WORKING = "working"
-WAITING_FOR_SIGN_OFF = "waiting_for_sign_off"
-DECIDED = "decided"
-LEFT_FOR_HANDLER = "left_for_handler"
-SENT_BACK = "sent_back"
-REFER = "refer"
-RUNNING = "running"
-STOPPED = "stopped"
-DISPATCH = "dispatch"
 
 
 def get_signed_in_handler(sign_in: str) -> dict[str, Any]:

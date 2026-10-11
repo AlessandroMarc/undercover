@@ -108,6 +108,12 @@ def test_the_shared_parts_use_only_the_routes_and_the_json():
         assert imports_of(module) & agents_modules() <= {"routes", "json_text"}, module
 
 
+def test_the_apps_terms_and_the_refusals_import_nothing_in_the_agent():
+    """So nothing reaches the claim agent's API, or anything else, through them."""
+    for module in ("app_terms", "refusals"):
+        assert not imports_of(module) & agents_modules(), module
+
+
 def copilot_modules() -> set[str]:
     return {f"copilot.{path.stem}" for path in (AGENT / "copilot").glob("*.py")}
 
@@ -115,6 +121,8 @@ def copilot_modules() -> set[str]:
 # The parts of the agent the Copilot may use besides its own: the parts shared
 # with the claim agent and the helpers of every part.
 SHARED = {
+    "app_terms",
+    "refusals",
     "checkpoints",
     "tool_route",
     "context_tools",

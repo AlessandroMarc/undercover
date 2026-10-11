@@ -37,6 +37,7 @@ from langgraph.types import Command, Overwrite, interrupt
 from pydantic import ValidationError
 
 from agent.agentcore_memory import UNREACHABLE
+from agent.app_terms import Status
 from agent.console import describe
 from agent.context_tools import Sources
 from agent.copilot import app_api, cards, memory
@@ -51,6 +52,7 @@ from agent.copilot.tools import (
 )
 from agent.json_text import as_json
 from agent.openrouter import usage_of
+from agent.refusals import REFUSED
 from agent.routes import GatewayRefused
 
 log = logging.getLogger(__name__)
@@ -67,7 +69,6 @@ CONFIRM = "confirm"
 SIGN_OFF_NODE = "sign_off"
 CANCELLED = "cancelled"
 # What the model is told of a call it can't make.
-REFUSED = "Refused: {reason}"
 ONE_STEP = REFUSED.format(reason="one step at a time")
 ONE_A_TURN = "One sign-off a turn. Please ask me again for the next one."
 CANT_SIGN_OFF = "{name} can't sign off payouts over the approval limit of {limit}"
@@ -225,7 +226,7 @@ def refusal_reason(refusal: Exception) -> str:
 
 def signed_out(refusal: Exception) -> bool:
     """Say whether the app refused the handler's sign-in itself, as when it has
-    expired, which ends the turn rather than going back to the model."""
+    run out, after which it refuses everything sent with it."""
     return (
         isinstance(refusal, app_api.Refused)
         and refusal.status_code == HTTPStatus.UNAUTHORIZED
@@ -237,9 +238,11 @@ def with_card(
     execute: Callable[[ToolCallRequest], ToolMessage | Command],
 ) -> ToolMessage | Command:
     """Run a tool with a card recorded as it starts and again when it ends. A
-    refusal goes back to the model, its card keeping the bare reason; a sign-in the
-    app no longer accepts, or any other error, marks the card failed and stops the
-    turn. A tool the Copilot doesn't have is left to the ToolNode."""
+    refusal goes back to the model, its card keeping the bare reason, and any other
+    error marks the card failed and stops the turn. A sign-in the app no longer
+    accepts stops the turn at once: nothing more can be recorded with it, so the
+    card stays working and the app shows the turn working until it reads as
+    stopped. A tool the Copilot doesn't have is left to the ToolNode."""
     call = request.tool_call
     if call["name"] not in KINDS:
         return execute(request)
@@ -249,7 +252,6 @@ def with_card(
         result = execute(request)
     except REFUSALS as refusal:
         if signed_out(refusal):
-            cards.failed(context, card, refusal_reason(refusal))
             raise
         cards.refused(context, card, refusal_reason(refusal))
         return ToolMessage(
@@ -289,7 +291,7 @@ def why_not(context: CopilotContext, claim_id: str) -> str | None:
         return str(refused.detail)
     if claim["evaluation_id"] is not None:
         return A_COPY.format(claim_id=claim_id)
-    if claim["status"] != app_api.WAITING_FOR_SIGN_OFF:
+    if claim["status"] != Status.WAITING_FOR_SIGN_OFF:
         return NOT_HELD.format(claim_id=claim_id)
     return None
 
@@ -312,7 +314,9 @@ def refuse_sign_off(
     goes back to the model."""
     cards.refused(context, cards.start(context, SIGN_OFF, asked["args"]), reason)
     refused = ToolMessage(
-        REFUSED.format(reason=reason), tool_call_id=asked["id"], status="error"
+        REFUSED.format(reason=reason),
+        tool_call_id=asked["id"],
+        status="error",
     )
     return Command(update={"messages": [*answers, refused]}, goto=AGENT)
 

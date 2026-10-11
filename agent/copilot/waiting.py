@@ -5,13 +5,14 @@ seconds until it isn't running, for up to WAIT seconds, then how it went."""
 import time
 from typing import Any
 
+from agent.app_terms import DISPATCH, EVALUATION, RUNNING, STOPPED
 from agent.copilot import app_api
 from agent.copilot.needs_a_handler import needs_a_handler
 
 POLL = 5
 WAIT = 15 * 60
 # Where a handler follows a run that is still going.
-PAGES = {app_api.DISPATCH: "the queue page", "evaluation": "the Scoreboard"}
+PAGES = {DISPATCH: "the queue page", EVALUATION: "the Scoreboard"}
 STILL_GOING = "Still going after {minutes} minutes. Follow it on {page}."
 
 
@@ -19,7 +20,7 @@ def wait_for(sign_in: str, run_id: str) -> dict[str, Any]:
     """The run once it has finished or stopped, or as it stands, still running,
     after WAIT."""
     deadline = time.monotonic() + WAIT
-    while (run := app_api.get_run(sign_in, run_id))["status"] == app_api.RUNNING:
+    while (run := app_api.get_run(sign_in, run_id))["status"] == RUNNING:
         if time.monotonic() + POLL > deadline:
             break
         time.sleep(POLL)
@@ -37,12 +38,12 @@ def how_it_went(sign_in: str, run: dict[str, Any]) -> dict[str, Any]:
     a handler, a finished evaluation's measures, why a run stopped, or where to
     follow one still going."""
     went = {"kind": run["kind"], "number": run["number"], "status": run["status"]}
-    if run["status"] == app_api.RUNNING:
+    if run["status"] == RUNNING:
         page = PAGES[run["kind"]]
         return went | {"note": STILL_GOING.format(minutes=round(WAIT / 60), page=page)}
-    if run["status"] == app_api.STOPPED:
+    if run["status"] == STOPPED:
         return went | {"stopped_because": run["stopped_because"]}
-    if run["kind"] == app_api.DISPATCH:
+    if run["kind"] == DISPATCH:
         queue = app_api.list_claims(sign_in)
         return went | {
             "summary": run["summary"],

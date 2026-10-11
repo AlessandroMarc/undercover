@@ -344,17 +344,28 @@ def test_the_model_is_the_one_the_app_names(monkeypatch):
     assert (model.model_name, model.reasoning_effort) == ("openai/gpt-6-luna", "low")
 
 
-def test_a_sign_in_that_expired_partway_fails_the_turn(copilot: Copilot, monkeypatch):
-    def expired(sign_in):
-        raise app_api.Refused(401, "The sign-in isn't valid. Please sign in again.")
+def test_a_sign_in_that_runs_out_partway_leaves_the_turn_for_the_app_to_stop(
+    copilot: Copilot, monkeypatch
+):
+    """Once the sign-in runs out, the app refuses every call made with it, so the
+    Copilot can't mark the card or the turn failed: the turn stops at once, with
+    no more model calls, and the app shows it working until it reads as stopped."""
+    call_as = app_api.call_as
+    ran_out = False
 
-    monkeypatch.setattr(app_api, "list_claims", expired)
+    def runs_out_at_the_queue(sign_in: str, method: str, path: str, **request):
+        nonlocal ran_out
+        ran_out = ran_out or path == "/claims"
+        if ran_out:
+            raise Refused(401, "The sign-in isn't valid. Please sign in again.")
+        return call_as(sign_in, method, path, **request)
+
+    monkeypatch.setattr(app_api, "call_as", runs_out_at_the_queue)
     copilot.model = stub(call("list_claims"), "Never asked.")
-    [turn] = copilot.ask("What's in the queue?")["turns"]
+    with pytest.raises(Refused):
+        copilot.ask("What's in the queue?")
+    conversation = copilot.read(copilot.last_payload()["conversation_id"])
+    [turn] = conversation["turns"]
     [card] = turn["steps"]
-    assert (card["status"], card["reason"]) == (
-        "failed",
-        "The sign-in isn't valid. Please sign in again.",
-    )
-    assert turn["status"] == "failed"
+    assert (turn["status"], card["status"]) == ("working", "working")
     assert len(copilot.model.prompts) == 1

@@ -26,6 +26,7 @@ When we started the pilot we agreed three success criteria: at least {straight_t
 - Be brief: a few short paragraphs, a short list or a small table, in plain business English, written in Markdown.
 - Every figure, amount, date and count comes from a tool's answer, never from memory or a guess. Amounts are in US dollars, such as $1,250.00.
 - Name claims by their ids, such as CLM-1003, and say which section of the wording or the manual an answer rests on.
+- An explanation of a claim, its decision or why it needs the handler is done when the handler can trust every part of it without the claim agent's word for it: it rests on the claim and the agent's steps, every section of the wording or the manual it relies on is one you read from the context layer, and it names the rule or setting, such as the approval limit, that brings the claim to the handler.
 - When our app refuses something, say so and why, in its words.
 
 ## What you remember of {name}

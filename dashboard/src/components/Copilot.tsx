@@ -53,14 +53,14 @@ function useConversation(conversationId?: string, started?: Conversation) {
         : api.getConversation(conversationId),
     [conversationId],
   );
-  const { data, error, show } = useLoad<Conversation | undefined>(
+  const { data, error, reload, show } = useLoad<Conversation | undefined>(
     load,
     ASK_EVERY_MS,
     stillWorking,
   );
   const fresh =
     started?.conversation_id === conversationId ? started : undefined;
-  return { conversation: data ?? fresh, error, show };
+  return { conversation: data ?? fresh, error, reload, show };
 }
 
 // Keeps the newest of a conversation in view as it grows.
@@ -250,7 +250,10 @@ function ConversationPane({
 }>) {
   const [started, setStarted] = useState<Conversation>();
   const [answered, setAnswered] = useState<string>();
-  const { conversation, error, show } = useConversation(chosen, started);
+  const { conversation, error, reload, show } = useConversation(
+    chosen,
+    started,
+  );
   const gone = error instanceof ApiError && error.status === 404;
   const conversationId = gone ? undefined : chosen;
   const opening =
@@ -262,18 +265,29 @@ function ConversationPane({
     if (gone) saveConversation(handler.handler_id, undefined);
   }, [gone, handler.handler_id]);
 
+  // What the app gives back for a message or an answer shows at once. When it
+  // refuses, the conversation is read again, as the turn may have failed, with why.
+  async function showOrReread(sending: Promise<Conversation>) {
+    try {
+      show(await sending);
+    } catch (refusal) {
+      reload();
+      throw refusal;
+    }
+  }
+
   const message = useAction(async (text: string) => {
     if (conversationId === undefined) {
       const first = await api.startConversation(text);
       setStarted(first);
       onStarted(first.conversation_id);
-    } else show(await api.sendMessage(conversationId, text));
+    } else await showOrReread(api.sendMessage(conversationId, text));
   });
   const answer = useAction(
     async (turnId: string, given: ConfirmationAnswer) => {
       if (conversationId === undefined) return;
       setAnswered(turnId);
-      show(await api.answerConfirmation(conversationId, turnId, given));
+      await showOrReread(api.answerConfirmation(conversationId, turnId, given));
     },
   );
 

@@ -23,7 +23,6 @@ from agent.openrouter import chat_model
 
 log = logging.getLogger(__name__)
 
-MODEL_TIMEOUT = 120
 STOPPED_STEP = "This step stopped before it finished"
 NOT_THE_TURN = "Turn {turn_id} isn't the conversation's latest working turn"
 NOTHING_TO_RESUME = "No sign-off is waiting for an answer in this conversation"
@@ -70,7 +69,7 @@ def the_turn(sign_in: str, conversation_id: str, turn_id: str) -> Turn:
 def copilot_model(sign_in: str) -> ChatOpenAI:
     """The model the app names for the Copilot, at its reasoning effort."""
     named = app_api.get_copilot_model(sign_in)
-    return chat_model(named["model"], named["reasoning_effort"], timeout=MODEL_TIMEOUT)
+    return chat_model(named["model"], named["reasoning_effort"])
 
 
 def thread_of(conversation_id: str) -> RunnableConfig:
@@ -112,7 +111,8 @@ def tell_the_app(turn: Turn, saved: StateSnapshot) -> None:
 def work(turn: Turn, start: Start, saver: BaseCheckpointSaver[Any]) -> None:
     """Run the graph on the conversation's thread from a start, saving every step,
     with the memory the environment names, read now, then tell the app how the
-    turn ended. A turn that raises is failed with the error in one line."""
+    turn ended. A turn that raises is failed with the error in one line, unless
+    its sign-in has run out, when the app can't be told and the failure raises."""
     try:
         store = memory.memory_store()
         graph = copilot_graph(copilot_model(turn.sign_in), saver, store)
