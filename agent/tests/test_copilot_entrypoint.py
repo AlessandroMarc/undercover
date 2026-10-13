@@ -69,6 +69,8 @@ def test_importing_the_copilot_reads_no_setting_opens_nothing_and_starts_nothing
         f"AGENTCORE_CREDENTIAL_{setting}_NAME": provider
         for setting, provider in CREDENTIALS.items()
     }
+    if sys.platform == "win32":  # Windows can't start its sockets without it
+        settings["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
     imported = subprocess.run(  # noqa: S603 - the tests' own Python and code
         [sys.executable, "-c", IMPORT_IT],
         cwd=ROOT,
