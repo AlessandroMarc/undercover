@@ -7,7 +7,7 @@ export default defineConfig({
   use: { baseURL: "http://localhost:5173" },
   webServer: [
     {
-      command: "uv run uvicorn backend.main:app --port 8000",
+      command: "uv run -m uvicorn backend.main:app --port 8000",
       url: "http://127.0.0.1:8000/api/health",
       reuseExistingServer: true,
     },
