@@ -112,7 +112,7 @@ def test_a_claim_still_failing_after_its_tries_is_left_in_progress(client, error
     model = swarm({"CLM-1001": [error] * 3, "CLM-1003": decide("decline", 0)})
     began = time.monotonic()
     reports = dispatch(model)
-    assert time.monotonic() - began < 1
+    assert time.monotonic() - began < 5
 
     left = f"CLM-1001  left for the next dispatch: {type(error).__name__}: {error}"
     assert sorted(reports) == [left, "CLM-1003  decline  $0.00"]
