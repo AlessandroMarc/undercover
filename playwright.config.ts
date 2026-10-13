@@ -31,7 +31,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: `uv run -m backend.seed && uv run uvicorn backend.main:app --port ${new URL(BACKEND).port}`,
+      command: `uv run -m backend.seed && uv run -m uvicorn backend.main:app --port ${new URL(BACKEND).port}`,
       url: `${BACKEND}/api/health`,
       // Empty DATABASE_URL, MODEL_NAME, UNDERCOVER_AGENT_RUNTIME and
       // UNDERCOVER_COPILOT_RUNTIME keep the tests on SQLite, the default model and
