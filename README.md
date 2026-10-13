@@ -27,6 +27,10 @@ While about $10 of API spend would be typical for this course, there are free al
 
 Just ask your coding agent (Cursor, Claude Code, etc.). I've equipped it with full knowledge of the course, the labs and this project, and it can help!
 
+## Sharing your work
+
+I'd love to see what you build! Please share it with a pull request to `community_contributions`. The steps for that, and for pulling the latest code, are in [setup/AGENT_GIT_GUIDE.md](setup/AGENT_GIT_GUIDE.md), and your coding agent can take you through them.
+
 ## The journey
 
 Week 1 Day 1 is in the `setup/` folder and Week 1 Day 2 is in `labs/`. From Week 1 Day 3 onwards we work in the entire repo. The installation steps for each day are in [setup/INSTRUCTIONS.md](setup/INSTRUCTIONS.md), and the [guides](guides/) folder has guides to the command line, git, Python and other foundations if you'd like a refresher.
