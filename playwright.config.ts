@@ -11,7 +11,7 @@ export default defineConfig({
   webServer: [
     {
       command:
-        "uv run -m backend.seed && uv run uvicorn backend.main:app --port 8001",
+        "uv run -m backend.seed && uv run -m uvicorn backend.main:app --port 8001",
       url: "http://127.0.0.1:8001/api/health",
       // An empty DATABASE_URL keeps the tests on SQLite, whatever the shell has.
       env: {
