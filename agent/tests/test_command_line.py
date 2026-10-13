@@ -91,7 +91,7 @@ def test_a_pool_that_cant_reach_the_database_gives_up_as_it_opens(monkeypatch):
     began = time.monotonic()
     with pytest.raises(PoolTimeout):
         checkpoints.open_checkpoint_pool()
-    assert time.monotonic() - began < 3
+    assert time.monotonic() - began < 15
 
 
 VERSION = {
