@@ -108,7 +108,8 @@ def test_an_unknown_claim(serve):
 def test_start_a_dispatch(client, serve):
     ids = ["CLM-1001", "CLM-1003", "CLM-1004"]
     leave_waiting(*ids)
-    model = swarm({claim_id: decide("refer", 0) for claim_id in ids}, pause=0.05)
+    scripts = {claim_id: decide("refer", 0) for claim_id in ids}
+    model = swarm(scripts, pause=0.05, fill=2)
     response = start_dispatch(serve(model), 2)
     assert response.status_code == 202
     assert response.json() == {"status": "accepted"}
