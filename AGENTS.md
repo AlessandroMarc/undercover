@@ -70,7 +70,7 @@ The course has 15 days over three weeks. Each day has a lecture, and from Week 1
 - **Week 2, Become an AI Architect:** Agent Architecture, Evals, Observability; Agentic RAG, MCP, Memory; Durable State & Human in the Loop; Agent Swarms; Self-Improvement, RSI
 - **Week 3, Become an AI FDE:** AI Solutions Architect; Security, Guardrails, API Gateways; Enterprise Context Layer & Integrations; Production Deployment; Capstone
 
-When the student has questions about the course, what a day covers or what it's for, read `setup/AGENT_COURSE_GUIDE.md`. When the student wants to share their work in a pull request, or to pull the latest code, read `setup/AGENT_GIT_GUIDE.md`. `README.md` lists each day's labs, briefs and branches, and `setup/INSTRUCTIONS.md` has the installation steps.
+When the student has questions about the course, what a day covers or what it's for, read `guides/for_agents/AGENT_COURSE_GUIDE.md`, which says which week's guide covers each day. When the student wants to share their work in a pull request, or to pull the latest code, read `guides/for_agents/AGENT_GIT_GUIDE.md`. `README.md` lists each day's labs, briefs and branches, and `setup/INSTRUCTIONS.md` has the installation steps.
 
 ### The labs
 
