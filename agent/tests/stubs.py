@@ -46,19 +46,24 @@ class StubModel(GenericFakeChatModel):
 class SwarmModel(StubModel):
     """A stub model for claim agents working at once: each claim follows its own
     script, chosen by the claim named in its first message. It pauses a little in
-    each reply, and counts the claims it is working on at once."""
+    each reply, and counts the claims it is working on at once. With a fill, each
+    reply first waits, for up to five seconds, until that many claims have been in
+    at once, so the count doesn't depend on how quickly the threads start."""
 
     scripts: dict[str, Iterator[Any]]
     pause: float = 0.0
+    fill: int = 0
     at_once: int = 0
     most_at_once: int = 0
-    _lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+    _lock: threading.Condition = PrivateAttr(default_factory=threading.Condition)
 
     def next_reply(self, messages):
         claim_id = messages[1].content.removeprefix("Claim ")
         with self._lock:
             self.at_once += 1
             self.most_at_once = max(self.most_at_once, self.at_once)
+            self._lock.notify_all()
+            self._lock.wait_for(lambda: self.most_at_once >= self.fill, timeout=5)
         time.sleep(self.pause)
         with self._lock:
             self.at_once -= 1
@@ -72,10 +77,10 @@ def stub(*replies):
     return StubModel(messages=iter(replies))
 
 
-def swarm(scripts, pause=0.0):
+def swarm(scripts, pause=0.0, fill=0):
     """A stub model with a script of replies for each claim."""
     each = {claim_id: iter(replies) for claim_id, replies in scripts.items()}
-    return SwarmModel(messages=iter(()), scripts=each, pause=pause)
+    return SwarmModel(messages=iter(()), scripts=each, pause=pause, fill=fill)
 
 
 def call(name, text="", **args):
