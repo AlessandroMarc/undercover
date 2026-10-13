@@ -80,7 +80,7 @@ Follow the order in section 10 of the wording.
 3. Take off the deductible, if the benefit has one. The deductible applies to Baggage and Personal Effects and to Emergency Medical, once per claim.
 4. Cap the result at the maximum for the benefit. For Trip Cancellation and Interruption the cap is the trip cost on the policy or the plan maximum, whichever is lower.
 
-If the result is zero or less, the claim is approved with a payout of $0 and the letter explains why.
+If the result is zero or less, the claim is declined and the letter explains why.
 
 **Worked example 1.** A customer on Economy has a bag stolen with a police report on file. The bag held a jacket claimed at $220, boots claimed at $140 and a book claimed at $25. The per-item limit on Economy is $150, so the jacket counts at $150, the boots at $140 and the book at $25, a total of $315. Nobody else has paid anything. The Economy deductible of $100 comes off. The payout is $215.
 
