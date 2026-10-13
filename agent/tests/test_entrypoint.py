@@ -227,7 +227,8 @@ def test_a_payload_it_cant_read_gets_a_400_saying_why(serve, payload, error):
 def test_work_a_dispatch_the_app_created(client, serve):
     ids = ["CLM-1001", "CLM-1003", "CLM-1004"]
     leave_waiting(*ids)
-    model = swarm({claim_id: decide("refer", 0) for claim_id in ids}, pause=0.05)
+    scripts = {claim_id: decide("refer", 0) for claim_id in ids}
+    model = swarm(scripts, pause=0.05, fill=2)
     agent = serve(model)
     response = agent.invoke(work_run(new_dispatch(2)["run_id"]))
     assert (response.status_code, response.json()) == (200, ACCEPTED)
