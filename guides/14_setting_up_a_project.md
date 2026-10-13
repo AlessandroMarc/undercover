@@ -32,7 +32,7 @@ Run everything through uv so that it uses the project's `.venv`:
 
 ```bash
 uv run pytest
-uv run uvicorn backend.main:app --reload
+uv run -m uvicorn backend.main:app --reload
 ```
 
 When you clone a uv project, `uv sync` installs everything in `uv.lock`.
@@ -69,7 +69,7 @@ The `scripts` section of `package.json` gives names to the commands you run ofte
 ```json
 "scripts": {
   "prepare": "lefthook install && playwright install chromium",
-  "dev:backend": "uv run uvicorn backend.main:app --reload --reload-dir backend",
+  "dev:backend": "uv run -m uvicorn backend.main:app --reload --reload-dir backend",
   "check:python": "uv run ruff format --check && uv run ruff check && pyright --threads && uv run pytest -q -n auto --dist worksteal"
 }
 ```
