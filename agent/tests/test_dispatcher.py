@@ -60,7 +60,8 @@ def test_the_tests_retry_without_waiting():
 def test_never_more_than_n_claim_agents_at_once(client):
     ids = ["CLM-1001", "CLM-1003", "CLM-1004", "CLM-1005", "CLM-1006", "CLM-1007"]
     leave_waiting(*ids)
-    model = swarm({claim_id: decide("refer", 0) for claim_id in ids}, pause=0.05)
+    scripts = {claim_id: decide("refer", 0) for claim_id in ids}
+    model = swarm(scripts, pause=0.05, fill=3)
     reports = dispatch(model, agents=3)
 
     assert model.most_at_once == 3
