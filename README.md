@@ -29,7 +29,7 @@ Just ask your coding agent (Cursor, Claude Code, etc.). I've equipped it with fu
 
 ## Sharing your work
 
-I'd love to see what you build! Please share it with a pull request to `community_contributions`. The steps for that, and for pulling the latest code, are in [setup/AGENT_GIT_GUIDE.md](setup/AGENT_GIT_GUIDE.md), and your coding agent can take you through them.
+I'd love to see what you build! Please share it with a pull request to `community_contributions`. The steps for that, and for pulling the latest code, are in [guides/for_agents/AGENT_GIT_GUIDE.md](guides/for_agents/AGENT_GIT_GUIDE.md), and your coding agent can take you through them.
 
 ## The journey
 
