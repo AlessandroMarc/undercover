@@ -328,7 +328,8 @@ def put_target(gateway_id, settings):
         else:
             target_id = agentcore.create_gateway_target(gatewayIdentifier=gateway_id, **settings)["targetId"]
         target = wait_for(lambda: agentcore.get_gateway_target(gatewayIdentifier=gateway_id, targetId=target_id), f"Target {settings['name']}")
-        if target["status"] == "READY" or "role" not in " ".join(target.get("statusReasons", [])):
+        reasons = " ".join(target.get("statusReasons", []))
+        if target["status"] == "READY" or ("role" not in reasons and "Authorization" not in reasons):
             return target
         print("Waiting for the Gateway's role to reach AgentCore")
         time.sleep(10)
