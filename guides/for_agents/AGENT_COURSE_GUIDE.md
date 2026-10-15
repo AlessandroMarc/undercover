@@ -35,3 +35,7 @@ Each week has a guide of its own, with the week's learning objectives and, for e
 - **Week 1: Become an AI Engineer**, in `guides/for_agents/AGENT_GUIDE_WEEK1.md`: Path to FDE; Frontier LLMs & Agents; Coding Agents & ADLC; Open-Source, Local, Token Cost; Harness Engineering
 - **Week 2: Become an AI Architect**, in `guides/for_agents/AGENT_GUIDE_WEEK2.md`: Agent Architecture, Evals, Observability; Agentic RAG, MCP, Memory; Durable State & Human in the Loop; Agent Swarms; Self-Improvement, RSI
 - **Week 3: Become an AI FDE**, in `guides/for_agents/AGENT_GUIDE_WEEK3.md`: AI Solutions Architect; Security, Guardrails, API Gateways; Enterprise Context Layer & Integrations; Production Deployment; Capstone
+
+## The free route
+
+Every day has a free alternative, so a student can take the course without spending anything. `guides/for_agents/AGENT_GUIDE_FREE.md` lists the free version of each lab in Weeks 1 and 2, and covers Week 3's Render route in detail: the three services, Render's screens, free instances, each day and common problems. Read it when the student is on free models or deploying to Render instead of AWS.
