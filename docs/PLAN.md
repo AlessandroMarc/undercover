@@ -63,15 +63,15 @@ Adds the operations that change state, with the $1,000 rule enforced in the back
 
 Success criteria:
 
-- [ ] `uv run pytest backend -q` passes with tests for every transition and every refusal below.
-- [ ] Deciding approve with a $420 payout on CLM-1001 gives status `decided`; `pay_claim` for $420 succeeds and `get_claim` shows the payment.
-- [ ] Deciding approve with a $1,250 payout on a claim gives status `awaiting_signoff`, and `pay_claim` for $1,250 returns 409 and records no payment. This is the "even if the agent tries to pay" rule.
-- [ ] A payment for a different amount than the approved payout, a payment on a declined or referred claim, and a second payment all return 409.
-- [ ] `sign_off_claim` with an unknown handler returns 404. With a valid handler it records the sign-off and the payment, and the claim becomes `decided`. On a claim that is not `awaiting_signoff` it returns 409.
-- [ ] Deciding twice returns 409. A decline with a payout above zero returns 422.
-- [ ] Steps come back in the order they were added, each with a timestamp.
-- [ ] I start the backend with `uv run -m uvicorn backend.main:app`, walk one claim through start, steps, decision, payment with `curl`, and the responses match the above. I then delete the database file.
-- [ ] `npm run check:python` passes.
+- [x] `uv run pytest backend -q` passes with tests for every transition and every refusal below.
+- [x] Deciding approve with a $420 payout on CLM-1001 gives status `decided`; `pay_claim` for $420 succeeds and `get_claim` shows the payment.
+- [x] Deciding approve with a $1,250 payout on a claim gives status `awaiting_signoff`, and `pay_claim` for $1,250 returns 409 and records no payment. This is the "even if the agent tries to pay" rule.
+- [x] A payment for a different amount than the approved payout, a payment on a declined or referred claim, and a second payment all return 409.
+- [x] `sign_off_claim` with an unknown handler returns 404. With a valid handler it records the sign-off and the payment, and the claim becomes `decided`. On a claim that is not `awaiting_signoff` it returns 409.
+- [x] Deciding twice returns 409. A decline with a payout above zero returns 422.
+- [x] Steps come back in the order they were added, each with a timestamp.
+- [x] I start the backend with `uv run -m uvicorn backend.main:app`, walk one claim through start, steps, decision, payment with `curl`, and the responses match the above. I then delete the database file.
+- [x] `npm run check:python` passes.
 
 ## Phase 3: The agent
 

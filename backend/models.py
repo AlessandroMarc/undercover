@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 Status = Literal["waiting", "in_progress", "awaiting_signoff", "decided"]
 DecisionKind = Literal["approve", "decline", "refer"]
+StepKind = Literal["tool_call", "tool_result", "message"]
 
 
 class Item(BaseModel):
@@ -27,6 +28,17 @@ class Decision(BaseModel):
     policy_section: str
 
 
+class Payment(BaseModel):
+    amount: float
+    paid_on: str
+
+
+class SignOff(BaseModel):
+    handler_id: str
+    handler_name: str
+    signed_off_on: str
+
+
 class Claim(BaseModel):
     claim_id: str
     policy_id: str
@@ -42,6 +54,8 @@ class Claim(BaseModel):
     documents: list[Document]
     status: Status
     decision: Decision | None
+    payment: Payment | None
+    sign_off: SignOff | None
 
 
 class ClaimSummary(BaseModel):
@@ -111,3 +125,21 @@ class Handler(BaseModel):
     name: str
     role: str
     can_approve_over_limit: bool
+
+
+class NewStep(BaseModel):
+    kind: StepKind
+    text: str
+
+
+class Step(NewStep):
+    id: int
+    created_at: str
+
+
+class NewPayment(BaseModel):
+    amount: float
+
+
+class NewSignOff(BaseModel):
+    handler_id: str

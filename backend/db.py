@@ -21,7 +21,21 @@ CREATE TABLE IF NOT EXISTS claims (
     decision TEXT,
     payout REAL,
     explanation TEXT,
-    policy_section TEXT
+    policy_section TEXT,
+    signed_off_by TEXT,
+    signed_off_on TEXT
+);
+CREATE TABLE IF NOT EXISTS payments (
+    claim_id TEXT PRIMARY KEY,
+    amount REAL NOT NULL,
+    paid_on TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS steps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    claim_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    text TEXT NOT NULL,
+    created_at TEXT NOT NULL
 );
 """
 
