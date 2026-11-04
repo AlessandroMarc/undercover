@@ -101,17 +101,17 @@ Builds the three screens in the BRAND style. No new dependencies; navigation is 
 - **Queue** (`#/`): every claim with id, customer name, claim type, amount claimed, a status chip (waiting, in progress, waiting for sign-off, decided), and the decision and payout once there is one. Refreshes every few seconds so the handlers see it move.
 - **Claim** (`#/claims/CLM-1001`): the story, the items and the documents, the policy and plan, the customer's claim history, the agent's decision, payout, explanation and policy section, the steps as they happen (refreshing while the claim is in progress), and for a claim waiting for sign-off a "Sign off" action with a handler picker.
 - **Instructions** (`#/instructions`): the agent's instructions, rendered read only.
-- Brand: Instrument Sans for text, Instrument Serif for the page tagline, JetBrains Mono for ids and amounts; Sea Green, Marigold, Coral, Cerulean and Raspberry as the brand sets out; light and dark mode from the system setting; rounded panels with no outlines; no single-edge borders; money like $1,250.00; plain US English.
+- Brand, from the updated `docs/BRAND.md`: the type scale in Instrument Sans, one Instrument Serif tagline on the queue, JetBrains Mono with tabular figures for every amount, date, count and ID; status badges as flat 16% tints with an icon and a label (Waiting is Cerulean, In progress is Marigold, Needs sign-off is Coral, and a decided claim shows its decision: Approved is Sea Green, Declined is Raspberry, Referred is Coral); the readable text variants in each mode; 16 px panels with no outlines, 48 px table rows with a hover tint and no dividing lines; a 2 px focus ring; light and dark mode from the system setting; money like $1,250.00 and dates like Nov 4, 2026; plain US English in sentence case.
 - TypeScript strict, no `any`. A small typed API client and types that mirror the backend models.
 
 Success criteria:
 
-- [ ] `npm run check:ts` passes: Prettier, ESLint, `tsc` and vitest with coverage at 80% or more.
-- [ ] Unit tests cover the status chips, money formatting, the queue rows, the claim page for a waiting claim, a decided claim and an awaiting sign-off claim, and the sign-off action calling the API.
-- [ ] With the backend and dashboard running (`npm run dev`) I open `http://localhost:5173` with the Playwright MCP server: the queue lists 25 claims, all waiting. I take a screenshot in light and dark mode and check the colors, fonts and rounded panels against `docs/BRAND.md`.
-- [ ] I open CLM-1001 in the browser: the story, items, documents, policy and customer history show, and there is no decision yet.
-- [ ] I open `#/instructions` in the browser: the instructions show and there is no way to edit them.
-- [ ] No page uses a border on one edge of a panel, and none has an exclamation mark.
+- [x] `npm run check:ts` passes: Prettier, ESLint, `tsc` and vitest with coverage at 80% or more.
+- [x] Unit tests cover the status chips, money formatting, the queue rows, the claim page for a waiting claim, a decided claim and an awaiting sign-off claim, and the sign-off action calling the API.
+- [x] With the backend and dashboard running (`npm run dev`) I open `http://localhost:5173` with the Playwright MCP server: the queue lists 25 claims, all waiting. I take a screenshot in light and dark mode and check the colors, fonts and rounded panels against `docs/BRAND.md`.
+- [x] I open CLM-1001 in the browser: the story, items, documents, policy and customer history show, and there is no decision yet.
+- [x] I open `#/instructions` in the browser: the instructions show and there is no way to edit them.
+- [x] No page uses a border on one edge of a panel, and none has an exclamation mark.
 
 ## Phase 5: End to end, documents and the final check
 
