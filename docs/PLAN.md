@@ -128,11 +128,11 @@ Proves the whole thing works together and leaves the repo documented.
 
 Success criteria:
 
-- [ ] `npm run e2e` passes, with the four scenarios above.
-- [ ] The e2e run does not touch `backend/undercover.db`; it uses its own database file.
-- [ ] `docs/STATUS.md` describes the real state of the pilot and how to run and reset it.
-- [ ] `npm run check` passes in full: ruff, pyright, pytest at 80% or more coverage, Prettier, ESLint, `tsc`, vitest at 80% or more coverage, and Playwright.
-- [ ] `git status` is clean after the final commit, no commit used `--no-verify`, and nothing was pushed.
+- [x] `npm run e2e` passes, with the four scenarios above.
+- [x] The e2e run does not touch `backend/undercover.db`; it uses its own database file.
+- [x] `docs/STATUS.md` describes the real state of the pilot and how to run and reset it.
+- [x] `npm run check` passes in full: ruff, pyright, pytest at 80% or more coverage, Prettier, ESLint, `tsc`, vitest at 80% or more coverage, and Playwright.
+- [x] `git status` is clean after the final commit, no commit used `--no-verify`, and nothing was pushed.
 
 ## After the plan is approved
 
