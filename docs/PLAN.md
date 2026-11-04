@@ -85,14 +85,14 @@ Turns the hello-world agent into the UnderCover Agent, still one entry point `ru
 
 Success criteria:
 
-- [ ] `uv run pytest agent -q` passes. Tests use a scripted stub model and never call a real model.
-- [ ] A stub run that reads CLM-1001's data, decides approve for $420 and pays leaves the claim `decided` with the payment recorded and with steps for each tool call.
-- [ ] A stub run that tries to pay $1,250 on an approved claim gets a 409 from the backend, the claim stays `awaiting_signoff`, and the refusal appears as a step.
-- [ ] A stub run that decides decline leaves the claim `decided` with no payment.
-- [ ] A test checks that the agent module has no tool or code path that reads `data/` files, and that it fetches its instructions from the API.
-- [ ] A test runs `agent.work` on a claim id that does not exist (`CLM-0000`) and it stops with a clear message that the claim was not found.
-- [ ] `npm run check:python` passes.
-- [ ] Manual check, not a test: with `MODEL_NAME=openrouter/free` set, `npm run agent -- CLM-1001` against a fresh backend records a decision, an explanation naming a policy section, and steps. I report what it decided; I do not compare it to the handlers' decisions.
+- [x] `uv run pytest agent -q` passes. Tests use a scripted stub model and never call a real model.
+- [x] A stub run that reads CLM-1001's data, decides approve for $420 and pays leaves the claim `decided` with the payment recorded and with steps for each tool call.
+- [x] A stub run that tries to pay $1,250 on an approved claim gets a 409 from the backend, the claim stays `awaiting_signoff`, and the refusal appears as a step.
+- [x] A stub run that decides decline leaves the claim `decided` with no payment.
+- [x] A test checks that the agent module has no tool or code path that reads `data/` files, and that it fetches its instructions from the API.
+- [x] A test runs `agent.work` on a claim id that does not exist (`CLM-0000`) and it stops with a clear message that the claim was not found.
+- [x] `npm run check:python` passes.
+- [x] Manual check, not a test: with `MODEL_NAME=openrouter/free` set, `npm run agent -- CLM-1001` against a fresh backend records a decision, an explanation naming a policy section, and steps. I report what it decided; I do not compare it to the handlers' decisions.
 
 ## Phase 4: The dashboard
 
