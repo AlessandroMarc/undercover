@@ -1,23 +1,39 @@
 import { getQueue } from "./api";
 import { formatCount, formatMoney, humanize } from "./format";
-import { StatusBadge } from "./StatusBadge";
+import type { IconName, Tone } from "./status";
+import { StatusBadge, ToneBadge } from "./StatusBadge";
 import type { ClaimSummary, Status } from "./types";
 import { useLoad } from "./useLoad";
 
 const REFRESH_MS = 3000;
-const STATES: { status: Status; label: string }[] = [
-  { status: "waiting", label: "Waiting" },
-  { status: "in_progress", label: "In progress" },
-  { status: "awaiting_signoff", label: "Needs sign-off" },
-  { status: "decided", label: "Decided" },
+const STATES: {
+  status: Status;
+  label: string;
+  tone: Tone;
+  icon: IconName;
+}[] = [
+  { status: "waiting", label: "Waiting", tone: "cerulean", icon: "dot" },
+  {
+    status: "in_progress",
+    label: "In progress",
+    tone: "marigold",
+    icon: "clock",
+  },
+  {
+    status: "awaiting_signoff",
+    label: "Needs sign-off",
+    tone: "coral",
+    icon: "pen",
+  },
+  { status: "decided", label: "Decided", tone: "green", icon: "check" },
 ];
 
 function Counts({ claims }: Readonly<{ claims: ClaimSummary[] }>) {
   return (
-    <section className="panel counts" aria-label="Queue summary">
-      {STATES.map(({ status, label }) => (
-        <div className="nested" key={status}>
-          <span className="label">{label}</span>
+    <section className="counts" aria-label="Queue summary">
+      {STATES.map(({ status, label, tone, icon }) => (
+        <div className="panel stat" key={status}>
+          <ToneBadge tone={tone} icon={icon} label={label} />
           <span className="figure">
             {claims.filter((claim) => claim.status === status).length}
           </span>
@@ -29,9 +45,11 @@ function Counts({ claims }: Readonly<{ claims: ClaimSummary[] }>) {
 
 function Row({ claim }: Readonly<{ claim: ClaimSummary }>) {
   return (
-    <tr>
+    <tr data-attention={claim.status === "awaiting_signoff" || undefined}>
       <td className="mono">
-        <a href={`#/claims/${claim.claim_id}`}>{claim.claim_id}</a>
+        <a className="row-link" href={`#/claims/${claim.claim_id}`}>
+          {claim.claim_id}
+        </a>
       </td>
       <td>{claim.customer_name}</td>
       <td>{humanize(claim.claim_type)}</td>

@@ -1,4 +1,4 @@
-import { badgeFor, type IconName } from "./status";
+import { badgeFor, type IconName, type Tone } from "./status";
 import type { DecisionKind, Status } from "./types";
 
 const PATHS: Record<IconName, string> = {
@@ -29,6 +29,19 @@ export function Icon({ name }: Readonly<{ name: IconName }>) {
   );
 }
 
+export function ToneBadge({
+  tone,
+  icon,
+  label,
+}: Readonly<{ tone: Tone; icon: IconName; label: string }>) {
+  return (
+    <span className="badge" data-tone={tone}>
+      <Icon name={icon} />
+      {label}
+    </span>
+  );
+}
+
 interface Props {
   status: Status;
   decision: DecisionKind | null;
@@ -36,10 +49,5 @@ interface Props {
 
 export function StatusBadge({ status, decision }: Readonly<Props>) {
   const badge = badgeFor(status, decision);
-  return (
-    <span className="badge" data-tone={badge.tone}>
-      <Icon name={badge.icon} />
-      {badge.label}
-    </span>
-  );
+  return <ToneBadge tone={badge.tone} icon={badge.icon} label={badge.label} />;
 }
