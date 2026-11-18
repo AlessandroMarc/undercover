@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { getPolicyView } from "./api";
 import { formatDate, formatMoney, humanize } from "./format";
 import type { Claim } from "./types";
@@ -75,10 +76,12 @@ export function ClaimPanel({ claim }: Readonly<{ claim: Claim }>) {
 }
 
 export function PolicyPanel({ claim }: Readonly<{ claim: Claim }>) {
-  const { data, failed } = useLoad(
-    () => getPolicyView(claim.policy_id, claim.customer_id),
-    null,
+  const { policy_id: policyId, customer_id: customerId } = claim;
+  const load = useCallback(
+    () => getPolicyView(policyId, customerId),
+    [policyId, customerId],
   );
+  const { data, failed } = useLoad(load, null);
 
   return (
     <section className="panel">

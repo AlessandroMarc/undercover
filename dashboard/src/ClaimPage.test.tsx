@@ -150,3 +150,16 @@ it("says what happened when the claim does not exist", async () => {
     "We could not load this claim.",
   );
 });
+
+it("loads the policy and the customer once, not on every render", async () => {
+  const fetchMock = stubApi(claimRoutes(decided));
+  render(<ClaimPage claimId="CLM-1001" />);
+  await screen.findByText("CLM-0412");
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  const requested = (path: string) =>
+    fetchMock.mock.calls.filter(([url]) => url === path).length;
+  expect(requested("/api/policies/POL-2001")).toBe(1);
+  expect(requested("/api/customers/CUS-3001")).toBe(1);
+  expect(requested("/api/handlers")).toBeLessThanOrEqual(1);
+});
