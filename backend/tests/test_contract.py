@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from fastapi.routing import APIRoute
@@ -5,7 +6,7 @@ from fastapi.routing import APIRoute
 from backend.main import app
 
 BACKEND = Path(__file__).parent.parent
-HIDDEN = ("evals", "data/security", "claims_manual")
+HIDDEN = ("evals", "data/security")
 
 
 def api_routes() -> list[APIRoute]:
@@ -48,3 +49,19 @@ def test_backend_never_reads_the_answer_key():
 def test_no_route_serves_hidden_files():
     for route in api_routes():
         assert not any(name in route.path for name in HIDDEN)
+
+
+def test_the_backend_reads_only_the_files_it_serves():
+    seed = (BACKEND / "seed.py").read_text(encoding="utf-8")
+    assert set(re.findall(r'"(\w+\.(?:json|md))"', seed)) == {
+        "claims.json",
+        "policies.json",
+        "customers.json",
+        "plans.json",
+        "handlers.json",
+        "company.json",
+        "policy_wording.md",
+        "claims_manual.md",
+        "instructions_queue.md",
+        "instructions_claim.md",
+    }

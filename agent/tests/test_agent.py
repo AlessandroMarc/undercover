@@ -100,14 +100,19 @@ def test_the_instructions_come_from_the_api(api, monkeypatch):
 
     monkeypatch.setattr(main, "create_agent", spy)
     main.run("CLM-1001", "thread-4", stub(AIMessage(content="Nothing to do.")))
-    assert seen["system_prompt"] == api.get("/api/instructions").text
+    assert seen["system_prompt"] == api.get("/api/instructions/claim").text
 
 
 def test_tools_return_data_and_refusals_as_text(api):
     assert "Maya Patel" in main.get_customer.invoke({"customer_id": "CUS-3001"})
     assert '"plan":"premium"' in main.get_policy.invoke({"policy_id": "POL-2001"})
     assert main.get_plan.invoke({"plan": "premium"}).startswith('{"plan":"premium"')
-    assert main.get_policy_wording.invoke({}).startswith("# UnderCover")
+    sections = main.list_sections.invoke({"document": "policy-wording"})
+    assert "Your plan" in sections
+    assert "Meals without receipts" in main.read_section.invoke(
+        {"document": "claims-manual", "number": 10}
+    )
+    assert "Repeat claims" in main.search_sections.invoke({"query": "third claim"})
     assert main.get_claim.invoke({"claim_id": "CLM-0000"}).startswith("Error 404")
 
 

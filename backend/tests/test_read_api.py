@@ -45,13 +45,44 @@ def test_get_customer_has_history_but_no_contact_details(client):
         assert private not in customer
 
 
-def test_get_policy_wording(client):
-    response = client.get("/api/policy-wording")
-    assert response.text.startswith("# UnderCover Travel Insurance: Policy Wording")
+def test_sections_list_the_contents_of_each_document(client):
+    wording = client.get("/api/documents/policy-wording/sections").json()
+    assert len(wording) == 12
+    assert wording[0] == {
+        "document": "policy-wording",
+        "number": 1,
+        "title": "Your plan",
+    }
+    manual = client.get("/api/documents/claims-manual/sections").json()
+    assert len(manual) == 14
+    assert manual[0]["title"] == "Purpose and scope"
+
+
+def test_get_section_returns_just_that_section(client):
+    section = client.get("/api/documents/claims-manual/sections/10").json()
+    assert section["title"] == "Meals without receipts"
+    assert "## " not in section["text"]
+    assert "Customer data" not in section["text"]
+
+
+def test_unknown_sections_and_documents(client):
+    assert client.get("/api/documents/claims-manual/sections/99").status_code == 404
+    assert client.get("/api/documents/other/sections").status_code == 422
+
+
+def test_search_finds_sections_without_their_text(client):
+    hits = client.get("/api/sections", params={"query": "wild animals"}).json()
+    assert any(hit["document"] == "claims-manual" for hit in hits)
+    assert all(set(hit) == {"document", "number", "title"} for hit in hits)
+    assert client.get("/api/sections", params={"query": "zzzxqj"}).json() == []
+    assert client.get("/api/sections", params={"query": " "}).json() == []
 
 
 def test_get_instructions(client):
-    assert client.get("/api/instructions").text.strip()
+    for agent in ("queue", "claim"):
+        assert client.get(f"/api/instructions/{agent}").text.strip()
+    assert client.get("/api/instructions/other").status_code == 422
+    assert client.get("/api/policy-wording").status_code == 404
 
 
 def test_list_handlers(client):

@@ -8,6 +8,9 @@ Status = Literal["waiting", "in_progress", "awaiting_signoff", "decided"]
 DecisionKind = Literal["approve", "decline", "refer"]
 StepKind = Literal["tool_call", "tool_result", "message"]
 
+DocumentName = Literal["policy-wording", "claims-manual"]
+AgentName = Literal["queue", "claim"]
+
 
 class Item(BaseModel):
     description: str
@@ -143,3 +146,13 @@ class NewPayment(BaseModel):
 
 class NewSignOff(BaseModel):
     handler_id: str
+
+
+class SectionRef(BaseModel):
+    document: DocumentName
+    number: int
+    title: str
+
+
+class Section(SectionRef):
+    text: str

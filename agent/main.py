@@ -2,6 +2,7 @@
 
 import os
 from typing import Literal
+from urllib.parse import quote
 
 import httpx
 from dotenv import load_dotenv
@@ -63,9 +64,23 @@ def get_plan(plan: str) -> str:
 
 
 @tool
-def get_policy_wording() -> str:
-    """Get the policy wording, the contract with the customer."""
-    return call("GET", "/api/policy-wording")
+def list_sections(document: Literal["policy-wording", "claims-manual"]) -> str:
+    """List the numbered sections of the policy wording or the claims manual."""
+    return call("GET", f"/api/documents/{document}/sections")
+
+
+@tool
+def search_sections(query: str) -> str:
+    """Find the sections of the wording and the manual that contain every word."""
+    return call("GET", f"/api/sections?query={quote(query)}")
+
+
+@tool
+def read_section(
+    document: Literal["policy-wording", "claims-manual"], number: int
+) -> str:
+    """Read one numbered section of the policy wording or the claims manual."""
+    return call("GET", f"/api/documents/{document}/sections/{number}")
 
 
 @tool
@@ -97,7 +112,9 @@ TOOLS = [
     get_policy,
     get_customer,
     get_plan,
-    get_policy_wording,
+    list_sections,
+    search_sections,
+    read_section,
     decide_claim,
     pay_claim,
 ]
@@ -138,7 +155,7 @@ def run(claim_id: str, thread_id: str, llm: BaseChatModel | None = None) -> str:
         started = client.post(f"/api/claims/{claim_id}/start")
         if started.is_error:
             raise ClaimError(f"{claim_id}: {started.json()['detail']}")
-        instructions = client.get("/api/instructions").text
+        instructions = client.get("/api/instructions/claim").text
         agent = create_agent(llm or model(), tools=TOOLS, system_prompt=instructions)
         reply = ""
         for update in agent.stream(

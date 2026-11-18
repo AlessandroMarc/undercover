@@ -12,10 +12,12 @@ from fastapi.responses import PlainTextResponse
 
 from backend.db import connect, get_db
 from backend.models import (
+    AgentName,
     Claim,
     ClaimSummary,
     Customer,
     Decision,
+    DocumentName,
     Handler,
     NewPayment,
     NewSignOff,
@@ -23,6 +25,8 @@ from backend.models import (
     Payment,
     Plan,
     Policy,
+    Section,
+    SectionRef,
     SignOff,
     Step,
 )
@@ -277,24 +281,53 @@ def get_plan(plan: str, db: Db) -> Plan:
     return Plan.model_validate_json(document(db, "plans", plan))
 
 
-@app.get(
-    "/api/policy-wording",
-    operation_id="get_policy_wording",
-    response_class=PlainTextResponse,
-)
-def get_policy_wording(db: Db) -> str:
-    """Get the policy wording, the contract with the customer."""
-    return setting(db, "policy_wording")
+@app.get("/api/documents/{document}/sections", operation_id="list_sections")
+def list_sections(document: DocumentName, db: Db) -> list[SectionRef]:
+    """List the numbered sections of a document, as numbers and titles."""
+    rows = db.execute(
+        "SELECT document, number, title FROM sections WHERE document = ?"
+        " ORDER BY number",
+        (document,),
+    ).fetchall()
+    return [SectionRef(**row) for row in rows]
+
+
+@app.get("/api/documents/{document}/sections/{number}", operation_id="get_section")
+def get_section(document: DocumentName, number: int, db: Db) -> Section:
+    """Get the text of one numbered section of a document."""
+    row = db.execute(
+        "SELECT document, number, title, body AS text FROM sections"
+        " WHERE document = ? AND number = ?",
+        (document, number),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, f"{document} has no section {number}")
+    return Section(**row)
+
+
+@app.get("/api/sections", operation_id="search_sections")
+def search_sections(query: str, db: Db) -> list[SectionRef]:
+    """Find the sections of both documents that contain every word of the query."""
+    words = [f"%{word.lower()}%" for word in query.split()]
+    if not words:
+        return []
+    rows = db.execute(
+        "SELECT document, number, title FROM sections WHERE "  # noqa: S608
+        + " AND ".join(["lower(title || ' ' || body) LIKE ?"] * len(words))
+        + " ORDER BY document, number",
+        words,
+    ).fetchall()
+    return [SectionRef(**row) for row in rows]
 
 
 @app.get(
-    "/api/instructions",
+    "/api/instructions/{agent}",
     operation_id="get_instructions",
     response_class=PlainTextResponse,
 )
-def get_instructions(db: Db) -> str:
-    """Get the UnderCover Agent's instructions."""
-    return setting(db, "instructions")
+def get_instructions(agent: AgentName, db: Db) -> str:
+    """Get the instructions of the queue agent or the claim agent."""
+    return setting(db, f"instructions_{agent}")
 
 
 @app.get("/api/handlers", operation_id="list_handlers")
