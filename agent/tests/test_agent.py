@@ -1,44 +1,10 @@
 from pathlib import Path
 
 import pytest
-from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
 
-from agent import main, work
-
-
-class StubModel(GenericFakeChatModel):
-    """A chat model that gives scripted replies in place of a real model."""
-
-    def bind_tools(self, tools, **kwargs):
-        return self
-
-
-def calls(*tool_calls: tuple[str, dict]) -> AIMessage:
-    return AIMessage(
-        content="",
-        tool_calls=[
-            {"name": name, "args": args, "id": f"call-{index}"}
-            for index, (name, args) in enumerate(tool_calls)
-        ],
-    )
-
-
-def stub(*replies: AIMessage) -> StubModel:
-    return StubModel(messages=iter(replies))
-
-
-def decision(claim_id, kind, payout):
-    return (
-        "decide_claim",
-        {
-            "claim_id": claim_id,
-            "decision": kind,
-            "payout": payout,
-            "explanation": "Covered by the plan.",
-            "policy_section": "3. Trip Delay",
-        },
-    )
+from agent import harness, main, work
+from agent.tests.stubs import calls, decision, stub
 
 
 def test_approve_under_the_limit_and_pay(api):
@@ -58,6 +24,23 @@ def test_approve_under_the_limit_and_pay(api):
     assert kinds == ["tool_call", "tool_result"] * 3 + ["message"]
     assert steps[0]["text"] == "get_claim(claim_id='CLM-1001')"
     assert steps[1]["text"].startswith("get_claim: ")
+
+
+def test_reading_a_section_is_recorded_as_a_read_step(api):
+    llm = stub(
+        calls(("search_sections", {"query": "meals"})),
+        calls(("read_section", {"document": "claims-manual", "number": 10})),
+        calls(("read_section", {"document": "claims-manual", "number": 99})),
+        AIMessage(content="Looked it up."),
+    )
+    main.run("CLM-1001", "thread-read", llm)
+    steps = api.get("/api/claims/CLM-1001/steps").json()
+    reads = [step["text"] for step in steps if step["kind"] == "read"]
+    assert reads == ["Claims manual, 10. Meals without receipts"]
+    assert any(
+        step["kind"] == "tool_result" and step["text"].startswith("read_section: Error")
+        for step in steps
+    )
 
 
 def test_a_payout_over_the_limit_is_blocked(api):
@@ -117,15 +100,16 @@ def test_tools_return_data_and_refusals_as_text(api):
 
 
 def test_the_agent_reads_no_files():
-    source = Path(main.__file__).read_text(encoding="utf-8")
-    for forbidden in ("data/", "read_text", "open(", "evals"):
-        assert forbidden not in source
+    for module in (main, harness):
+        source = Path(str(module.__file__)).read_text(encoding="utf-8")
+        for forbidden in ("data/", "read_text", "open(", "evals"):
+            assert forbidden not in source, (module.__name__, forbidden)
 
 
 def test_model_name(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.delenv("MODEL_NAME", raising=False)
-    assert main.model().model_name == "openai/gpt-6-luna"
+    assert main.model().model_name == "deepseek/deepseek-v4.1-flash"
     monkeypatch.setenv("MODEL_NAME", "openrouter/free")
     assert main.model().model_name == "openrouter/free"
 

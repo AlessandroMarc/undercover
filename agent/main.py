@@ -1,12 +1,18 @@
 """The UnderCover Agent."""
 
+import json
 import os
+from collections.abc import Iterable, Iterator
 from typing import Literal
 from urllib.parse import quote
 
 import httpx
 from dotenv import load_dotenv
 from langchain.agents import create_agent
+from langchain.agents.middleware import (
+    ModelCallLimitMiddleware,
+    ModelRetryMiddleware,
+)
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, AnyMessage, ToolMessage
 from langchain_core.tools import tool
@@ -17,7 +23,10 @@ load_dotenv(override=True)
 
 BACKEND_URL = "http://localhost:8000"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "openai/gpt-6-luna"
+DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash"
+RETRY_DELAY = 1.0
+CALL_LIMIT = 30
+DOCUMENT_NAMES = {"policy-wording": "Policy wording", "claims-manual": "Claims manual"}
 MAX_RESULT_CHARS = 400
 
 
@@ -121,7 +130,7 @@ TOOLS = [
 
 
 def model() -> ChatOpenAI:
-    """Return the model named in MODEL_NAME, or GPT-6 Luna by default."""
+    """Return the model named in MODEL_NAME, or DeepSeek V4.1 Flash by default."""
     name = os.getenv("MODEL_NAME")
     return ChatOpenAI(
         model=name or DEFAULT_MODEL,
@@ -131,10 +140,24 @@ def model() -> ChatOpenAI:
     )
 
 
+def middleware():
+    """Retry a failed model call, and stop an agent that keeps calling the model."""
+    return [
+        ModelRetryMiddleware(
+            max_retries=2, on_failure="error", initial_delay=RETRY_DELAY
+        ),
+        ModelCallLimitMiddleware(run_limit=CALL_LIMIT, exit_behavior="error"),
+    ]
+
+
 def steps_from(message: AnyMessage) -> list[tuple[str, str]]:
     """Turn one message of the agent's work into steps for the dashboard."""
     if isinstance(message, ToolMessage):
         text = str(message.content)
+        if message.name == "read_section" and not text.startswith("Error"):
+            section = json.loads(text)
+            name = DOCUMENT_NAMES[section["document"]]
+            return [("read", f"{name}, {section['number']}. {section['title']}")]
         if len(text) > MAX_RESULT_CHARS:
             text = text[:MAX_RESULT_CHARS] + "..."
         return [("tool_result", f"{message.name}: {text}")]
@@ -149,6 +172,13 @@ def steps_from(message: AnyMessage) -> list[tuple[str, str]]:
     return steps
 
 
+def messages_in(updates: Iterable[dict]) -> Iterator[AnyMessage]:
+    """Yield the messages of the agent's stream, skipping steps that add none."""
+    for update in updates:
+        for node in update.values():
+            yield from (node or {}).get("messages", [])
+
+
 def run(claim_id: str, thread_id: str, llm: BaseChatModel | None = None) -> str:
     """Run the agent on one claim and return its final reply."""
     with backend() as client:
@@ -156,20 +186,25 @@ def run(claim_id: str, thread_id: str, llm: BaseChatModel | None = None) -> str:
         if started.is_error:
             raise ClaimError(f"{claim_id}: {started.json()['detail']}")
         instructions = client.get("/api/instructions/claim").text
-        agent = create_agent(llm or model(), tools=TOOLS, system_prompt=instructions)
+        agent = create_agent(
+            llm or model(),
+            tools=TOOLS,
+            system_prompt=instructions,
+            middleware=middleware(),
+        )
         reply = ""
-        for update in agent.stream(
-            {"messages": [{"role": "user", "content": f"Claim {claim_id}"}]},
-            config={"configurable": {"thread_id": thread_id}},
-            stream_mode="updates",
+        for message in messages_in(
+            agent.stream(
+                {"messages": [{"role": "user", "content": f"Claim {claim_id}"}]},
+                config={"configurable": {"thread_id": thread_id}},
+                stream_mode="updates",
+            )
         ):
-            for node in update.values():
-                for message in node["messages"]:
-                    for kind, text in steps_from(message):
-                        client.post(
-                            f"/api/claims/{claim_id}/steps",
-                            json={"kind": kind, "text": text},
-                        ).raise_for_status()
-                    if isinstance(message, AIMessage):
-                        reply = message.text
+            for kind, text in steps_from(message):
+                client.post(
+                    f"/api/claims/{claim_id}/steps",
+                    json={"kind": kind, "text": text},
+                ).raise_for_status()
+            if isinstance(message, AIMessage):
+                reply = message.text
     return reply

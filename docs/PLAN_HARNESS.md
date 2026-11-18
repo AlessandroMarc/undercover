@@ -97,14 +97,14 @@ Turns the pilot's agent into the claim agent that the queue agent will hand clai
 
 Success criteria:
 
-- [ ] `uv run pytest agent -q` passes. The stub model can script an error as well as a reply, and tests never call a real model.
-- [ ] A stub run that searches the manual, reads a section, decides approve for $420 and pays leaves CLM-1001 `decided` with the payment, and its steps include a `read` step naming the manual and section.
-- [ ] A stub run that tries to pay $1,250 still gets the 409 and leaves the claim `awaiting_signoff`. A stub run that declines leaves no payment.
-- [ ] A stub model that raises on its first call, then works, still decides the claim (the retry middleware), with the delays set to zero in the test.
-- [ ] A stub model that always raises makes `work_claim` return a failure line, leaves the claim `waiting` with the reason as a step and `attempts` of 1, and a second failure leaves it `needs_handler`. A stub that never decides does the same. Neither raises out of `work_claim`.
-- [ ] A claim whose agent fails after deciding is not retried. An approval of $420 with no payment gets paid once by the harness, and a second `work_claim` call changes nothing. An approval over $1,000 is not paid.
-- [ ] A test checks that the instructions are fetched from the API, that no agent module reads files or mentions `evals`, and that the default model name is `deepseek/deepseek-v4.1-flash` and `MODEL_NAME` overrides it.
-- [ ] `npm run check:python` passes.
+- [x] `uv run pytest agent -q` passes. The stub model can script an error as well as a reply, and tests never call a real model.
+- [x] A stub run that searches the manual, reads a section, decides approve for $420 and pays leaves CLM-1001 `decided` with the payment, and its steps include a `read` step naming the manual and section.
+- [x] A stub run that tries to pay $1,250 still gets the 409 and leaves the claim `awaiting_signoff`. A stub run that declines leaves no payment.
+- [x] A stub model that raises on its first call, then works, still decides the claim (the retry middleware), with the delays set to zero in the test.
+- [x] A stub model that always raises makes `work_claim` return a failure line, leaves the claim `waiting` with the reason as a step and `attempts` of 1, and a second failure leaves it `needs_handler`. A stub that never decides does the same. Neither raises out of `work_claim`.
+- [x] A claim whose agent fails after deciding is not retried. An approval of $420 with no payment gets paid once by the harness, and a second `work_claim` call changes nothing. An approval over $1,000 is not paid.
+- [x] A test checks that the instructions are fetched from the API, that no agent module reads files or mentions `evals`, and that the default model name is `deepseek/deepseek-v4.1-flash` and `MODEL_NAME` overrides it.
+- [x] `npm run check:python` passes.
 
 ## Phase 4: The queue agent, the cap and the command
 
