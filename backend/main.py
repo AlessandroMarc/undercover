@@ -19,12 +19,17 @@ from backend.models import (
     Decision,
     DocumentName,
     Handler,
+    NewFailure,
     NewPayment,
+    NewRun,
     NewSignOff,
     NewStep,
+    NewTodos,
     Payment,
     Plan,
     Policy,
+    Run,
+    RunEnd,
     Section,
     SectionRef,
     SignOff,
@@ -33,6 +38,8 @@ from backend.models import (
 from backend.seed import seed
 
 Db = Annotated[sqlite3.Connection, Depends(get_db)]
+
+MAX_ATTEMPTS = 2
 
 DOCUMENT_QUERIES = {
     "policies": "SELECT body FROM policies WHERE id = ?",
@@ -163,11 +170,37 @@ def get_claim(claim_id: str, db: Db) -> Claim:
 def start_claim(claim_id: str, db: Db) -> Claim:
     """Mark a claim as in progress when the agent starts work on it."""
     row = claim_row(db, claim_id)
+    if row["status"] == "needs_handler":
+        raise HTTPException(409, f"{claim_id} is left for a handler")
     if row["status"] in ("awaiting_signoff", "decided"):
         raise HTTPException(409, f"{claim_id} is already decided")
     with db:
         db.execute(
-            "UPDATE claims SET status = 'in_progress' WHERE claim_id = ?", (claim_id,)
+            "UPDATE claims SET status = 'in_progress', attempts = attempts + 1"
+            " WHERE claim_id = ?",
+            (claim_id,),
+        )
+    return build_claim(db, claim_row(db, claim_id))
+
+
+@app.post("/api/claims/{claim_id}/failure", operation_id="fail_claim")
+def fail_claim(claim_id: str, failure: NewFailure, db: Db) -> Claim:
+    """Send a claim the agent could not finish back to the queue or to a handler."""
+    row = claim_row(db, claim_id)
+    if row["status"] != "in_progress":
+        raise HTTPException(409, f"{claim_id} is not in progress")
+    left = row["attempts"] >= MAX_ATTEMPTS
+    note = f"Attempt {row['attempts']} failed: {failure.reason}."
+    note += " Left for a handler." if left else " Back in the queue."
+    with db:
+        db.execute(
+            "UPDATE claims SET status = ? WHERE claim_id = ?",
+            ("needs_handler" if left else "waiting", claim_id),
+        )
+        db.execute(
+            "INSERT INTO steps (claim_id, kind, text, created_at)"
+            " VALUES (?, 'message', ?, ?)",
+            (claim_id, note, now()),
         )
     return build_claim(db, claim_row(db, claim_id))
 
@@ -335,3 +368,66 @@ def list_handlers(db: Db) -> list[Handler]:
     """List the claims handlers."""
     rows = db.execute("SELECT body FROM handlers ORDER BY id").fetchall()
     return [Handler.model_validate_json(row["body"]) for row in rows]
+
+
+def run_row(db: sqlite3.Connection, run_id: int, *, running: bool) -> sqlite3.Row:
+    row = db.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, f"Run {run_id} not found")
+    if running and row["status"] != "running":
+        raise HTTPException(409, f"Run {run_id} is over")
+    return row
+
+
+def build_run(row: sqlite3.Row) -> Run:
+    return Run(
+        run_id=row["id"],
+        cap=row["cap"],
+        status=row["status"],
+        summary=row["summary"],
+        started_at=row["started_at"],
+        finished_at=row["finished_at"],
+        todos=json.loads(row["todos"]),
+    )
+
+
+@app.post("/api/runs", operation_id="start_run")
+def start_run(run: NewRun, db: Db) -> Run:
+    """Start a run of the agent over the queue, working at most the cap in claims."""
+    with db:
+        cursor = db.execute(
+            "INSERT INTO runs (cap, status, started_at) VALUES (?, 'running', ?)",
+            (run.cap, now()),
+        )
+    return build_run(run_row(db, cursor.lastrowid or 0, running=False))
+
+
+@app.get("/api/runs/latest", operation_id="get_latest_run")
+def get_latest_run(db: Db) -> Run | None:
+    """Get the newest run with its to-do list, or nothing if there has been none."""
+    row = db.execute("SELECT * FROM runs ORDER BY id DESC LIMIT 1").fetchone()
+    return build_run(row) if row else None
+
+
+@app.put("/api/runs/{run_id}/todos", operation_id="update_todos")
+def update_todos(run_id: int, todos: NewTodos, db: Db) -> Run:
+    """Replace the to-do list of a running run."""
+    run_row(db, run_id, running=True)
+    with db:
+        db.execute(
+            "UPDATE runs SET todos = ? WHERE id = ?",
+            (json.dumps([todo.model_dump() for todo in todos.todos]), run_id),
+        )
+    return build_run(run_row(db, run_id, running=False))
+
+
+@app.post("/api/runs/{run_id}/finish", operation_id="finish_run")
+def finish_run(run_id: int, end: RunEnd, db: Db) -> Run:
+    """Close a running run with its status and a summary for the handlers."""
+    run_row(db, run_id, running=True)
+    with db:
+        db.execute(
+            "UPDATE runs SET status = ?, summary = ?, finished_at = ? WHERE id = ?",
+            (end.status, end.summary, now(), run_id),
+        )
+    return build_run(run_row(db, run_id, running=False))

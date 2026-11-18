@@ -76,13 +76,13 @@ Backend only. Adds the state the harness needs, with the retry rule in the backe
 
 Success criteria:
 
-- [ ] `uv run pytest backend -q` passes, with a test for each transition and each refusal below.
-- [ ] Starting CLM-1001, failing it once puts it back to `waiting` with one failure step and `attempts` of 1. Starting and failing it again leaves it `needs_handler`. Starting it a third time returns 409.
-- [ ] `fail_claim` on a waiting claim, and on a decided claim, returns 409 and changes nothing. A claim decided as approve keeps its decision, and a second `decide_claim` or `pay_claim` still returns 409.
-- [ ] `start_run(5)` then `get_latest_run` returns that run with cap 5 and no items. `update_todos` with two items returns them in order, and a second call with one item leaves one. An unknown status returns 422. `finish_run` twice returns 409. `get_latest_run` with no runs returns null.
-- [ ] A `read` step is accepted and listed in order with the others.
-- [ ] I start the backend, walk CLM-1001 through start, fail, start, fail with `curl`, and `GET /api/claims` shows it as `needs_handler` while the other 24 are `waiting`. Then I delete the database file.
-- [ ] `npm run check:python` passes.
+- [x] `uv run pytest backend -q` passes, with a test for each transition and each refusal below.
+- [x] Starting CLM-1001, failing it once puts it back to `waiting` with one failure step and `attempts` of 1. Starting and failing it again leaves it `needs_handler`. Starting it a third time returns 409.
+- [x] `fail_claim` on a waiting claim, and on a decided claim, returns 409 and changes nothing. A claim decided as approve keeps its decision, and a second `decide_claim` or `pay_claim` still returns 409.
+- [x] `start_run(5)` then `get_latest_run` returns that run with cap 5 and no items. `update_todos` with two items returns them in order, and a second call with one item leaves one. An unknown status returns 422. `finish_run` twice returns 409. `get_latest_run` with no runs returns null.
+- [x] A `read` step is accepted and listed in order with the others.
+- [x] I start the backend, walk CLM-1001 through start, fail, start, fail with `curl`, and `GET /api/claims` shows it as `needs_handler` while the other 24 are `waiting`. Then I delete the database file.
+- [x] `npm run check:python` passes.
 
 ## Phase 3: The claim agent
 

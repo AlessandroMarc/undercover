@@ -30,12 +30,22 @@ CREATE TABLE IF NOT EXISTS claims (
     explanation TEXT,
     policy_section TEXT,
     signed_off_by TEXT,
-    signed_off_on TEXT
+    signed_off_on TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS payments (
     claim_id TEXT PRIMARY KEY,
     amount REAL NOT NULL,
     paid_on TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cap INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    summary TEXT,
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    todos TEXT NOT NULL DEFAULT '[]'
 );
 CREATE TABLE IF NOT EXISTS steps (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

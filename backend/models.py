@@ -4,9 +4,13 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-Status = Literal["waiting", "in_progress", "awaiting_signoff", "decided"]
+Status = Literal[
+    "waiting", "in_progress", "awaiting_signoff", "decided", "needs_handler"
+]
 DecisionKind = Literal["approve", "decline", "refer"]
-StepKind = Literal["tool_call", "tool_result", "message"]
+StepKind = Literal["tool_call", "tool_result", "message", "read"]
+TodoStatus = Literal["todo", "in_progress", "done", "left_for_handler"]
+RunStatus = Literal["running", "finished", "failed"]
 
 DocumentName = Literal["policy-wording", "claims-manual"]
 AgentName = Literal["queue", "claim"]
@@ -156,3 +160,35 @@ class SectionRef(BaseModel):
 
 class Section(SectionRef):
     text: str
+
+
+class NewFailure(BaseModel):
+    reason: str
+
+
+class Todo(BaseModel):
+    content: str
+    status: TodoStatus
+
+
+class NewTodos(BaseModel):
+    todos: list[Todo]
+
+
+class NewRun(BaseModel):
+    cap: int
+
+
+class RunEnd(BaseModel):
+    status: Literal["finished", "failed"]
+    summary: str
+
+
+class Run(BaseModel):
+    run_id: int
+    cap: int
+    status: RunStatus
+    summary: str | None
+    started_at: str
+    finished_at: str | None
+    todos: list[Todo]
