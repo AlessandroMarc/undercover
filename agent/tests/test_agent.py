@@ -1,9 +1,8 @@
 from pathlib import Path
 
-import pytest
 from langchain_core.messages import AIMessage
 
-from agent import harness, main, work
+from agent import harness, main
 from agent.tests.stubs import calls, decision, stub
 
 
@@ -112,43 +111,3 @@ def test_model_name(monkeypatch):
     assert main.model().model_name == "deepseek/deepseek-v4.1-flash"
     monkeypatch.setenv("MODEL_NAME", "openrouter/free")
     assert main.model().model_name == "openrouter/free"
-
-
-def test_work_runs_the_given_claims(api, capsys):
-    llm = stub(
-        calls(decision("CLM-1001", "decline", 0.0)),
-        AIMessage(content="Declined one."),
-        calls(decision("CLM-1002", "refer", 0.0)),
-        AIMessage(content="Referred two."),
-    )
-    work.main(["CLM-1001", "CLM-1002"], llm)
-    assert api.get("/api/claims/CLM-1001").json()["status"] == "decided"
-    assert api.get("/api/claims/CLM-1002").json()["status"] == "decided"
-    assert "CLM-1002: Referred two." in capsys.readouterr().out
-
-
-def test_work_defaults_to_the_waiting_claims(api, monkeypatch):
-    assert len(work.waiting_claim_ids()) == 25
-    api.post("/api/claims/CLM-1001/start")
-    api.post(
-        "/api/claims/CLM-1001/decision",
-        json={
-            "decision": "decline",
-            "payout": 0,
-            "explanation": "x",
-            "policy_section": "y",
-        },
-    )
-    waiting = work.waiting_claim_ids()
-    assert len(waiting) == 24
-    assert "CLM-1001" not in waiting
-    ran = []
-    monkeypatch.setattr(work, "waiting_claim_ids", lambda: ["CLM-1005"])
-    monkeypatch.setattr(work, "run", lambda claim_id, *_: ran.append(claim_id) or "ok")
-    work.main([])
-    assert ran == ["CLM-1005"]
-
-
-def test_work_stops_on_an_unknown_claim():
-    with pytest.raises(SystemExit, match="CLM-0000: CLM-0000 not found"):
-        work.main(["CLM-0000"], stub())

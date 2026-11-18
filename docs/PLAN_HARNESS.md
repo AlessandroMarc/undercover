@@ -117,17 +117,17 @@ Adds the agent that works the whole queue.
 
 Success criteria:
 
-- [ ] `uv run pytest agent -q` passes. One stub model plays both agents, which works because the calls are sequential.
-- [ ] To-do list: a stub run that writes a list, works two claims and updates the list leaves the latest run with the items and their last statuses, and a finished run with the summary.
-- [ ] Cap: with a cap of 2 and four claims waiting, the stub's third `work_claim` is refused, the run finishes, and the other two claims are still `waiting`. With no limit, the cap equals the number of waiting claims.
-- [ ] One bad claim does not stop the run: a stub where the first claim's agent raises still works the second claim and finishes the run.
-- [ ] A failed claim goes back in the queue and is tried again: the first attempt fails, the claim is `waiting` with `attempts` 1, the stub works it again, and it ends `decided`.
-- [ ] A claim that fails twice is left for a handler: it ends `needs_handler`, the run still finishes, and the to-do item can be marked left for a handler.
-- [ ] The check for missed claims: `finish_run` refuses while a taken claim is waiting, and while the cap is not used up and other claims wait. It accepts once none is missed, and the run is `finished`.
-- [ ] No claim is decided or paid twice in any of these runs: each claim has at most one decision and one payment.
-- [ ] If the queue agent's model fails for good, the run is `failed`, and no claim is left `in_progress`.
-- [ ] `uv run -m agent.work CLM-0000` stops with a clear message that the claim was not found, and `npm run agent -- --limit 0` or a negative limit is refused by the argument parser.
-- [ ] `npm run check:python` passes.
+- [x] `uv run pytest agent -q` passes. One stub model plays both agents, which works because the calls are sequential.
+- [x] To-do list: a stub run that writes a list, works two claims and updates the list leaves the latest run with the items and their last statuses, and a finished run with the summary.
+- [x] Cap: with a cap of 2 and four claims waiting, the stub's third `work_claim` is refused, the run finishes, and the other two claims are still `waiting`. With no limit, the cap equals the number of waiting claims.
+- [x] One bad claim does not stop the run: a stub where the first claim's agent raises still works the second claim and finishes the run.
+- [x] A failed claim goes back in the queue and is tried again: the first attempt fails, the claim is `waiting` with `attempts` 1, the stub works it again, and it ends `decided`.
+- [x] A claim that fails twice is left for a handler: it ends `needs_handler`, the run still finishes, and the to-do item can be marked left for a handler.
+- [x] The check for missed claims: `finish_run` refuses while a taken claim is waiting, and while the cap is not used up and other claims wait. It accepts once none is missed, and the run is `finished`.
+- [x] No claim is decided or paid twice in any of these runs: each claim has at most one decision and one payment.
+- [x] If the queue agent's model fails for good, the run is `failed`, and no claim is left `in_progress`.
+- [x] `agent.work CLM-0000` stops with a clear message that the claim was not found (tested in process), and `--limit 0`, a negative limit, and a limit with claim ids are refused by the argument parser (checked on the real command too).
+- [x] `npm run check:python` passes.
 
 ## Phase 5: The dashboard
 

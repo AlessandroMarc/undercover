@@ -140,13 +140,15 @@ def model() -> ChatOpenAI:
     )
 
 
-def middleware():
+def middleware(call_limit: int | None = None):
     """Retry a failed model call, and stop an agent that keeps calling the model."""
     return [
         ModelRetryMiddleware(
             max_retries=2, on_failure="error", initial_delay=RETRY_DELAY
         ),
-        ModelCallLimitMiddleware(run_limit=CALL_LIMIT, exit_behavior="error"),
+        ModelCallLimitMiddleware(
+            run_limit=call_limit or CALL_LIMIT, exit_behavior="error"
+        ),
     ]
 
 
