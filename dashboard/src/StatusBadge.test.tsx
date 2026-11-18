@@ -9,6 +9,7 @@ const cases: [Status, DecisionKind | null, string, string][] = [
   ["waiting", null, "Waiting", "cerulean"],
   ["in_progress", null, "In progress", "marigold"],
   ["awaiting_signoff", "approve", "Needs sign-off", "coral"],
+  ["needs_handler", null, "Left for a handler", "coral"],
   ["decided", "approve", "Approved", "green"],
   ["decided", "decline", "Declined", "raspberry"],
   ["decided", "refer", "Referred", "coral"],

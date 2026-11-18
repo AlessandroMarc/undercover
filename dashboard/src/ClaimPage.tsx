@@ -3,7 +3,7 @@ import { getClaimView } from "./api";
 import { ClaimPanel, PolicyPanel } from "./ClaimDetails";
 import { CopyButton } from "./CopyButton";
 import { DecisionPanel } from "./DecisionPanel";
-import { StepsPanel } from "./StepsPanel";
+import { SectionsPanel, StepsPanel } from "./StepsPanel";
 import { useLoad } from "./useLoad";
 
 const REFRESH_MS = 2000;
@@ -32,7 +32,17 @@ export function ClaimPage({ claimId }: Readonly<{ claimId: string }>) {
       {data && (
         <div className="layout">
           <div className="column">
-            <DecisionPanel claim={data.claim} onSignedOff={reload} />
+            <DecisionPanel
+              claim={data.claim}
+              note={
+                data.claim.status === "needs_handler"
+                  ? data.steps.filter((step) => step.kind === "message").at(-1)
+                      ?.text
+                  : undefined
+              }
+              onSignedOff={reload}
+            />
+            <SectionsPanel steps={data.steps} />
             <StepsPanel steps={data.steps} />
           </div>
           <div className="column">

@@ -4,6 +4,7 @@ import type {
   Customer,
   Handler,
   Policy,
+  Run,
   Step,
 } from "./types";
 
@@ -45,9 +46,22 @@ export async function getPolicyView(
 
 export const getHandlers = () => getJson<Handler[]>("/api/handlers");
 
-export async function getInstructions(): Promise<string> {
-  const response = await fetchOk("/api/instructions");
+export const getLatestRun = () => getJson<Run | null>("/api/runs/latest");
+
+async function getText(path: string): Promise<string> {
+  const response = await fetchOk(path);
   return response.text();
+}
+
+export async function getInstructions(): Promise<{
+  queue: string;
+  claim: string;
+}> {
+  const [queue, claim] = await Promise.all([
+    getText("/api/instructions/queue"),
+    getText("/api/instructions/claim"),
+  ]);
+  return { queue, claim };
 }
 
 export const signOff = (claimId: string, handlerId: string) =>

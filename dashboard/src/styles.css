@@ -254,7 +254,7 @@ dd.mono {
 
 .counts {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -500,4 +500,15 @@ select {
   .counts {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.todo {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.todo .badge {
+  justify-self: start;
 }

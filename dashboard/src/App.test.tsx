@@ -12,7 +12,9 @@ afterEach(() => {
 const routes = {
   ...claimRoutes(claim),
   "GET /api/claims": queue,
-  "GET /api/instructions": "# UnderCover Agent instructions",
+  "GET /api/runs/latest": null,
+  "GET /api/instructions/queue": "You run the queue.",
+  "GET /api/instructions/claim": "You work a claim.",
 };
 
 it("starts on the queue", async () => {
@@ -35,9 +37,7 @@ it("opens the instructions from the navigation", async () => {
   stubApi(routes);
   window.location.hash = "#/instructions";
   render(<App />);
-  expect(
-    await screen.findByText("UnderCover Agent instructions"),
-  ).toBeDefined();
+  expect(await screen.findByText("You work a claim.")).toBeDefined();
   expect(
     screen
       .getByRole("link", { name: "Agent instructions" })

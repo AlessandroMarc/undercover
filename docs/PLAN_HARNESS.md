@@ -140,12 +140,12 @@ Shows the run, the sections read and the new state, in the BRAND style. No new d
 
 Success criteria:
 
-- [ ] `npm run check:ts` passes: Prettier, ESLint, `tsc` and vitest at 80% or more coverage.
-- [ ] Unit tests cover the run panel with no run, a running run with items in each of the four statuses, and a finished run with its summary. They cover the new status card and badge, the sections panel with and without reads, and the two instructions.
-- [ ] With the backend and dashboard running, and a run played through the API, I open `http://localhost:5173` with the Playwright MCP server and check the to-do list, its badges and the fifth card in light and dark mode against `docs/BRAND.md`.
-- [ ] I open a claim with a `read` step in the browser and see the section it read. I open a claim left for a handler and see the reason.
-- [ ] I open `#/instructions` and see both sets of instructions, with no way to edit them.
-- [ ] No page uses a border on one edge of a panel, none has an exclamation mark, and the new text is in sentence case.
+- [x] `npm run check:ts` passes: Prettier, ESLint, `tsc` and vitest at 80% or more coverage.
+- [x] Unit tests cover the run panel with no run, a running run with items in each of the four statuses, and a finished run with its summary. They cover the new status card and badge, the sections panel with and without reads, and the two instructions.
+- [x] With the backend and dashboard running, and a run played through the API, I open `http://localhost:5173` with the Playwright MCP server and check the to-do list, its badges and the fifth card in light and dark mode against `docs/BRAND.md`.
+- [x] I open a claim with a `read` step in the browser and see the section it read. I open a claim left for a handler and see the reason.
+- [x] I open `#/instructions` and see both sets of instructions, with no way to edit them.
+- [x] No page uses a border on one edge of a panel, none has an exclamation mark, and the new text is in sentence case.
 
 ## Phase 6: End to end, documents and the live run
 

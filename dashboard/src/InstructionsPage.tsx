@@ -11,8 +11,8 @@ export function InstructionsPage() {
         <div>
           <h1>Agent instructions</h1>
           <p className="muted">
-            What the agent is told to do on every claim. You can read them here
-            but not change them.
+            What the agent is told to do when it runs the queue and when it
+            works a claim. You can read them here but not change them.
           </p>
         </div>
       </header>
@@ -21,10 +21,17 @@ export function InstructionsPage() {
           We could not load the instructions. Try again.
         </p>
       )}
-      {data !== undefined && (
-        <section className="panel">
-          <Markdown source={data} />
-        </section>
+      {data && (
+        <>
+          <section className="panel stack">
+            <h2>Running the queue</h2>
+            <Markdown source={data.queue} />
+          </section>
+          <section className="panel stack">
+            <h2>Working a claim</h2>
+            <Markdown source={data.claim} />
+          </section>
+        </>
       )}
     </>
   );

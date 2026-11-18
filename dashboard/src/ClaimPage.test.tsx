@@ -13,6 +13,7 @@ import {
   claim,
   claimRoutes,
   decided,
+  readSteps,
   stubApi,
 } from "./test-utils";
 
@@ -162,4 +163,35 @@ it("loads the policy and the customer once, not on every render", async () => {
   expect(requested("/api/policies/POL-2001")).toBe(1);
   expect(requested("/api/customers/CUS-3001")).toBe(1);
   expect(requested("/api/handlers")).toBeLessThanOrEqual(1);
+});
+
+it("lists each section the agent read once, and every read in the steps", async () => {
+  stubApi({
+    ...claimRoutes(claim),
+    "GET /api/claims/CLM-1001/steps": readSteps.slice(0, 2),
+  });
+  render(<ClaimPage claimId="CLM-1001" />);
+  expect(await screen.findByText("Sections read")).toBeDefined();
+  expect(
+    screen.getAllByText("Claims manual, 10. Meals without receipts"),
+  ).toHaveLength(3);
+});
+
+it("says nothing was read yet", async () => {
+  stubApi({ ...claimRoutes(claim), "GET /api/claims/CLM-1001/steps": [] });
+  render(<ClaimPage claimId="CLM-1001" />);
+  expect(await screen.findByText(/None yet\./)).toBeDefined();
+});
+
+it("shows why a claim was left for a handler", async () => {
+  stubApi({
+    ...claimRoutes({ ...claim, status: "needs_handler" }),
+    "GET /api/claims/CLM-1001/steps": readSteps,
+  });
+  render(<ClaimPage claimId="CLM-1001" />);
+  expect(
+    await screen.findByText(
+      /could not finish this claim.*Attempt 2 failed: TimeoutError\./,
+    ),
+  ).toBeDefined();
 });

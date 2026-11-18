@@ -1,6 +1,9 @@
-export type Status = "waiting" | "in_progress" | "awaiting_signoff" | "decided";
+export type Status =
+  "waiting" | "in_progress" | "awaiting_signoff" | "decided" | "needs_handler";
 export type DecisionKind = "approve" | "decline" | "refer";
-export type StepKind = "tool_call" | "tool_result" | "message";
+export type StepKind = "tool_call" | "tool_result" | "message" | "read";
+export type TodoStatus = "todo" | "in_progress" | "done" | "left_for_handler";
+export type RunStatus = "running" | "finished" | "failed";
 
 export interface Item {
   description: string;
@@ -110,4 +113,19 @@ export interface Handler {
   name: string;
   role: string;
   can_approve_over_limit: boolean;
+}
+
+export interface Todo {
+  content: string;
+  status: TodoStatus;
+}
+
+export interface Run {
+  run_id: number;
+  cap: number;
+  status: RunStatus;
+  summary: string | null;
+  started_at: string;
+  finished_at: string | null;
+  todos: Todo[];
 }

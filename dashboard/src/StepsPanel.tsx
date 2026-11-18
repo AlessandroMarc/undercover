@@ -5,7 +5,33 @@ const KINDS: Record<StepKind, string> = {
   tool_call: "Tool call",
   tool_result: "Result",
   message: "Agent",
+  read: "Read",
 };
+
+export function SectionsPanel({ steps }: Readonly<{ steps: Step[] }>) {
+  const reads = [
+    ...new Set(steps.filter((step) => step.kind === "read").map((s) => s.text)),
+  ];
+  return (
+    <section className="panel stack">
+      <h2>Sections read</h2>
+      {reads.length === 0 ? (
+        <p className="muted">
+          None yet. The sections of the policy wording and the claims manual
+          that the agent reads appear here.
+        </p>
+      ) : (
+        <ul className="steps">
+          {reads.map((text) => (
+            <li className="nested" key={text}>
+              {text}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 export function StepsPanel({ steps }: Readonly<{ steps: Step[] }>) {
   const now = new Date();

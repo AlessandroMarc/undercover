@@ -5,6 +5,7 @@ import type {
   Customer,
   Handler,
   Policy,
+  Run,
   Step,
 } from "./types";
 
@@ -188,3 +189,46 @@ export const claimRoutes = (record: Claim) => ({
   "GET /api/customers/CUS-3001": customer,
   "GET /api/handlers": handlers,
 });
+
+export const runningRun: Run = {
+  run_id: 1,
+  cap: 5,
+  status: "running",
+  summary: null,
+  started_at: "2026-11-04T14:00:00",
+  finished_at: null,
+  todos: [
+    { content: "CLM-1001 trip delay", status: "done" },
+    { content: "CLM-1002 baggage", status: "in_progress" },
+    { content: "CLM-1003 medical", status: "todo" },
+    { content: "CLM-1004 passport", status: "left_for_handler" },
+  ],
+};
+
+export const finishedRun: Run = {
+  ...runningRun,
+  status: "finished",
+  summary: "Four claims worked. One waits for sign-off.",
+  finished_at: "2026-11-04T14:20:00",
+};
+
+export const readSteps: Step[] = [
+  {
+    id: 3,
+    kind: "read",
+    text: "Claims manual, 10. Meals without receipts",
+    created_at: "2026-11-04T14:29:40",
+  },
+  {
+    id: 4,
+    kind: "read",
+    text: "Claims manual, 10. Meals without receipts",
+    created_at: "2026-11-04T14:29:50",
+  },
+  {
+    id: 5,
+    kind: "message",
+    text: "Attempt 2 failed: TimeoutError. Left for a handler.",
+    created_at: "2026-11-04T14:30:00",
+  },
+];

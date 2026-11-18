@@ -1,6 +1,7 @@
 import { getQueue } from "./api";
 import { formatCount, formatMoney, humanize } from "./format";
 import type { IconName, Tone } from "./status";
+import { RunPanel } from "./RunPanel";
 import { StatusBadge, ToneBadge } from "./StatusBadge";
 import type { ClaimSummary, Status } from "./types";
 import { useLoad } from "./useLoad";
@@ -26,6 +27,12 @@ const STATES: {
     icon: "pen",
   },
   { status: "decided", label: "Decided", tone: "green", icon: "check" },
+  {
+    status: "needs_handler",
+    label: "Left for a handler",
+    tone: "coral",
+    icon: "question",
+  },
 ];
 
 function Counts({ claims }: Readonly<{ claims: ClaimSummary[] }>) {
@@ -45,7 +52,13 @@ function Counts({ claims }: Readonly<{ claims: ClaimSummary[] }>) {
 
 function Row({ claim }: Readonly<{ claim: ClaimSummary }>) {
   return (
-    <tr data-attention={claim.status === "awaiting_signoff" || undefined}>
+    <tr
+      data-attention={
+        claim.status === "awaiting_signoff" ||
+        claim.status === "needs_handler" ||
+        undefined
+      }
+    >
       <td className="mono">
         <a className="row-link" href={`#/claims/${claim.claim_id}`}>
           {claim.claim_id}
@@ -84,6 +97,7 @@ export function QueuePage() {
       )}
       {data && (
         <>
+          <RunPanel />
           <Counts claims={data} />
           <section className="panel">
             <table>

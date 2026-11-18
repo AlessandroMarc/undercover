@@ -104,11 +104,29 @@ function Outcome({
   );
 }
 
+function Undecided({ claim, note }: Readonly<{ claim: Claim; note?: string }>) {
+  if (claim.status === "needs_handler") {
+    return (
+      <p>
+        The agent could not finish this claim, so a handler needs to take it.
+        {note && ` ${note}`}
+      </p>
+    );
+  }
+  return (
+    <p className="muted">
+      The agent has not decided this claim yet. Its decision appears here.
+    </p>
+  );
+}
+
 export function DecisionPanel({
   claim,
+  note,
   onSignedOff,
 }: Readonly<{
   claim: Claim;
+  note?: string;
   onSignedOff: () => void;
 }>) {
   return (
@@ -123,9 +141,7 @@ export function DecisionPanel({
       {claim.decision ? (
         <Outcome claim={claim} onSignedOff={onSignedOff} />
       ) : (
-        <p className="muted">
-          The agent has not decided this claim yet. Its decision appears here.
-        </p>
+        <Undecided claim={claim} note={note} />
       )}
     </section>
   );

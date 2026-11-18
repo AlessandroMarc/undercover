@@ -9,7 +9,6 @@ afterEach(() => {
 });
 
 const text = [
-  "# UnderCover Agent instructions",
   "## Steps",
   "1. Call `get_claim` first.",
   "   - **approve**: covered.",
@@ -20,12 +19,19 @@ const text = [
 ].join("\n");
 
 it("shows the instructions read only", async () => {
-  stubApi({ "GET /api/instructions": text });
+  stubApi({
+    "GET /api/instructions/queue": "You run the queue.",
+    "GET /api/instructions/claim": text,
+  });
   render(<InstructionsPage />);
 
   expect(
-    await screen.findByText("UnderCover Agent instructions"),
+    await screen.findByRole("heading", { name: "Running the queue" }),
   ).toBeDefined();
+  expect(
+    screen.getByRole("heading", { name: "Working a claim" }),
+  ).toBeDefined();
+  expect(screen.getByText("You run the queue.")).toBeDefined();
   expect(screen.getByText("get_claim").tagName).toBe("CODE");
   expect(screen.getByText("approve").tagName).toBe("STRONG");
   const lists = screen.getAllByRole("list");
